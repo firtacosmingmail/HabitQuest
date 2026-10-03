@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'features/game/game_providers.dart';
 
 /// Root widget. Expects a [ProviderScope] above it that overrides
 /// `habitRepositoryProvider`.
@@ -11,6 +12,8 @@ class HabitQuestApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Start the game engine at launch so it hears every check-in.
+    ref.watch(gameEngineProvider);
     return MaterialApp.router(
       title: 'Habit Quest',
       debugShowCheckedModeBanner: false,
