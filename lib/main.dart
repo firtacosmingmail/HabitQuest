@@ -7,6 +7,7 @@ import 'data/repositories/hive_habit_repository.dart';
 import 'domain/providers.dart';
 import 'features/game/game_providers.dart';
 import 'features/game/game_repository.dart';
+import 'features/notifications/notifications_bootstrap.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,7 +21,7 @@ Future<void> main() async {
         habitRepositoryProvider.overrideWithValue(repository),
         gameRepositoryProvider.overrideWithValue(gameRepository),
       ],
-      child: const HabitQuestApp(),
+      child: const NotificationsBootstrap(child: HabitQuestApp()),
     ),
   );
 }
