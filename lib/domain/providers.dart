@@ -80,15 +80,32 @@ final dueHabitsProvider = Provider.family<AsyncValue<List<Habit>>, DateTime>(
   },
 );
 
+// Providers watched by screens that live under a pushed route (the shell
+// tabs) must depend on the base providers only (habitsProvider,
+// completionsProvider, todayProvider), never on another derived provider.
+// Riverpod pauses a widget's subscriptions while its route is offstage
+// (TickerMode off) and resumes them *during the build* that brings it back.
+// If a derived provider in between went stale while paused, flushing it on
+// resume makes it notify its dependents, which then call invalidateSelf and
+// schedule a refresh on the ProviderScope mid-build ("setState() or
+// markNeedsBuild() called during build").
+
 /// Habits due today.
-final dueTodayProvider = Provider<AsyncValue<List<Habit>>>(
-  (ref) => ref.watch(dueHabitsProvider(ref.watch(todayProvider))),
-);
+final dueTodayProvider = Provider<AsyncValue<List<Habit>>>((ref) {
+  final date = ref.watch(todayProvider);
+  final habits = ref.watch(habitsProvider);
+  final log = ref.watch(completionsProvider);
+  return _combine(habits, log, (h, c) => dueHabitsOn(h, date, c));
+});
 
 /// Current/best streak of a habit as of today (`null` if the habit is
-/// unknown or data is still loading).
+/// unknown or deleted, or data is still loading).
 final streakProvider = Provider.family<StreakInfo?, String>((ref, habitId) {
-  final habit = ref.watch(habitByIdProvider(habitId)).value;
+  final habit = ref
+      .watch(habitsProvider)
+      .value
+      ?.where((h) => h.id == habitId)
+      .firstOrNull;
   final log = ref.watch(completionsProvider).value;
   if (habit == null || log == null) return null;
   return streakInfo(habit, log, ref.watch(todayProvider));

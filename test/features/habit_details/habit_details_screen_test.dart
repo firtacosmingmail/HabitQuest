@@ -199,6 +199,42 @@ void main() {
     expect(find.byType(HabitsScreen), findsOneWidget);
   });
 
+  // Regression: the habits list stays mounted (paused, offstage) under the
+  // details route. Check-ins made on the details screen must not make its
+  // providers notify each other mid-build when the list comes back.
+  testWidgets('check-ins on details show on the habits list after going back',
+      (tester) async {
+    tester.view.physicalSize = const Size(420, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await pumpHabitQuestApp(tester, repository: repo, clock: clock);
+    expect(find.byKey(const ValueKey('today-progress')), findsOneWidget);
+    expect(find.text('0/1 done'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('habit-card-h1')));
+    await tester.pumpAndSettle();
+    expect(find.byType(HabitDetailsScreen), findsOneWidget);
+
+    await tester.tap(find.byKey(habitCalendarDayKey(d(2026, 1, 5))));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(habitCalendarDayKey(d(2026, 1, 10))));
+    await tester.pumpAndSettle();
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.byType(HabitsScreen), findsOneWidget);
+    expect(find.text('1/1 done'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('habit-card-h1')),
+        matching: find.textContaining('10'),
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('renders in dark mode without errors', (tester) async {
     tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
     addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
