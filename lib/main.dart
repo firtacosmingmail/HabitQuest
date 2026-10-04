@@ -5,6 +5,7 @@ import 'package:hive_ce_flutter/hive_ce_flutter.dart';
 import 'app.dart';
 import 'data/repositories/hive_habit_repository.dart';
 import 'domain/providers.dart';
+import 'features/notifications/notifications_bootstrap.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,7 +15,7 @@ Future<void> main() async {
   runApp(
     ProviderScope(
       overrides: [habitRepositoryProvider.overrideWithValue(repository)],
-      child: const HabitQuestApp(),
+      child: const NotificationsBootstrap(child: HabitQuestApp()),
     ),
   );
 }
