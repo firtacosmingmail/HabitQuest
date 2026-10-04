@@ -9,6 +9,7 @@ import '../../data/models/completion_log.dart';
 import '../../data/models/habit.dart';
 import '../../domain/providers.dart';
 import '../../domain/streaks.dart';
+import '../game/ui/level_chip.dart';
 import 'widgets/habit_card.dart';
 import 'widgets/schedule_summary.dart';
 
@@ -160,7 +161,16 @@ class _Header extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(greeting, style: theme.textTheme.headlineMedium),
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            alignment: WrapAlignment.spaceBetween,
+            children: [
+              Text(greeting, style: theme.textTheme.headlineMedium),
+              const LevelChip(),
+            ],
+          ),
           if (showProgress) ...[
             const SizedBox(height: 12),
             Container(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:habit_quest/app.dart';
 import 'package:habit_quest/core/router/app_router.dart';
@@ -14,17 +15,22 @@ Future<ProviderContainer> pumpHabitQuestApp(
   HabitRepository? repository,
   DateTime Function()? clock,
   String initialLocation = '/habits',
+  List<Override> overrides = const [],
 }) async {
-  final container = ProviderContainer(overrides: [
-    habitRepositoryProvider
-        .overrideWithValue(repository ?? InMemoryHabitRepository()),
-    if (clock != null) clockProvider.overrideWithValue(clock),
-    routerProvider.overrideWith((ref) {
-      final router = createRouter(initialLocation: initialLocation);
-      ref.onDispose(router.dispose);
-      return router;
-    }),
-  ]);
+  final container = ProviderContainer(
+    overrides: [
+      ...overrides,
+      habitRepositoryProvider.overrideWithValue(
+        repository ?? InMemoryHabitRepository(),
+      ),
+      if (clock != null) clockProvider.overrideWithValue(clock),
+      routerProvider.overrideWith((ref) {
+        final router = createRouter(initialLocation: initialLocation);
+        ref.onDispose(router.dispose);
+        return router;
+      }),
+    ],
+  );
   addTearDown(container.dispose);
   await tester.pumpWidget(
     UncontrolledProviderScope(
@@ -44,8 +50,9 @@ Widget wrapForTest(
 }) {
   return ProviderScope(
     overrides: [
-      habitRepositoryProvider
-          .overrideWithValue(repository ?? InMemoryHabitRepository()),
+      habitRepositoryProvider.overrideWithValue(
+        repository ?? InMemoryHabitRepository(),
+      ),
       if (clock != null) clockProvider.overrideWithValue(clock),
     ],
     child: MaterialApp(theme: AppTheme.light, home: child),
