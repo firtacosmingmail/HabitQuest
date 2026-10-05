@@ -19,7 +19,7 @@ lib/
     theme/app_colors.dart    AppColors (brand), HabitPalette (habit colour choices)
     theme/app_theme.dart     AppTheme.light / .dark, radii, useGoogleFonts flag
     utils/dates.dart         date-only helpers (dateOnly, addDays, daysBetween, ISO weeks, dateKey)
-    widgets/placeholder_screen.dart
+    widgets/message_view.dart  MessageView: shared emoji + title + message empty/error/not-found state
   data/
     models/habit.dart            Habit, ReminderTime
     models/habit_schedule.dart   sealed HabitSchedule + 4 subclasses
@@ -44,11 +44,13 @@ test/
   flutter_test_config.dart   disables Google Fonts fetching for all tests
   helpers/test_app.dart      pumpHabitQuestApp(tester, …), wrapForTest(widget, …)
   helpers/fixtures.dart      d(y,m,d), habit(…), log(…), range(…)
+  flows/                     end-to-end check-in flows across screens + game engine
 ```
 
-Each feature task owns its folder. Placeholder screens keep their class name
-and constructor (`HabitFormScreen({String? habitId})`,
-`HabitDetailsScreen({required String habitId})`) because the router uses them.
+Each feature owns its folder. The router depends on the screen constructors
+(`HabitFormScreen({String? habitId})`,
+`HabitDetailsScreen({required String habitId})`). Unknown routes show a
+friendly "lost" page (`errorBuilder`) that links back to `/habits`.
 
 ## Dates
 
