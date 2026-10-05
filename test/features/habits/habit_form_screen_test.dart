@@ -210,7 +210,7 @@ void main() {
     await tester.tap(find.byTooltip('Delete'));
     await tester.pumpAndSettle();
     expect(find.text('Delete “Drink water”?'), findsOneWidget);
-    await tester.tap(find.text('Cancel'));
+    await tester.tap(find.text('Keep it'));
     await tester.pumpAndSettle();
     expect(repo.getHabit('h1'), isNotNull);
 
@@ -223,5 +223,22 @@ void main() {
     expect(repo.getCompletions().totalFor('h1'), 0);
     expect(router.routerDelegate.currentConfiguration.uri.path, '/habits');
     expect(find.text('Your quest begins here'), findsOneWidget);
+    expect(find.text('💧 Drink water deleted'), findsOneWidget);
+  });
+
+  testWidgets('editing an unknown habit shows the not-found state',
+      (tester) async {
+    final c = await pumpHabitQuestApp(tester, clock: clock);
+    c.read(routerProvider).push('/habits/nope/edit');
+    await tester.pumpAndSettle();
+    expect(key('edit-habit-not-found'), findsOneWidget);
+    expect(key('save-habit'), findsNothing);
+
+    await tester.tap(find.text('Back to habits'));
+    await tester.pumpAndSettle();
+    expect(
+      c.read(routerProvider).routerDelegate.currentConfiguration.uri.path,
+      '/habits',
+    );
   });
 }

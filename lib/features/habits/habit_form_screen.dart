@@ -7,7 +7,9 @@ import 'package:intl/intl.dart';
 import '../../core/constants/habit_defaults.dart';
 import '../../core/router/app_routes.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_theme.dart';
 import '../../core/utils/dates.dart';
+import '../../core/widgets/message_view.dart';
 import '../../data/models/habit.dart';
 import '../../data/models/habit_schedule.dart';
 import '../../domain/providers.dart';
@@ -137,8 +139,8 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
     if (!mounted) return;
     _showSnack(
       original.archived
-          ? '${original.name} is back in action!'
-          : '${original.name} archived',
+          ? '${original.emoji} ${original.name} is back in action!'
+          : '${original.emoji} ${original.name} archived',
     );
     _close();
   }
@@ -148,16 +150,15 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        icon: const Text('🗑️', style: TextStyle(fontSize: 40)),
+        icon: Text(original.emoji, style: const TextStyle(fontSize: 40)),
         title: Text('Delete “${original.name}”?'),
         content: const Text(
-          'This removes the habit and all of its check-ins. '
-          'This cannot be undone.',
+          'All of its check-ins and streaks will be gone for good.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            child: const Text('Keep it'),
           ),
           FilledButton(
             key: const ValueKey('confirm-delete'),
@@ -175,7 +176,11 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
     await ref.read(habitServiceProvider).deleteHabit(original.id);
     if (!mounted) return;
     // The details screen of a deleted habit is gone too: back to the list.
+    final messenger = ScaffoldMessenger.maybeOf(context);
     context.go(AppRoutes.habits);
+    messenger?.showSnackBar(
+      SnackBar(content: Text('${original.emoji} ${original.name} deleted')),
+    );
   }
 
   void _showSnack(String message) {
@@ -228,7 +233,17 @@ class _HabitFormScreenState extends ConsumerState<HabitFormScreen> {
     if (missing) {
       return Scaffold(
         appBar: AppBar(title: const Text('Edit habit')),
-        body: const Center(child: Text('🤔  This habit could not be found.')),
+        body: MessageView(
+          key: const ValueKey('edit-habit-not-found'),
+          emoji: '🕵️',
+          title: 'Habit not found',
+          message: 'This habit may have been deleted.',
+          action: FilledButton.icon(
+            onPressed: () => context.go(AppRoutes.habits),
+            icon: const Icon(Icons.arrow_back_rounded),
+            label: const Text('Back to habits'),
+          ),
+        ),
       );
     }
     final original = _original;
@@ -433,9 +448,9 @@ class _TileButton extends StatelessWidget {
     final theme = Theme.of(context);
     return Material(
       color: theme.inputDecorationTheme.fillColor,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(AppTheme.radiusSmall + 4),
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppTheme.radiusSmall + 4),
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/router/app_routes.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/message_view.dart';
 import '../../data/models/completion_log.dart';
 import '../../data/models/habit.dart';
 import '../../domain/providers.dart';
@@ -28,7 +29,11 @@ class HabitsScreen extends ConsumerWidget {
     final error = active.error ?? due.error ?? log.error;
     final Widget body;
     if (error != null) {
-      body = Center(child: Text('😵 Something went wrong\n$error'));
+      body = MessageView(
+        emoji: '😵',
+        title: 'Something went wrong',
+        message: 'Your habits could not be loaded.\n$error',
+      );
     } else if (!active.hasValue || !due.hasValue || !log.hasValue) {
       body = const Center(child: CircularProgressIndicator());
     } else {

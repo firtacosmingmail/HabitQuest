@@ -7,6 +7,7 @@ import '../../features/habit_details/habit_details_screen.dart';
 import '../../features/habits/habit_form_screen.dart';
 import '../../features/habits/habits_screen.dart';
 import '../../features/quest/quest_screen.dart';
+import '../widgets/message_view.dart';
 import 'app_routes.dart';
 import 'app_shell.dart';
 
@@ -17,6 +18,20 @@ GoRouter createRouter({String initialLocation = AppRoutes.habits}) {
   return GoRouter(
     navigatorKey: rootNavigatorKey,
     initialLocation: initialLocation,
+    errorBuilder: (context, state) => Scaffold(
+      appBar: AppBar(),
+      body: MessageView(
+        key: const ValueKey('route-not-found'),
+        emoji: '🧭',
+        title: 'Lost on the quest map',
+        message: 'There is nothing at “${state.uri.path}”.',
+        action: FilledButton.icon(
+          onPressed: () => context.go(AppRoutes.habits),
+          icon: const Icon(Icons.arrow_back_rounded),
+          label: const Text('Back to habits'),
+        ),
+      ),
+    ),
     routes: [
       GoRoute(path: '/', redirect: (_, _) => AppRoutes.habits),
       StatefulShellRoute.indexedStack(

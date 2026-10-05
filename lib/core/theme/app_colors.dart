@@ -12,6 +12,8 @@ abstract final class AppColors {
   static const xpGold = sunshine;
   static const success = mint;
   static const perfectDay = Color(0xFFFFD166);
+  /// Readable gold for Perfect Day text on light and dark surfaces.
+  static const perfectDayInk = Color(0xFFB8860B);
 
   static const lightBackground = Color(0xFFFFF8F0);
   static const lightSurface = Color(0xFFFFFFFF);

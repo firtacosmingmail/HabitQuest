@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/dates.dart';
+import '../../core/widgets/message_view.dart';
 import '../../data/models/completion_log.dart';
 import '../../data/models/habit.dart';
 import '../../domain/providers.dart';
@@ -63,33 +64,59 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
         isSameDay(_month, startOfMonth(today)) && isSameDay(_selected, today);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Calendar'),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: FilledButton.tonalIcon(
-              key: const ValueKey('calendar-today-button'),
-              onPressed: onTodayView ? null : _goToToday,
-              icon: const Icon(Icons.today_rounded),
-              label: const Text('Today'),
-              style: FilledButton.styleFrom(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              ),
+      body: SafeArea(
+        bottom: false,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 560),
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Calendar',
+                          style: Theme.of(context).textTheme.headlineMedium,
+                        ),
+                      ),
+                      FilledButton.tonalIcon(
+                        key: const ValueKey('calendar-today-button'),
+                        onPressed: onTodayView ? null : _goToToday,
+                        icon: const Icon(Icons.today_rounded),
+                        label: const Text('Today'),
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: switch ((habits, log)) {
+                    (AsyncValue(error: final Object e), _) ||
+                    (_, AsyncValue(error: final Object e)) => MessageView(
+                      emoji: '😵',
+                      title: 'Something went wrong',
+                      message: 'The calendar could not be loaded.\n$e',
+                    ),
+                    (
+                      AsyncValue(value: final List<Habit> h),
+                      AsyncValue(value: final CompletionLog l),
+                    ) =>
+                      _body(context, today, h, l),
+                    _ => const Center(child: CircularProgressIndicator()),
+                  },
+                ),
+              ],
             ),
           ),
-        ],
+        ),
       ),
-      body: switch ((habits, log)) {
-        (AsyncValue(error: final Object e), _) ||
-        (_, AsyncValue(error: final Object e)) =>
-          Center(child: Text('Oops, the calendar tripped: $e')),
-        (AsyncValue(value: final List<Habit> h),
-              AsyncValue(value: final CompletionLog l)) =>
-          _body(context, today, h, l),
-        _ => const Center(child: CircularProgressIndicator()),
-      },
     );
   }
 
@@ -106,130 +133,133 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     final dueOnSelected = dueHabitsOn(habits, _selected, log);
     final selectedIsFuture = _selected.isAfter(today);
 
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 560),
-        child: ListView(
-          padding: const EdgeInsets.only(bottom: 24),
-          children: [
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
-                child: GestureDetector(
-                  behavior: HitTestBehavior.translucent,
-                  onHorizontalDragEnd: (details) {
-                    final v = details.primaryVelocity ?? 0;
-                    if (v.abs() < 200) return;
-                    _changeMonth(v < 0 ? 1 : -1);
-                  },
-                  child: Column(
+    return ListView(
+      padding: const EdgeInsets.only(bottom: 24),
+      children: [
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onHorizontalDragEnd: (details) {
+                final v = details.primaryVelocity ?? 0;
+                if (v.abs() < 200) return;
+                _changeMonth(v < 0 ? 1 : -1);
+              },
+              child: Column(
+                children: [
+                  _MonthHeader(
+                    month: _month,
+                    onPrevious: () => _changeMonth(-1),
+                    onNext: () => _changeMonth(1),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
                     children: [
-                      _MonthHeader(
-                        month: _month,
-                        onPrevious: () => _changeMonth(-1),
-                        onNext: () => _changeMonth(1),
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          for (final w in _weekdays)
-                            Expanded(
-                              child: Center(
-                                child: Text(
-                                  w,
-                                  style: theme.textTheme.labelMedium?.copyWith(
-                                    color: theme.colorScheme.onSurface
-                                        .withValues(alpha: 0.6),
-                                    fontWeight: FontWeight.w700,
-                                  ),
+                      for (final w in _weekdays)
+                        Expanded(
+                          child: Center(
+                            child: Text(
+                              w,
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                color: theme.colorScheme.onSurface.withValues(
+                                  alpha: 0.6,
                                 ),
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 250),
-                        child: Column(
-                          key: ValueKey(dateKey(_month)),
-                          children: [
-                            for (var r = 0; r < cells.length; r += 7)
-                              Row(
-                                children: [
-                                  for (final day in cells.sublist(r, r + 7))
-                                    Expanded(
-                                      child: AspectRatio(
-                                        aspectRatio: 1,
-                                        child: day == null
-                                            ? const SizedBox.shrink()
-                                            : DayCell(
-                                                status: dayStatus(
-                                                    day, today, habits, log),
-                                                isToday: isSameDay(day, today),
-                                                isSelected:
-                                                    isSameDay(day, _selected),
-                                                onTap: () => setState(
-                                                    () => _selected = day),
-                                              ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                          ],
+                          ),
                         ),
-                      ),
                     ],
                   ),
-                ),
-              ),
-            ),
-            _MonthSummary(count: perfectCount),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 12, 24, 4),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      _selectedTitle(today),
-                      key: const ValueKey('calendar-selected-title'),
-                      style: theme.textTheme.titleLarge,
+                  const SizedBox(height: 4),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 250),
+                    child: Column(
+                      key: ValueKey(dateKey(_month)),
+                      children: [
+                        for (var r = 0; r < cells.length; r += 7)
+                          Row(
+                            children: [
+                              for (final day in cells.sublist(r, r + 7))
+                                Expanded(
+                                  child: AspectRatio(
+                                    aspectRatio: 1,
+                                    child: day == null
+                                        ? const SizedBox.shrink()
+                                        : DayCell(
+                                            status: dayStatus(
+                                              day,
+                                              today,
+                                              habits,
+                                              log,
+                                            ),
+                                            isToday: isSameDay(day, today),
+                                            isSelected: isSameDay(
+                                              day,
+                                              _selected,
+                                            ),
+                                            onTap: () =>
+                                                setState(() => _selected = day),
+                                          ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                      ],
                     ),
                   ),
-                  if (selectedStatus.kind == DayKind.tracked)
-                    Text(
-                      selectedStatus.isPerfect
-                          ? '⭐ Perfect!'
-                          : '${selectedStatus.done}/${selectedStatus.due} done',
-                      key: const ValueKey('calendar-selected-progress'),
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        color: selectedStatus.isPerfect
-                            ? const Color(0xFFB8860B)
-                            : AppColors.success,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
                 ],
               ),
             ),
-            if (selectedIsFuture && dueOnSelected.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 0, 24, 4),
+          ),
+        ),
+        _MonthSummary(count: perfectCount),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 4),
+          child: Row(
+            children: [
+              Expanded(
                 child: Text(
-                  'A peek at what’s coming — check-ins open on the day.',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                  ),
+                  _selectedTitle(today),
+                  key: const ValueKey('calendar-selected-title'),
+                  style: theme.textTheme.titleLarge,
                 ),
               ),
-            DayHabitList(
-              date: _selected,
-              habits: dueOnSelected,
-              log: log,
-              readOnly: selectedIsFuture,
-            ),
-          ],
+              if (selectedStatus.kind == DayKind.tracked)
+                Text(
+                  selectedStatus.isPerfect
+                      ? '⭐ Perfect!'
+                      : '${selectedStatus.done}/${selectedStatus.due} done',
+                  key: const ValueKey('calendar-selected-progress'),
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: selectedStatus.isPerfect
+                        ? AppColors.perfectDayInk
+                        : AppColors.success,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+            ],
+          ),
         ),
-      ),
+        if (selectedIsFuture && dueOnSelected.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 4),
+            child: Text(
+              'A peek at what’s coming — check-ins open on the day.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+              ),
+            ),
+          ),
+        DayHabitList(
+          date: _selected,
+          habits: dueOnSelected,
+          log: log,
+          readOnly: selectedIsFuture,
+          hasHabits: habits.any((h) => !h.archived),
+        ),
+      ],
     );
   }
 
@@ -309,7 +339,9 @@ class _MonthSummary extends StatelessWidget {
       child: Text(
         text,
         textAlign: TextAlign.center,
-        style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+        style: theme.textTheme.titleSmall?.copyWith(
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }

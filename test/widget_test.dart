@@ -54,6 +54,19 @@ void main() {
     );
   });
 
+  testWidgets('unknown routes show a friendly page that leads home',
+      (tester) async {
+    final c = await pumpHabitQuestApp(tester, initialLocation: '/nowhere');
+    expect(find.byKey(const ValueKey('route-not-found')), findsOneWidget);
+    await tester.tap(find.text('Back to habits'));
+    await tester.pumpAndSettle();
+    expect(
+      c.read(routerProvider).routerDelegate.currentConfiguration.uri.path,
+      '/habits',
+    );
+    expect(find.byType(HabitsScreen), findsOneWidget);
+  });
+
   testWidgets('"/" redirects to /habits', (tester) async {
     final c = await pumpHabitQuestApp(tester, initialLocation: '/');
     expect(

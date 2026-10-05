@@ -18,17 +18,54 @@ class DayHabitList extends ConsumerWidget {
   final CompletionLog log;
   final bool readOnly;
 
+  /// Whether the user has any active habit at all (otherwise a "create your
+  /// first habit" prompt is shown instead of "nothing due").
+  final bool hasHabits;
+
   const DayHabitList({
     super.key,
     required this.date,
     required this.habits,
     required this.log,
     required this.readOnly,
+    this.hasHabits = true,
   });
+
+  Future<void> _toggle(BuildContext context, WidgetRef ref, Habit habit) async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    try {
+      await ref.read(habitServiceProvider).toggleCompletion(habit.id, date);
+    } on Object catch (e) {
+      messenger?.showSnackBar(SnackBar(content: Text('Could not update: $e')));
+    }
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    if (!hasHabits) {
+      return Padding(
+        key: const ValueKey('calendar-no-habits'),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+        child: Column(
+          children: [
+            const Text('🌱', style: TextStyle(fontSize: 48)),
+            const SizedBox(height: 8),
+            Text(
+              'No habits yet — plant one to fill your calendar!',
+              style: theme.textTheme.titleMedium,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: () => context.push(AppRoutes.newHabit),
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Create a habit'),
+            ),
+          ],
+        ),
+      );
+    }
     if (habits.isEmpty) {
       return Padding(
         key: const ValueKey('calendar-empty-day'),
@@ -53,9 +90,7 @@ class DayHabitList extends ConsumerWidget {
             habit: habit,
             done: log.isCompleted(habit.id, date),
             readOnly: readOnly,
-            onToggle: () => ref
-                .read(habitServiceProvider)
-                .toggleCompletion(habit.id, date),
+            onToggle: () => _toggle(context, ref, habit),
           ),
       ],
     );

@@ -116,8 +116,28 @@ void main() {
     expect(find.text('⭐ Perfect!'), findsOneWidget);
   });
 
-  testWidgets('shows friendly text when nothing is due', (tester) async {
+  testWidgets('prompts to create a habit when there are none',
+      (tester) async {
     await pumpCalendar(tester, repo: InMemoryHabitRepository());
+
+    expect(find.byKey(const ValueKey('calendar-no-habits')), findsOneWidget);
+    expect(find.text('Create a habit'), findsOneWidget);
+    expect(find.textContaining('No Perfect Days yet'), findsOneWidget);
+  });
+
+  testWidgets('shows friendly text when nothing is due', (tester) async {
+    // Only due on Mondays; "today" is a Thursday.
+    await pumpCalendar(
+      tester,
+      repo: InMemoryHabitRepository(habits: [
+        habit(
+          id: 'gym',
+          name: 'Gym',
+          schedule: WeekdaysSchedule({1}),
+          startDate: d(2026, 9, 1),
+        ),
+      ]),
+    );
 
     expect(find.byKey(const ValueKey('calendar-empty-day')), findsOneWidget);
     expect(find.textContaining('Nothing due'), findsOneWidget);
