@@ -157,4 +157,47 @@ void main() {
       expect(server.calls.length, calls);
     });
   });
+
+  test('429 rate_limited backs off: local changes wait for the retry', () {
+    fakeAsync((async) {
+      final c = make();
+      c.read(syncControllerProvider.notifier).start();
+      async.elapse(Duration.zero);
+      async.flushMicrotasks();
+      expect(status(c).phase, SyncPhase.synced);
+
+      server.failNextWith = const ApiException(
+        status: 429,
+        code: ApiException.rateLimited,
+        message: 'Too many requests',
+      );
+      c.read(habitServiceProvider).createHabit(
+            name: 'Read',
+            emoji: '📚',
+            colorValue: 1,
+          );
+      async.flushMicrotasks();
+      async.elapse(SyncController.debounce);
+      async.flushMicrotasks();
+      expect(status(c).phase, SyncPhase.error);
+      expect(server.habits, isEmpty);
+      final calls = server.calls.length;
+
+      // More local changes while backing off do not trigger a run.
+      c.read(habitServiceProvider).createHabit(
+            name: 'Walk',
+            emoji: '🚶',
+            colorValue: 2,
+          );
+      async.flushMicrotasks();
+      async.elapse(SyncController.debounce);
+      expect(server.calls.length, calls, reason: 'held by the backoff');
+
+      // The backoff retry (5 s after the failure) then syncs everything.
+      async.elapse(SyncController.minBackoff);
+      async.flushMicrotasks();
+      expect(server.habits, hasLength(2));
+      expect(status(c).phase, SyncPhase.synced);
+    });
+  });
 }

@@ -89,6 +89,11 @@ class SyncController extends Notifier<SyncStatus> {
   bool _again = false;
   Future<void>? _running;
 
+  /// Set by a `429 rate_limited`: automatic triggers (local changes,
+  /// connectivity, resume) wait for the backoff retry instead of hammering
+  /// the server. Only [syncNow] overrides it.
+  bool _rateLimited = false;
+
   @override
   SyncStatus build() {
     ref.onDispose(_stop);
@@ -123,7 +128,7 @@ class SyncController extends Notifier<SyncStatus> {
       }))
       ..add(ref.read(connectivityMonitorProvider).changes.listen((online) {
         if (online) {
-          _failures = 0;
+          if (!_rateLimited) _failures = 0;
           _schedule(Duration.zero);
         } else if (_userId != null) {
           state = state.copyWith(phase: SyncPhase.offline);
@@ -136,7 +141,7 @@ class SyncController extends Notifier<SyncStatus> {
   void onAuthChanged(AuthState auth) {
     if (auth is SignedIn) {
       if (_started) {
-        _failures = 0;
+        if (!_rateLimited) _failures = 0;
         _schedule(Duration.zero);
       }
     } else if (auth is SignedOut) {
@@ -155,11 +160,14 @@ class SyncController extends Notifier<SyncStatus> {
   /// Manual "Sync now": runs immediately (resets the backoff).
   Future<void> syncNow() {
     _failures = 0;
+    _rateLimited = false;
     _cancelTimers();
     return _run();
   }
 
   void _schedule(Duration delay) {
+    // While rate limited the pending backoff retry does the next run.
+    if (_rateLimited) return;
     _debounceTimer?.cancel();
     _debounceTimer = Timer(delay, () => unawaited(_run()));
   }
@@ -230,6 +238,14 @@ class SyncController extends Notifier<SyncStatus> {
           phase: SyncPhase.error,
           message: () => 'Please log in again',
         );
+      } else if (e.code == ApiException.rateLimited || e.status == 429) {
+        // Back off: no automatic trigger until the retry timer fires.
+        _rateLimited = true;
+        state = state.copyWith(
+          phase: SyncPhase.error,
+          message: () => 'Server busy, retrying shortly',
+        );
+        _scheduleRetry();
       } else {
         state = state.copyWith(
           phase: SyncPhase.error,
@@ -262,7 +278,10 @@ class SyncController extends Notifier<SyncStatus> {
     if (!_started) return;
     _failures++;
     _retryTimer?.cancel();
-    _retryTimer = Timer(backoffFor(_failures), () => unawaited(_run()));
+    _retryTimer = Timer(backoffFor(_failures), () {
+      _rateLimited = false;
+      unawaited(_run());
+    });
   }
 
   void _setPending() {
