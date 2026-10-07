@@ -118,6 +118,50 @@ flutter test
 
 `flutter devices` lists the available targets.
 
+### Environment config
+
+The app talks to the Supabase Edge Functions only (never to tables
+directly). Where they live is compiled in with `--dart-define`s:
+
+| Define | Default | Meaning |
+|---|---|---|
+| `SUPABASE_URL` | `https://fwikodmrfoorbstmkedx.supabase.co` | Project URL; the app calls `{SUPABASE_URL}/functions/v1/<name>` |
+| `SUPABASE_ANON_KEY` | *(none)* | The project's public **anon** key (Supabase dashboard → Project Settings → API). Sent as `apikey` on every request |
+
+Without `SUPABASE_ANON_KEY` the app still starts, but the login screen shows
+a "Server not configured" message and sign-in is disabled.
+
+```sh
+# One-off
+flutter run -d chrome --dart-define=SUPABASE_ANON_KEY=eyJhbGciOi...
+
+# Or keep the values in a file (env/*.json is gitignored)
+cp env/example.json env/dev.json     # then paste your anon key into it
+flutter run -d chrome --dart-define-from-file=env/dev.json
+flutter build web --dart-define-from-file=env/dev.json
+```
+
+`env/dev.json` looks like:
+
+```json
+{
+  "SUPABASE_URL": "https://fwikodmrfoorbstmkedx.supabase.co",
+  "SUPABASE_ANON_KEY": "eyJhbGciOi..."
+}
+```
+
+The anon key is public by design (row-level security protects the data), but
+keep it out of git anyway so each environment can use its own project. Never
+put the `service_role` key in the app.
+
+**Session storage**: the session (access + refresh token) is kept with
+`flutter_secure_storage`: Keychain on iOS, Keystore-backed encrypted
+preferences on Android, and on web an encrypted value in `localStorage`
+(WebCrypto, which needs `https://` or `localhost`). The access token is
+refreshed about 60 s before it expires, and once on any `401` response.
+Logging out (Quest tab) clears the stored session; the habits stored on the
+device are kept for now.
+
 ### Notifications per platform
 
 - **Android**: asks for notification permission on Android 13+. Uses exact
@@ -141,12 +185,15 @@ lib/
                           shared widgets (MessageView for empty/error states)
   data/                   models (Habit, HabitSchedule, CompletionLog) and repositories
                           (HiveHabitRepository for the app, InMemoryHabitRepository for tests)
+    remote/               Edge Function client: DTOs, AuthApi / HabitQuestApi (HTTP + fakes)
   domain/                 pure Dart: recurrence, streaks, HabitService, Riverpod providers
   features/
     habits/               Habits tab + create/edit form
     habit_details/        details screen
     calendar/             Calendar tab
-    quest/                Quest tab
+    quest/                Quest tab (with logout)
+    auth/                 login/register screen, splash, AuthController (session,
+                          refresh), SessionStore (flutter_secure_storage)
     game/                 game engine (XP ledger, levels, achievements) + celebration UI
     notifications/        reminder planning + mobile / web / no-op schedulers
 ```

@@ -4,6 +4,8 @@ abstract final class AppRoutes {
   static const calendar = '/calendar';
   static const quest = '/quest';
   static const newHabit = '/habits/new';
+  static const login = '/login';
+  static const splash = '/splash';
 
   static String habitDetails(String id) => '/habits/$id';
   static String editHabit(String id) => '/habits/$id/edit';

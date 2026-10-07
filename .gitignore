@@ -43,3 +43,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Local dart-define files (see README "Environment config")
+/env/*.json
+!/env/example.json

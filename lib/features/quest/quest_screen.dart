@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
+import '../auth/auth_providers.dart';
 import '../game/achievements.dart';
 import '../game/game_profile.dart';
 import '../game/game_providers.dart';
@@ -26,7 +27,22 @@ class QuestScreen extends ConsumerWidget {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
           children: [
-            Text('Your quest', style: theme.textTheme.headlineMedium),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Your quest',
+                    style: theme.textTheme.headlineMedium,
+                  ),
+                ),
+                IconButton(
+                  key: const ValueKey('logout-button'),
+                  tooltip: 'Log out',
+                  icon: const Icon(Icons.logout_rounded),
+                  onPressed: () => confirmAndLogout(context, ref),
+                ),
+              ],
+            ),
             const SizedBox(height: 12),
             HeroCard(profile: profile),
             const SizedBox(height: 16),
@@ -58,6 +74,35 @@ class QuestScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Asks for confirmation, then logs out (the auth gate then shows /login).
+/// Local habit data stays on the device.
+Future<void> confirmAndLogout(BuildContext context, WidgetRef ref) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      key: const ValueKey('logout-dialog'),
+      icon: const Text('👋', style: TextStyle(fontSize: 40)),
+      title: const Text('Leaving the quest?'),
+      content: const Text(
+        'You will be logged out. Your habits stay on this device.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Stay'),
+        ),
+        FilledButton(
+          key: const ValueKey('confirm-logout'),
+          onPressed: () => Navigator.of(context).pop(true),
+          child: const Text('Log out'),
+        ),
+      ],
+    ),
+  );
+  if (confirmed != true) return;
+  await ref.read(authControllerProvider.notifier).logout();
 }
 
 /// Mascot, level, title and the animated XP bar.
