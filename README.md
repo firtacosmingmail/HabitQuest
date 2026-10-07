@@ -27,6 +27,10 @@ on the device (hive_ce). There is no account and no server.
   on level-up, and toasts when you unlock an achievement.
 - **Reminders**: notifications at each habit's reminder time, following its
   schedule, with rotating fun messages.
+- **Offline-first sync**: everything works offline; when signed in and
+  online, habits, check-ins and the game state sync with your account in the
+  background (☁️ badge in the Habits header, "Sync now" on the Quest tab).
+  See [Sync](#sync).
 - **Light and dark mode** follow the system setting. Bright palette, rounded
   shapes, Fredoka headings and Nunito body text.
 
@@ -160,7 +164,8 @@ preferences on Android, and on web an encrypted value in `localStorage`
 (WebCrypto, which needs `https://` or `localhost`). The access token is
 refreshed about 60 s before it expires, and once on any `401` response.
 Logging out (Quest tab) clears the stored session; the habits stored on the
-device are kept for now.
+device are kept (see [Sync](#sync) for what happens when another account
+signs in).
 
 ### Notifications per platform
 
@@ -176,6 +181,132 @@ device are kept for now.
   nothing fires. A reminder missed while the tab was asleep for more than 15
   minutes is skipped rather than replayed.
 
+## Sync
+
+Habit Quest is **offline-first**: hive_ce on the device is the source of
+truth, the UI only ever reads and writes hive, and it never waits for the
+network. When signed in and online, changes are exchanged with the Supabase
+Edge Functions in the background.
+
+### Local model
+
+- `Habit`, check-ins (`CheckIn`, one record per habit per day) and the
+  `GameState` carry an `updatedAt` (UTC) stamped by every local write
+  (create, edit, archive, delete, check-in toggle, XP change). Stamps are
+  strictly increasing per entity even if the clock goes backwards.
+- **Tombstones**: deleting a habit stores it with `deletedAt` instead of
+  removing it. Repositories hide tombstoned habits (and their check-ins)
+  from every read, so the UI, recurrence, streaks, the game and reminders
+  never see them. Un-checking keeps the check-in record with
+  `completed: false` so the un-check syncs too.
+- **Upgrading**: data written by the previous version is still readable.
+  Habits without `updatedAt` default to their `createdAt`; the old boolean
+  check-ins are migrated once, on first launch, to records stamped with the
+  migration time.
+
+### Sync queue
+
+Every local write of the repositories is recorded in a persistent hive box
+(`sync_queue`) as *"this entity changed"*, coalesced per entity (one entry
+per habit, per check-in, and one for the game state). The push always sends
+the entity's **current** local record, so the latest local change wins. The
+queue survives restarts. Data applied from the server is never queued.
+
+### When it syncs
+
+`SyncController` (started by `SyncBootstrap` in `main.dart`) syncs on: app
+start when signed in, login, regaining connectivity (connectivity_plus plus a
+cheap reachability probe of `{SUPABASE_URL}/auth/v1/health`; the probe is
+skipped on web), app resume, local changes (debounced 3 s), and the manual
+**Sync now** button (Quest tab, or tap the ☁️ badge in the Habits header).
+It never syncs while signed out. Network/server errors retry with
+exponential backoff (5 s doubling up to 5 min); a `401` is first handled by
+the authenticated transport (token refresh + retry), and if the session is
+really gone the controller stops and the auth gate takes over.
+
+The badge shows ☁️ synced, 🔄 syncing, 📴 offline (with the number of
+waiting changes) or ⚠️ error; the tooltip and the Quest card show the last
+sync time.
+
+### One sync run (`SyncEngine`)
+
+1. **Push** habits, then check-ins (the server rejects check-ins of habits
+   it does not know), through the batch endpoints (≤ 500 per call).
+   An entry is dropped once the server acknowledges it, whether it was
+   applied or refused because the server has something newer (the pull
+   brings that). If a batch is refused for a validation reason, its items
+   are retried one by one: the offending entity stays queued with its error
+   (shown as "N changes couldn't sync") and **never blocks the rest**.
+2. **Pull** deltas `since` the stored cursors (the `serverTime` of the
+   previous pull; stored per user, separately for habits and check-ins) and
+   merge with **last-write-wins** on `updatedAt`: a remote item replaces
+   the local one only if it is strictly newer; on a tie the local copy is
+   kept. Remote data is applied through `HabitService.applyRemote`, a
+   repository-level path that only refreshes the UI: it emits **no
+   completion events** (so no XP), and only habits that actually changed
+   are rescheduled for reminders.
+3. **Game state**: GET, merge (below), PUT back if the merged state differs
+   from the server's copy.
+
+### How XP stays consistent
+
+XP was already never a free-running counter: the game engine keeps a
+**ledger** of grants keyed by what earned them (`habitId|date` for a
+check-in, `date` for a Perfect Day) and XP is the sum of the ledger. A key
+can only be granted once, which is what makes toggling a check-in on/off/on
+net zero. Sync builds on that:
+
+- The game state is **merged, not overwritten**: ledgers are unioned by key
+  (a key on both sides is counted once), achievements are unioned keeping
+  the earliest unlock time, and best streak / max level take the maximum.
+- The merged ledger is then **reconciled** against the merged check-ins:
+  grants whose check-in is no longer done (un-checked or deleted on another
+  device, decided by check-in LWW) are dropped; a pulled check-in that holds
+  no grant on either side yet gets its base grant under the same key (so a
+  later merge cannot double it); Perfect Days of the touched days are
+  re-evaluated.
+- All of this happens **silently**: remote awards, level-ups and
+  achievements never fire celebration events; the profile is simply
+  re-derived from the merged state.
+
+So: a check-in made offline on device A and pulled by device B gives no
+extra XP on B; toggling across devices cannot farm XP; and two devices
+awarding different days both keep their XP. These scenarios are covered by
+`test/features/sync/sync_engine_test.dart`.
+
+### Account switching
+
+Local data is tied to the user id that first synced it (`sync_meta` box):
+
+- **First login** on a device whose data was never synced (e.g. created with
+  the previous, offline-only version): the data is adopted by that account
+  and uploaded (merged with whatever the account already has).
+- **Same user** logging in again: nothing special; local data and the queue
+  are kept.
+- **A different user** signs in: the previous user's local habits,
+  check-ins, game state, queue and cursors are **wiped** before anything is
+  synced, then the new user's data is pulled. The previous account's data is
+  never uploaded into the new one.
+
+### Known limitations
+
+- Changes the previous user had not synced yet are lost when a *different*
+  account signs in on the same device (they cannot be uploaded without that
+  user's session). Sync before handing the device over.
+- Last-write-wins is per entity, not per field: two devices editing
+  different fields of the same habit offline keep only the later edit.
+- If one device edits a habit after another deleted it, the newer edit wins
+  and the habit comes back, but check-ins removed with the deletion on the
+  deleting device are not restored there.
+- Conflict resolution trusts device clocks (`updatedAt` is set by the
+  client, as in the API contract); a device with a clock far in the future
+  wins conflicts.
+- Tombstones are kept locally and on the server indefinitely (no purge yet).
+- On web, reachability relies on the browser's online state; an unreachable
+  backend shows up as "offline" after the first failed request.
+- Not yet run against the real backend: the client follows the shared API
+  contract and is tested against `FakeHabitQuestApi`.
+
 ## Architecture overview
 
 ```
@@ -186,6 +317,7 @@ lib/
   data/                   models (Habit, HabitSchedule, CompletionLog) and repositories
                           (HiveHabitRepository for the app, InMemoryHabitRepository for tests)
     remote/               Edge Function client: DTOs, AuthApi / HabitQuestApi (HTTP + fakes)
+    sync/                 SyncQueue (pending changes), SyncMeta (owner, cursors), StringStore
   domain/                 pure Dart: recurrence, streaks, HabitService, Riverpod providers
   features/
     habits/               Habits tab + create/edit form
@@ -196,6 +328,8 @@ lib/
                           refresh), SessionStore (flutter_secure_storage)
     game/                 game engine (XP ledger, levels, achievements) + celebration UI
     notifications/        reminder planning + mobile / web / no-op schedulers
+    sync/                 SyncEngine (push / pull / merge), SyncController (triggers,
+                          backoff, status), connectivity, indicator + "Sync now" UI
 ```
 
 How data flows:
@@ -237,3 +371,11 @@ and engine, reminder planning), widget tests for every screen, and end-to-end
 flow tests in `test/flows/`. The flow tests cover: create a habit → check in →
 XP and streak update; checking in from the calendar or details shows up on the
 Habits screen and in the Quest profile; un-checking takes the XP back.
+
+Sync is tested in `test/features/sync/` against `FakeHabitQuestApi` (which
+behaves like the server: LWW, tombstones, `since`, offline / injected
+failures) and `FakeConnectivityMonitor`: queue coalescing and persistence
+across restarts, migration of pre-sync hive data, push then pull, LWW in both
+directions, tombstones, offline → online, error isolation, cursors, the
+double-XP scenarios, account switching, the controller's triggers / backoff,
+and a widget test for the sync indicator.
