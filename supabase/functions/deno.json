@@ -1,0 +1,13 @@
+{
+  "tasks": {
+    "check": "deno check */index.ts _shared/*.ts tests/*.ts",
+    "lint": "deno lint",
+    "test": "deno test --allow-env tests/"
+  },
+  "lint": {
+    "rules": { "tags": ["recommended"] }
+  },
+  "fmt": {
+    "lineWidth": 100
+  }
+}
