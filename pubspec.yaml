@@ -66,6 +66,12 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
+  # iOS/macOS plugins are built with CocoaPods, not Swift Package Manager:
+  # connectivity_plus 7.x and flutter_local_notifications 22.x declare a SwiftPM
+  # dependency on a `FlutterFramework` package that Flutter 3.38 does not
+  # generate, so the SwiftPM build fails ("FlutterFramework doesn't exist").
+  config:
+    enable-swift-package-manager: false
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
