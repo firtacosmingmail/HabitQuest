@@ -220,7 +220,9 @@ cheap reachability probe of `{SUPABASE_URL}/auth/v1/health`; the probe is
 skipped on web), app resume, local changes (debounced 3 s), and the manual
 **Sync now** button (Quest tab, or tap the ☁️ badge in the Habits header).
 It never syncs while signed out. Network/server errors retry with
-exponential backoff (5 s doubling up to 5 min); a `401` is first handled by
+exponential backoff (5 s doubling up to 5 min); a `429 rate_limited` also
+holds the automatic triggers (local changes, connectivity, resume) until
+the backoff retry, only **Sync now** overrides it; a `401` is first handled by
 the authenticated transport (token refresh + retry), and if the session is
 really gone the controller stops and the auth gate takes over.
 
@@ -235,10 +237,16 @@ sync time.
    An entry is dropped once the server acknowledges it, whether it was
    applied or refused because the server has something newer (the pull
    brings that). If a batch is refused for a validation reason, its items
-   are retried one by one: the offending entity stays queued with its error
-   (shown as "N changes couldn't sync") and **never blocks the rest**.
+   are retried one by one (the server writes nothing from a batch with an
+   invalid item): the offending entity stays queued with its error (shown
+   as "N changes couldn't sync") and **never blocks the rest**. In that
+   per-item path, tombstones go out as `DELETE …?updatedAt=<local
+   updatedAt>` (always sent, so LWW uses the client's time), and a `404
+   not_found` counts as acknowledged (the server never had the row).
 2. **Pull** deltas `since` the stored cursors (the `serverTime` of the
-   previous pull; stored per user, separately for habits and check-ins) and
+   previous pull; stored per user, separately for habits and check-ins;
+   the server sets it 5 s in the past, so rows can come back again and an
+   equal `updatedAt` is a no-op) and
    merge with **last-write-wins** on `updatedAt`: a remote item replaces
    the local one only if it is strictly newer; on a tie the local copy is
    kept. Remote data is applied through `HabitService.applyRemote`, a
@@ -273,6 +281,13 @@ So: a check-in made offline on device A and pulled by device B gives no
 extra XP on B; toggling across devices cannot farm XP; and two devices
 awarding different days both keep their XP. These scenarios are covered by
 `test/features/sync/sync_engine_test.dart`.
+
+### Mapping notes
+
+The contract's Habit has no `startDate` (the start of "every N days"
+schedules). It travels inside the opaque `schedule` object as
+`schedule.startDate = "yyyy-MM-dd"`; on pull, a missing or malformed value
+falls back to the date of `createdAt`.
 
 ### Account switching
 
