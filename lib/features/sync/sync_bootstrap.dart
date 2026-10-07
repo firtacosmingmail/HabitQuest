@@ -25,16 +25,13 @@ class _SyncBootstrapState extends ConsumerState<SyncBootstrap> {
     super.initState();
     final controller = ref.read(syncControllerProvider.notifier);
     controller.start();
-    ref.listenManual<AuthState>(
-      authControllerProvider,
-      (previous, next) {
-        final before = previous is SignedIn ? previous.session.user.id : null;
-        final after = next is SignedIn ? next.session.user.id : null;
-        if (before != after || next is SignedOut) {
-          controller.onAuthChanged(next);
-        }
-      },
-    );
+    ref.listenManual<AuthState>(authControllerProvider, (previous, next) {
+      final before = previous is SignedIn ? previous.session.user.id : null;
+      final after = next is SignedIn ? next.session.user.id : null;
+      if (before != after || next is SignedOut) {
+        controller.onAuthChanged(next);
+      }
+    });
     _lifecycle = AppLifecycleListener(onResume: controller.onAppResumed);
   }
 

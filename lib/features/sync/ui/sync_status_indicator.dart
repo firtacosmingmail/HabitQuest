@@ -23,17 +23,17 @@ String lastSyncLabel(DateTime? last, DateTime now) {
       SyncPhase.synced => ('☁️', 'Synced', AppColors.mint),
       SyncPhase.syncing => ('🔄', 'Syncing…', scheme.primary),
       SyncPhase.offline => (
-          '📴',
-          s.pending > 0 ? 'Offline · ${s.pending} waiting' : 'Offline',
-          scheme.outline,
-        ),
+        '📴',
+        s.pending > 0 ? 'Offline · ${s.pending} waiting' : 'Offline',
+        scheme.outline,
+      ),
       SyncPhase.error => ('⚠️', 'Sync hiccup', AppColors.coral),
       SyncPhase.signedOut => ('💤', 'Not syncing', scheme.outline),
       SyncPhase.idle => (
-          '☁️',
-          s.pending > 0 ? '${s.pending} to sync' : 'Ready to sync',
-          scheme.outline,
-        ),
+        '☁️',
+        s.pending > 0 ? '${s.pending} to sync' : 'Ready to sync',
+        scheme.outline,
+      ),
     };
 
 /// A small round badge showing the sync state as an emoji (synced ☁️ /
@@ -49,7 +49,8 @@ class SyncStatusIndicator extends ConsumerWidget {
     return SyncStatusChip(
       status: status,
       now: now,
-      onTap: status.phase == SyncPhase.signedOut ||
+      onTap:
+          status.phase == SyncPhase.signedOut ||
               status.phase == SyncPhase.syncing
           ? null
           : () => ref.read(syncControllerProvider.notifier).syncNow(),
@@ -76,8 +77,7 @@ class SyncStatusChip extends StatelessWidget {
     final (emoji, label, color) = describeSync(status, theme.colorScheme);
     final last = 'Last sync: ${lastSyncLabel(status.lastSyncedAt, now)}';
     final details = status.message == null ? last : '${status.message}\n$last';
-    final showBadge =
-        status.pending > 0 && status.phase != SyncPhase.synced;
+    final showBadge = status.pending > 0 && status.phase != SyncPhase.synced;
     return Tooltip(
       message: '$label\n$details',
       child: Semantics(

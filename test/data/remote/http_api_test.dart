@@ -74,7 +74,8 @@ void main() {
   group('BackendConfig', () {
     test('builds function URLs and isConfigured', () {
       expect(
-        config.function('habits', path: ['h 1'], query: {'since': 'x'})
+        config
+            .function('habits', path: ['h 1'], query: {'since': 'x'})
             .toString(),
         'https://proj.supabase.co/functions/v1/habits/h%201?since=x',
       );
@@ -102,7 +103,10 @@ void main() {
       );
       await t.send('POST', 'habits', body: {'a': 1}, accessToken: 'tok');
       expect(seen.method, 'POST');
-      expect(seen.url.toString(), 'https://proj.supabase.co/functions/v1/habits');
+      expect(
+        seen.url.toString(),
+        'https://proj.supabase.co/functions/v1/habits',
+      );
       expect(seen.headers['apikey'], 'anon-key');
       expect(seen.headers['authorization'], 'Bearer tok');
       expect(seen.headers['content-type'], startsWith('application/json'));

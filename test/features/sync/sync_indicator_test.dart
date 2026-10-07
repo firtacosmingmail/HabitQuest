@@ -22,14 +22,15 @@ void main() {
         MaterialApp(
           theme: AppTheme.light,
           home: Scaffold(
-            body: Center(child: SyncStatusChip(status: status, now: now)),
+            body: Center(
+              child: SyncStatusChip(status: status, now: now),
+            ),
           ),
         ),
       );
 
-  String semanticsOf(WidgetTester tester) => tester
-      .getSemantics(find.byKey(const ValueKey('sync-indicator')))
-      .label;
+  String semanticsOf(WidgetTester tester) =>
+      tester.getSemantics(find.byKey(const ValueKey('sync-indicator'))).label;
 
   testWidgets('shows synced with the last sync time', (tester) async {
     await pumpChip(
@@ -45,8 +46,9 @@ void main() {
     expect(find.byKey(const ValueKey('sync-pending-badge')), findsNothing);
   });
 
-  testWidgets('shows offline with the number of waiting changes',
-      (tester) async {
+  testWidgets('shows offline with the number of waiting changes', (
+    tester,
+  ) async {
     await pumpChip(
       tester,
       const SyncStatus(phase: SyncPhase.offline, pending: 3),
@@ -78,8 +80,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
   });
 
-  testWidgets('Quest card "Sync now" syncs and the indicator turns synced',
-      (tester) async {
+  testWidgets('Quest card "Sync now" syncs and the indicator turns synced', (
+    tester,
+  ) async {
     final server = FakeHabitQuestApi();
     await tester.pumpWidget(
       ProviderScope(

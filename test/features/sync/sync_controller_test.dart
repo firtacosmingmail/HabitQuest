@@ -56,11 +56,9 @@ void main() {
   test('syncs at start when signed in', () {
     fakeAsync((async) {
       final c = make();
-      c.read(habitServiceProvider).createHabit(
-            name: 'Read',
-            emoji: '📚',
-            colorValue: 1,
-          );
+      c
+          .read(habitServiceProvider)
+          .createHabit(name: 'Read', emoji: '📚', colorValue: 1);
       async.flushMicrotasks();
       c.read(syncControllerProvider.notifier).start();
       async.elapse(Duration.zero);
@@ -171,11 +169,9 @@ void main() {
         code: ApiException.rateLimited,
         message: 'Too many requests',
       );
-      c.read(habitServiceProvider).createHabit(
-            name: 'Read',
-            emoji: '📚',
-            colorValue: 1,
-          );
+      c
+          .read(habitServiceProvider)
+          .createHabit(name: 'Read', emoji: '📚', colorValue: 1);
       async.flushMicrotasks();
       async.elapse(SyncController.debounce);
       async.flushMicrotasks();
@@ -184,11 +180,9 @@ void main() {
       final calls = server.calls.length;
 
       // More local changes while backing off do not trigger a run.
-      c.read(habitServiceProvider).createHabit(
-            name: 'Walk',
-            emoji: '🚶',
-            colorValue: 2,
-          );
+      c
+          .read(habitServiceProvider)
+          .createHabit(name: 'Walk', emoji: '🚶', colorValue: 2);
       async.flushMicrotasks();
       async.elapse(SyncController.debounce);
       expect(server.calls.length, calls, reason: 'held by the backoff');

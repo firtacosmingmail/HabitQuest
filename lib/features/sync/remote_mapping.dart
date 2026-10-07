@@ -12,20 +12,20 @@ import '../../data/remote/remote_models.dart';
 const startDateScheduleKey = 'startDate';
 
 RemoteHabit habitToRemote(Habit h) => RemoteHabit(
-      id: h.id,
-      name: h.name,
-      emoji: h.emoji,
-      color: h.colorValue,
-      schedule: {
-        ...h.schedule.toJson(),
-        startDateScheduleKey: dateKey(h.startDate),
-      },
-      reminderTime: h.reminderTime?.toString(),
-      createdAt: h.createdAt.toUtc(),
-      archived: h.archived,
-      updatedAt: h.updatedAt,
-      deletedAt: h.deletedAt,
-    );
+  id: h.id,
+  name: h.name,
+  emoji: h.emoji,
+  color: h.colorValue,
+  schedule: {
+    ...h.schedule.toJson(),
+    startDateScheduleKey: dateKey(h.startDate),
+  },
+  reminderTime: h.reminderTime?.toString(),
+  createdAt: h.createdAt.toUtc(),
+  archived: h.archived,
+  updatedAt: h.updatedAt,
+  deletedAt: h.deletedAt,
+);
 
 Habit habitFromRemote(RemoteHabit r) {
   final createdAt = r.createdAt.toLocal();
@@ -38,7 +38,7 @@ Habit habitFromRemote(RemoteHabit r) {
     schedule: HabitSchedule.fromJson(r.schedule),
     reminderTime: _parseReminder(r.reminderTime),
     createdAt: createdAt,
-    startDate: start is String ? parseDateKey(start) : dateOnly(createdAt),
+    startDate: _parseStart(start) ?? dateOnly(createdAt),
     archived: r.archived,
     updatedAt: r.updatedAt,
     deletedAt: r.deletedAt,
@@ -46,20 +46,31 @@ Habit habitFromRemote(RemoteHabit r) {
 }
 
 RemoteCheckIn checkInToRemote(CheckIn c) => RemoteCheckIn(
-      habitId: c.habitId,
-      date: c.date,
-      completed: c.completed,
-      updatedAt: c.updatedAt,
-      deletedAt: c.deletedAt,
-    );
+  habitId: c.habitId,
+  date: c.date,
+  completed: c.completed,
+  updatedAt: c.updatedAt,
+  deletedAt: c.deletedAt,
+);
 
 CheckIn checkInFromRemote(RemoteCheckIn r) => CheckIn(
-      habitId: r.habitId,
-      date: r.date,
-      completed: r.completed,
-      updatedAt: r.updatedAt,
-      deletedAt: r.deletedAt,
-    );
+  habitId: r.habitId,
+  date: r.date,
+  completed: r.completed,
+  updatedAt: r.updatedAt,
+  deletedAt: r.deletedAt,
+);
+
+/// `schedule.startDate` (`yyyy-MM-dd`), or null when missing / malformed
+/// (e.g. a habit written by a client that did not send it).
+DateTime? _parseStart(Object? v) {
+  if (v is! String) return null;
+  try {
+    return parseDateKey(v);
+  } on FormatException {
+    return null;
+  }
+}
 
 ReminderTime? _parseReminder(String? s) {
   if (s == null) return null;

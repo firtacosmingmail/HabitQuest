@@ -4,14 +4,16 @@ import 'remote_models.dart';
 
 /// In-memory [HabitQuestApi] that behaves like the Edge Functions for a
 /// single signed-in user: strict last-write-wins on `updatedAt`, soft-delete
-/// tombstones, `since` delta pulls on a server-side change time, atomic
-/// check-in batches that fail with `habit_not_found`, and 404s.
+/// tombstones, `since` delta pulls on a server-side change time (with the
+/// server's 5 s overlap, so pulls repeat rows), the contract's validation
+/// (`400 invalid_input`), batches of at most [maxBatch] items that are
+/// all-or-nothing (one invalid item → `400` naming its index, nothing
+/// written; a check-in of an unknown habit → `409 habit_not_found`), and 404s.
 ///
 /// For tests: inject failures with [offline] / [failNextWith], inspect
 /// [calls], seed rows with [seedHabit] / [seedCheckIn] (bypassing LWW).
 class FakeHabitQuestApi implements HabitQuestApi {
-  FakeHabitQuestApi({DateTime Function()? now})
-    : _now = now ?? DateTime.now;
+  FakeHabitQuestApi({DateTime Function()? now}) : _now = now ?? DateTime.now;
 
   final DateTime Function() _now;
 
@@ -32,21 +34,26 @@ class FakeHabitQuestApi implements HabitQuestApi {
   /// Max items per batch, as on the server.
   static const maxBatch = 500;
 
+  /// `serverTime` is the server clock minus this overlap (as on the server),
+  /// so a pull may return rows the client has already seen.
+  static const serverTimeOverlap = Duration(seconds: 5);
+
   // Inspection --------------------------------------------------------------
 
   /// Stored habits by id (tombstones included).
-  Map<String, RemoteHabit> get habits =>
-      {for (final e in _habits.entries) e.key: e.value.item};
+  Map<String, RemoteHabit> get habits => {
+    for (final e in _habits.entries) e.key: e.value.item,
+  };
 
   /// Stored check-ins by id (tombstones included).
-  Map<String, RemoteCheckIn> get checkIns =>
-      {for (final e in _checkIns.entries) e.key: e.value.item};
+  Map<String, RemoteCheckIn> get checkIns => {
+    for (final e in _checkIns.entries) e.key: e.value.item,
+  };
 
   RemoteGameState? get gameState => _gameState?.item;
 
   /// Stores a habit as if another device had written it (no LWW).
-  void seedHabit(RemoteHabit habit) =>
-      _habits[habit.id] = _Row(habit, _tick());
+  void seedHabit(RemoteHabit habit) => _habits[habit.id] = _Row(habit, _tick());
 
   void seedCheckIn(RemoteCheckIn checkIn) =>
       _checkIns[checkIn.id] = _Row(checkIn, _tick());
@@ -71,6 +78,7 @@ class FakeHabitQuestApi implements HabitQuestApi {
   @override
   Future<WriteResult<RemoteHabit>> putHabit(RemoteHabit habit) async {
     _enter('PUT habits/${habit.id}');
+    _invalidIf(_habitError(habit));
     return _upsert(_habits, habit);
   }
 
@@ -94,11 +102,8 @@ class FakeHabitQuestApi implements HabitQuestApi {
     List<RemoteHabit> habits,
   ) async {
     _enter('POST habits/batch');
-    _checkBatchSize(habits.length);
-    return [
-      for (final h in habits)
-        _toBatch(h.id, _upsert(_habits, h)),
-    ];
+    _validateBatch(habits, _habitError);
+    return [for (final h in habits) _toBatch(h.id, _upsert(_habits, h))];
   }
 
   // Check-ins ---------------------------------------------------------------
@@ -125,6 +130,7 @@ class FakeHabitQuestApi implements HabitQuestApi {
   @override
   Future<WriteResult<RemoteCheckIn>> putCheckIn(RemoteCheckIn checkIn) async {
     _enter('PUT check-ins/${checkIn.id}');
+    _invalidIf(_checkInError(checkIn));
     _requireHabits([checkIn]);
     return _upsert(_checkIns, checkIn);
   }
@@ -149,11 +155,9 @@ class FakeHabitQuestApi implements HabitQuestApi {
     List<RemoteCheckIn> checkIns,
   ) async {
     _enter('POST check-ins/batch');
-    _checkBatchSize(checkIns.length);
+    _validateBatch(checkIns, _checkInError);
     _requireHabits(checkIns); // atomic: nothing written on failure
-    return [
-      for (final c in checkIns) _toBatch(c.id, _upsert(_checkIns, c)),
-    ];
+    return [for (final c in checkIns) _toBatch(c.id, _upsert(_checkIns, c))];
   }
 
   // Game state --------------------------------------------------------------
@@ -229,7 +233,7 @@ class FakeHabitQuestApi implements HabitQuestApi {
           ..sort((a, b) => a.serverUpdatedAt.compareTo(b.serverUpdatedAt));
     return DeltaPage(
       items: [for (final r in rows) r.item],
-      serverTime: _tick(),
+      serverTime: _tick().subtract(serverTimeOverlap),
     );
   }
 
@@ -258,14 +262,50 @@ class FakeHabitQuestApi implements HabitQuestApi {
     }
   }
 
-  void _checkBatchSize(int n) {
-    if (n > maxBatch) {
-      throw const ApiException(
-        status: 400,
-        code: ApiException.invalidInput,
-        message: 'Too many items',
-      );
+  /// The whole batch is validated before anything is written.
+  void _validateBatch<T>(List<T> items, String? Function(T) error) {
+    if (items.length > maxBatch) {
+      _invalidIf('At most $maxBatch items per batch');
     }
+    for (var i = 0; i < items.length; i++) {
+      final e = error(items[i]);
+      if (e != null) _invalidIf('items[$i]: $e');
+    }
+  }
+
+  static void _invalidIf(String? message) {
+    if (message == null) return;
+    throw ApiException(
+      status: 400,
+      code: ApiException.invalidInput,
+      message: message,
+    );
+  }
+
+  static final _hhmm = RegExp(r'^([01]\d|2[0-3]):[0-5]\d$');
+
+  /// The server's Habit validation (`supabase/functions/_shared/validation.ts`).
+  static String? _habitError(RemoteHabit h) {
+    if (h.id.isEmpty || h.id.length > 200) {
+      return 'id must be 1 to 200 characters';
+    }
+    if (h.name.trim().isEmpty) return 'name must not be blank';
+    if (h.name.length > 200) return 'name must be at most 200 characters';
+    if (h.emoji.length > 32) return 'emoji must be at most 32 characters';
+    if (h.color < 0 || h.color > 0xFFFFFFFF) {
+      return 'color must be an integer ARGB value (0..4294967295)';
+    }
+    final r = h.reminderTime;
+    if (r != null && !_hhmm.hasMatch(r)) {
+      return 'reminderTime must be "HH:mm" or null';
+    }
+    return null;
+  }
+
+  static String? _checkInError(RemoteCheckIn c) {
+    if (c.habitId.isEmpty) return 'habitId is required';
+    if (c.id.length > 200) return 'id must be 1 to 200 characters';
+    return null;
   }
 
   static BatchItemResult<T> _toBatch<T>(String id, WriteResult<T> r) =>

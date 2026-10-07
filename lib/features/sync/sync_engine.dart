@@ -137,28 +137,30 @@ class SyncEngine {
   // Push ---------------------------------------------------------------------
 
   Future<void> _pushHabits(SyncReport report) => _push<RemoteHabit>(
-        report,
-        entries: queue.entriesOf(SyncEntityType.habit),
-        load: (e) {
-          final h = service.repository.getHabitRecord(e.id);
-          return h == null ? null : habitToRemote(h);
-        },
-        batch: api.batchHabits,
-        put: api.putHabit,
-      );
+    report,
+    entries: queue.entriesOf(SyncEntityType.habit),
+    load: (e) {
+      final h = service.repository.getHabitRecord(e.id);
+      return h == null ? null : habitToRemote(h);
+    },
+    batch: api.batchHabits,
+    put: api.putHabit,
+    delete: api.deleteHabit,
+  );
 
   Future<void> _pushCheckIns(SyncReport report) => _push<RemoteCheckIn>(
-        report,
-        entries: queue.entriesOf(SyncEntityType.checkIn),
-        load: (e) {
-          final p = CheckIn.parseKey(e.id);
-          if (p == null) return null;
-          final c = service.repository.getCheckIn(p.$1, p.$2);
-          return c == null ? null : checkInToRemote(c);
-        },
-        batch: api.batchCheckIns,
-        put: api.putCheckIn,
-      );
+    report,
+    entries: queue.entriesOf(SyncEntityType.checkIn),
+    load: (e) {
+      final p = CheckIn.parseKey(e.id);
+      if (p == null) return null;
+      final c = service.repository.getCheckIn(p.$1, p.$2);
+      return c == null ? null : checkInToRemote(c);
+    },
+    batch: api.batchCheckIns,
+    put: api.putCheckIn,
+    delete: api.deleteCheckIn,
+  );
 
   Future<void> _push<R extends RemoteEntity>(
     SyncReport report, {
@@ -166,6 +168,11 @@ class SyncEngine {
     required R? Function(SyncQueueEntry) load,
     required Future<List<BatchItemResult<R>>> Function(List<R>) batch,
     required Future<WriteResult<R>> Function(R) put,
+    required Future<WriteResult<R>> Function(
+      String, {
+      required DateTime updatedAt,
+    })
+    delete,
   }) async {
     final fresh = <(SyncQueueEntry, R)>[];
     final retry = <(SyncQueueEntry, R)>[];
@@ -202,7 +209,18 @@ class SyncEngine {
 
     for (final (entry, item) in retry) {
       try {
-        await put(item);
+        if (item.deletedAt != null) {
+          // A tombstone: soft DELETE, always with our updatedAt so LWW holds
+          // (without it the server would stamp its own time).
+          try {
+            await delete(item.id, updatedAt: item.updatedAt);
+          } on ApiException catch (e) {
+            // The server never had it: nothing to delete, acknowledged.
+            if (e.status != 404 || e.code != ApiException.notFound) rethrow;
+          }
+        } else {
+          await put(item);
+        }
         await queue.ack(entry);
         report.pushed++;
       } on ApiException catch (e) {

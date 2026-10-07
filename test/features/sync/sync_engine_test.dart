@@ -50,15 +50,17 @@ void main() {
       expect(b.queue.isEmpty, isTrue);
     });
 
-    test('habits are pushed before check-ins, through batch endpoints',
-        () async {
-      final a = device('A');
-      final h = await a.createHabit('Read');
-      await a.check(h.id, today);
-      await a.sync();
-      final posts = server.calls.where((c) => c.startsWith('POST')).toList();
-      expect(posts, ['POST habits/batch', 'POST check-ins/batch']);
-    });
+    test(
+      'habits are pushed before check-ins, through batch endpoints',
+      () async {
+        final a = device('A');
+        final h = await a.createHabit('Read');
+        await a.check(h.id, today);
+        await a.sync();
+        final posts = server.calls.where((c) => c.startsWith('POST')).toList();
+        expect(posts, ['POST habits/batch', 'POST check-ins/batch']);
+      },
+    );
 
     test('the habit round-trips through the contract mapping', () async {
       final a = device('A');
@@ -188,8 +190,11 @@ void main() {
 
       await a.service.deleteHabit(h.id);
       expect(a.repo.getHabit(h.id), isNull);
-      expect(a.repo.getHabitRecord(h.id)!.isDeleted, isTrue,
-          reason: 'kept as a tombstone until pushed');
+      expect(
+        a.repo.getHabitRecord(h.id)!.isDeleted,
+        isTrue,
+        reason: 'kept as a tombstone until pushed',
+      );
       await a.sync();
       expect(server.habits[h.id]!.isDeleted, isTrue);
 
@@ -246,28 +251,32 @@ void main() {
 
   group('error isolation', () {
     test('a refused entity is kept and reported, the rest syncs', () async {
-      final picky = PickyApi();
-      final a = Device('A', clock: clock, api: picky);
+      // The fake validates like the server: a 201-character name is
+      // refused with 400 invalid_input, which fails the whole batch.
+      final picky = server;
+      final a = device('A');
       final good = await a.createHabit('Good');
-      final bad = await a.createHabit('BAD');
+      final bad = await a.createHabit('x' * 201);
       await a.check(good.id, today);
       await a.check(bad.id, today);
 
       final report = await a.sync();
       expect(picky.habits.keys, [good.id]);
       expect(picky.checkIns.keys, [RemoteCheckIn.idFor(good.id, today)]);
-      expect(report.issues.map((i) => i.id), containsAll([
-        bad.id,
-        CheckIn.keyFor(bad.id, today),
-      ]));
+      expect(
+        report.issues.map((i) => i.id),
+        containsAll([bad.id, CheckIn.keyFor(bad.id, today)]),
+      );
       expect(a.queue.failed, hasLength(2));
-      expect(a.queue.entryFor(SyncEntityType.habit, bad.id)!.lastError,
-          contains('invalid_input'));
+      expect(
+        a.queue.entryFor(SyncEntityType.habit, bad.id)!.lastError,
+        contains('invalid_input'),
+      );
 
       // Fixing the habit clears its error and lets its check-in through.
-      await a.service.updateHabit(a.repo.getHabit(bad.id)!.copyWith(
-        name: 'Fixed',
-      ));
+      await a.service.updateHabit(
+        a.repo.getHabit(bad.id)!.copyWith(name: 'Fixed'),
+      );
       final again = await a.sync();
       expect(again.issues, isEmpty);
       expect(a.queue.isEmpty, isTrue);
@@ -286,9 +295,7 @@ void main() {
       final quiet = await a.sync();
       expect(quiet.pulledHabits, 0);
 
-      final other = habitToRemote(
-        (await device('B').createHabit('Remote')),
-      );
+      final other = habitToRemote((await device('B').createHabit('Remote')));
       server.seedHabit(other);
       final next = await a.sync();
       expect(next.pulledHabits, 1);
@@ -304,36 +311,172 @@ void main() {
     });
   });
 
-  group('XP is never counted twice', () {
-    int singleCheckInXp() => GameRules.checkInReward(1) + GameRules.perfectDayXp;
+  group('backend contract', () {
+    test('startDate travels in schedule.startDate and round-trips', () async {
+      final a = device('A');
+      final created = await a.createHabit('Stretch');
+      final start = DateTime(2025, 12, 20);
+      await a.service.updateHabit(created.copyWith(startDate: start));
+      final h = a.repo.getHabit(created.id)!;
 
-    test('device A checks in offline and syncs; B pulls it: no extra XP',
-        () async {
+      final remote = habitToRemote(h);
+      expect(
+        remote.toJson().containsKey('startDate'),
+        isFalse,
+        reason: 'not part of the contract Habit',
+      );
+      expect(remote.schedule['startDate'], '2025-12-20');
+      expect(remote.toJson()['schedule']['startDate'], '2025-12-20');
+      expect(habitFromRemote(RemoteHabit.fromJson(remote.toJson())), h);
+
+      await a.sync();
+      expect(server.habits[h.id]!.schedule['startDate'], '2025-12-20');
+      final b = device('B');
+      await b.sync();
+      expect(b.repo.getHabit(h.id)!.startDate, start);
+      expect(b.repo.getHabit(h.id)!.schedule, h.schedule);
+    });
+
+    test('a habit without (or with a bad) schedule.startDate starts on its '
+        'createdAt date', () {
+      final json = habitToRemote(habit(id: 'h1')).toJson();
+      final schedule = Map<String, dynamic>.from(json['schedule'] as Map)
+        ..remove('startDate');
+      final missing = habitFromRemote(
+        RemoteHabit.fromJson({...json, 'schedule': schedule}),
+      );
+      final created = missing.createdAt;
+      expect(
+        missing.startDate,
+        DateTime(created.year, created.month, created.day),
+      );
+      final bad = habitFromRemote(
+        RemoteHabit.fromJson({
+          ...json,
+          'schedule': {...schedule, 'startDate': 'soon'},
+        }),
+      );
+      expect(bad.startDate, missing.startDate);
+    });
+
+    test('serverTime overlap: repeated rows with equal updatedAt change '
+        'nothing', () async {
       final a = device('A');
       final h = await a.createHabit('Read');
+      await a.check(h.id, today);
       await a.sync();
       final b = device('B');
       await b.sync();
+      final xp = b.xp;
+      final before = b.repo.getHabit(h.id);
 
-      server.offline = true;
-      await a.check(h.id, today);
-      expect(a.xp, singleCheckInXp());
-      server.offline = false;
-      await a.sync();
+      // The cursor is 5 s behind the server clock: the same rows come back.
+      final again = await server.listHabits(since: b.meta.habitsCursor('u1'));
+      expect(again.items.map((r) => r.id), contains(h.id));
 
-      await b.sync();
-      expect(b.xp, a.xp);
-      expect(b.repo.getCompletions().isCompleted(h.id, today), isTrue);
-      expect(b.xpGainedEvents(), 0, reason: 'remote awards are not celebrated');
-
-      // More syncs in any order change nothing.
-      await b.sync();
-      await a.sync();
-      await b.sync();
-      expect(a.xp, singleCheckInXp());
-      expect(b.xp, singleCheckInXp());
-      expect(server.gameState!.state['checkIns'], hasLength(1));
+      final report = await b.sync();
+      expect(report.pulledHabits, 0);
+      expect(report.pulledCheckIns, 0);
+      expect(b.repo.getHabit(h.id), before);
+      expect(b.queue.isEmpty, isTrue, reason: 'nothing re-queued');
+      expect(b.completionEvents, isEmpty);
+      expect(b.xp, xp);
     });
+
+    test('batches are chunked to at most 500 items', () async {
+      final a = device('A');
+      for (var i = 0; i < 501; i++) {
+        await a.service.createHabit(name: 'H$i', emoji: '⭐', colorValue: 1);
+      }
+      await pumpEventQueue();
+      final report = await a.sync();
+      expect(server.calls.where((c) => c == 'POST habits/batch'), hasLength(2));
+      expect(server.habits, hasLength(501));
+      expect(report.pushed, 501);
+      expect(a.queue.isEmpty, isTrue);
+    });
+
+    test('an all-or-nothing 400 falls back to per-item writes; tombstones '
+        'go out as DELETE ?updatedAt, a 404 counts as acknowledged', () async {
+      final a = device('A');
+      final synced = await a.createHabit('Synced');
+      await a.sync();
+
+      final bad = await a.createHabit('x' * 201); // invalid on the server
+      final good = await a.createHabit('Good');
+      await a.service.deleteHabit(synced.id);
+      final local = await a.createHabit('Never uploaded');
+      await a.service.deleteHabit(local.id);
+      server.calls.clear();
+
+      final report = await a.sync();
+      expect(
+        server.calls,
+        containsAllInOrder(['POST habits/batch', 'DELETE habits/${synced.id}']),
+      );
+      expect(server.calls, contains('PUT habits/${good.id}'));
+      expect(server.calls, contains('DELETE habits/${local.id}'));
+
+      final tomb = a.repo.getHabitRecord(synced.id)!;
+      expect(server.habits[synced.id]!.deletedAt, isNotNull);
+      expect(
+        server.habits[synced.id]!.updatedAt,
+        tomb.updatedAt,
+        reason: 'DELETE carries the local updatedAt',
+      );
+      expect(server.habits.containsKey(local.id), isFalse);
+      expect(
+        a.queue.entryFor(SyncEntityType.habit, local.id),
+        isNull,
+        reason: '404 on DELETE = acknowledged',
+      );
+      expect(server.habits.containsKey(good.id), isTrue);
+      expect(report.issues.map((i) => i.id), [bad.id]);
+    });
+  });
+
+  group('XP is never counted twice', () {
+    int singleCheckInXp() =>
+        GameRules.checkInReward(1) + GameRules.perfectDayXp;
+
+    test(
+      'device A checks in offline and syncs; B pulls it: no extra XP',
+      () async {
+        final a = device('A');
+        final h = await a.createHabit('Read');
+        await a.sync();
+        final b = device('B');
+        await b.sync();
+
+        server.offline = true;
+        await a.check(h.id, today);
+        expect(a.xp, singleCheckInXp());
+        server.offline = false;
+        await a.sync();
+
+        await b.sync();
+        expect(b.xp, a.xp);
+        expect(b.repo.getCompletions().isCompleted(h.id, today), isTrue);
+        expect(
+          b.completionEvents,
+          isEmpty,
+          reason: 'applying a pulled check-in emits no completion event',
+        );
+        expect(
+          b.xpGainedEvents(),
+          0,
+          reason: 'remote awards are not celebrated',
+        );
+
+        // More syncs in any order change nothing.
+        await b.sync();
+        await a.sync();
+        await b.sync();
+        expect(a.xp, singleCheckInXp());
+        expect(b.xp, singleCheckInXp());
+        expect(server.gameState!.state['checkIns'], hasLength(1));
+      },
+    );
 
     test('B pulls the check-in before A pushed its game state', () async {
       final a = device('A');
@@ -395,8 +538,11 @@ void main() {
       await a.sync();
       expect(a.xp, 0);
       expect(b.xp, 0);
-      expect(a.gameEvents.whereType<XpLost>(), isEmpty,
-          reason: 'remote changes never fire game events');
+      expect(
+        a.gameEvents.whereType<XpLost>(),
+        isEmpty,
+        reason: 'remote changes never fire game events',
+      );
     });
 
     test('two devices awarding different days both keep their XP', () async {
@@ -422,15 +568,17 @@ void main() {
       expect(a.xp, b.xp);
       expect(a.xp, greaterThanOrEqualTo(xpA + xpB));
       final ledger = a.game.state.checkInLedger.keys;
-      expect(ledger, containsAll([
-        GameState.checkInKey(h.id, yesterday),
-        GameState.checkInKey(h.id, today),
-      ]));
+      expect(
+        ledger,
+        containsAll([
+          GameState.checkInKey(h.id, yesterday),
+          GameState.checkInKey(h.id, today),
+        ]),
+      );
       expect(ledger, hasLength(2));
     });
 
-    test('achievements merge as a union keeping the earliest unlock',
-        () async {
+    test('achievements merge as a union keeping the earliest unlock', () async {
       final early = DateTime.utc(2025, 1, 1);
       final late = DateTime.utc(2026, 1, 1);
       final merged = GameState.merge(
@@ -459,7 +607,10 @@ void main() {
       await a.sync();
       final b = device('B');
       await b.sync();
-      expect(b.game.state.unlocked.keys, containsAll(a.game.state.unlocked.keys));
+      expect(
+        b.game.state.unlocked.keys,
+        containsAll(a.game.state.unlocked.keys),
+      );
       expect(b.gameEvents, isEmpty);
     });
   });
@@ -479,8 +630,7 @@ void main() {
       expect(server.gameState, isNotNull);
     });
 
-    test('a different user never receives the previous user\'s data',
-        () async {
+    test('a different user never receives the previous user\'s data', () async {
       final serverU2 = FakeHabitQuestApi();
       final a = device('A');
       final h = await a.createHabit('Mine');
@@ -488,9 +638,9 @@ void main() {
       await a.sync(user: 'u1');
       await a.createHabit('Unsynced');
 
-      serverU2.seedHabit(habitToRemote(
-        (await device('X').createHabit('Theirs')),
-      ));
+      serverU2.seedHabit(
+        habitToRemote((await device('X').createHabit('Theirs'))),
+      );
       a.api = serverU2;
       expect(await a.engine.prepareForUser('u2'), AccountChange.switched);
       await a.engine.sync('u2');
@@ -550,8 +700,7 @@ class _Delegating extends FakeHabitQuestApi {
   @override
   Future<List<BatchItemResult<RemoteHabit>>> batchHabits(
     List<RemoteHabit> habits,
-  ) =>
-      inner.batchHabits(habits);
+  ) => inner.batchHabits(habits);
 
   @override
   Future<WriteResult<RemoteHabit>> putHabit(RemoteHabit habit) =>
@@ -561,14 +710,12 @@ class _Delegating extends FakeHabitQuestApi {
   Future<DeltaPage<RemoteCheckIn>> listCheckIns({
     DateTime? since,
     String? habitId,
-  }) =>
-      inner.listCheckIns(since: since, habitId: habitId);
+  }) => inner.listCheckIns(since: since, habitId: habitId);
 
   @override
   Future<List<BatchItemResult<RemoteCheckIn>>> batchCheckIns(
     List<RemoteCheckIn> checkIns,
-  ) =>
-      inner.batchCheckIns(checkIns);
+  ) => inner.batchCheckIns(checkIns);
 
   @override
   Future<WriteResult<RemoteCheckIn>> putCheckIn(RemoteCheckIn checkIn) =>

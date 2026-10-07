@@ -54,17 +54,17 @@ class SyncStatus {
     int? pending,
     String? Function()? message,
     List<SyncIssue>? issues,
-  }) =>
-      SyncStatus(
-        phase: phase ?? this.phase,
-        lastSyncedAt: lastSyncedAt ?? this.lastSyncedAt,
-        pending: pending ?? this.pending,
-        message: message != null ? message() : this.message,
-        issues: issues ?? this.issues,
-      );
+  }) => SyncStatus(
+    phase: phase ?? this.phase,
+    lastSyncedAt: lastSyncedAt ?? this.lastSyncedAt,
+    pending: pending ?? this.pending,
+    message: message != null ? message() : this.message,
+    issues: issues ?? this.issues,
+  );
 
   @override
-  String toString() => 'SyncStatus(${phase.name}, pending: $pending, '
+  String toString() =>
+      'SyncStatus(${phase.name}, pending: $pending, '
       'last: $lastSyncedAt, issues: ${issues.length})';
 }
 
@@ -109,9 +109,9 @@ class SyncController extends Notifier<SyncStatus> {
   }
 
   String? get _userId => switch (ref.read(authControllerProvider)) {
-        SignedIn(:final session) => session.user.id,
-        _ => null,
-      };
+    SignedIn(:final session) => session.user.id,
+    _ => null,
+  };
 
   DateTime _now() => ref.read(clockProvider)();
 
@@ -122,18 +122,22 @@ class SyncController extends Notifier<SyncStatus> {
     _started = true;
     final queue = ref.read(syncQueueProvider);
     _subs
-      ..add(queue.changes.listen((_) {
-        _setPending();
-        _schedule(debounce);
-      }))
-      ..add(ref.read(connectivityMonitorProvider).changes.listen((online) {
-        if (online) {
-          if (!_rateLimited) _failures = 0;
-          _schedule(Duration.zero);
-        } else if (_userId != null) {
-          state = state.copyWith(phase: SyncPhase.offline);
-        }
-      }));
+      ..add(
+        queue.changes.listen((_) {
+          _setPending();
+          _schedule(debounce);
+        }),
+      )
+      ..add(
+        ref.read(connectivityMonitorProvider).changes.listen((online) {
+          if (online) {
+            if (!_rateLimited) _failures = 0;
+            _schedule(Duration.zero);
+          } else if (_userId != null) {
+            state = state.copyWith(phase: SyncPhase.offline);
+          }
+        }),
+      );
     if (_userId != null) _schedule(Duration.zero);
   }
 
@@ -224,7 +228,7 @@ class SyncController extends Notifier<SyncStatus> {
         message: issues.isEmpty
             ? null
             : '${issues.length} change${issues.length == 1 ? '' : 's'} '
-                "couldn't sync",
+                  "couldn't sync",
       );
     } on ApiException catch (e) {
       if (!ref.mounted) return;

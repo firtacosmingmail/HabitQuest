@@ -1,9 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:habit_quest/data/models/habit.dart';
-import 'package:habit_quest/data/remote/api_exception.dart';
-import 'package:habit_quest/data/remote/fake_habit_quest_api.dart';
 import 'package:habit_quest/data/remote/habit_quest_api.dart';
-import 'package:habit_quest/data/remote/remote_models.dart';
 import 'package:habit_quest/data/repositories/in_memory_habit_repository.dart';
 import 'package:habit_quest/data/sync/string_store.dart';
 import 'package:habit_quest/data/sync/sync_meta.dart';
@@ -51,8 +48,8 @@ class Device {
     required this.api,
     StringStore? queueStore,
     StringStore? metaStore,
-  })  : queueStore = queueStore ?? MemoryStringStore(),
-        metaStore = metaStore ?? MemoryStringStore() {
+  }) : queueStore = queueStore ?? MemoryStringStore(),
+       metaStore = metaStore ?? MemoryStringStore() {
     queue = SyncQueue(this.queueStore, now: clock.call);
     meta = SyncMeta(this.metaStore);
     repo = InMemoryHabitRepository(recorder: queue, now: clock.call);
@@ -69,13 +66,13 @@ class Device {
   String _ids() => '$name-habit-${_n++}';
 
   SyncEngine get engine => SyncEngine(
-        api: api,
-        service: service,
-        game: game,
-        queue: queue,
-        meta: meta,
-        now: clock.call,
-      );
+    api: api,
+    service: service,
+    game: game,
+    queue: queue,
+    meta: meta,
+    now: clock.call,
+  );
 
   int get xp => game.state.xp;
 
@@ -113,28 +110,4 @@ class Device {
   }
 
   int xpGainedEvents() => gameEvents.whereType<XpGained>().length;
-}
-
-/// A server that refuses habits named "BAD" (validation error), to test
-/// error isolation.
-class PickyApi extends FakeHabitQuestApi {
-  static const _bad = ApiException(
-    status: 400,
-    code: ApiException.invalidInput,
-    message: 'name is not allowed',
-  );
-
-  @override
-  Future<WriteResult<RemoteHabit>> putHabit(RemoteHabit habit) {
-    if (habit.name == 'BAD') throw _bad;
-    return super.putHabit(habit);
-  }
-
-  @override
-  Future<List<BatchItemResult<RemoteHabit>>> batchHabits(
-    List<RemoteHabit> habits,
-  ) {
-    if (habits.any((h) => h.name == 'BAD')) throw _bad;
-    return super.batchHabits(habits);
-  }
 }

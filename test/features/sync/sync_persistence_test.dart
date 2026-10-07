@@ -70,7 +70,10 @@ void main() {
 
   test('game saves are queued, synced saves are not', () async {
     final queue = SyncQueue(MemoryStringStore());
-    final repo = await HiveGameRepository.open(boxPrefix: 'g1_', recorder: queue);
+    final repo = await HiveGameRepository.open(
+      boxPrefix: 'g1_',
+      recorder: queue,
+    );
     await repo.saveSynced(const GameState(bestStreakEver: 2));
     expect(queue.isEmpty, isTrue);
     await repo.save(const GameState(bestStreakEver: 3));

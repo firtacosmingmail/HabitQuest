@@ -36,8 +36,8 @@ class PlusConnectivityMonitor implements ConnectivityMonitor {
     this.probeHeaders = const {},
     this.probeTimeout = const Duration(seconds: 5),
     Connectivity? connectivity,
-  })  : _client = client,
-        _connectivity = connectivity ?? Connectivity();
+  }) : _client = client,
+       _connectivity = connectivity ?? Connectivity();
 
   static bool _hasNetwork(List<ConnectivityResult> r) =>
       r.any((c) => c != ConnectivityResult.none);
@@ -64,8 +64,9 @@ class PlusConnectivityMonitor implements ConnectivityMonitor {
   }
 
   @override
-  Stream<bool> get changes => _connectivity.onConnectivityChanged
-      .asyncMap((r) async => _hasNetwork(r) && await _probe());
+  Stream<bool> get changes => _connectivity.onConnectivityChanged.asyncMap(
+    (r) async => _hasNetwork(r) && await _probe(),
+  );
 
   @override
   void dispose() {}
