@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:uuid/uuid.dart';
 
 import '../core/utils/dates.dart';
+import '../core/utils/stamps.dart';
+import '../data/models/check_in.dart';
 import '../data/models/habit.dart';
 import '../data/models/habit_schedule.dart';
 import '../data/repositories/habit_repository.dart';
@@ -18,6 +20,7 @@ class HabitService {
 
   final _completionEvents = StreamController<CompletionEvent>.broadcast();
   final _habitChanges = StreamController<HabitChangeEvent>.broadcast();
+  final _remoteHabitChanges = StreamController<HabitChangeEvent>.broadcast();
 
   HabitService(
     this._repository, {
@@ -31,8 +34,14 @@ class HabitService {
   /// Broadcast stream of check-in changes (after persistence).
   Stream<CompletionEvent> get completionEvents => _completionEvents.stream;
 
-  /// Broadcast stream of habit lifecycle changes (after persistence).
+  /// Broadcast stream of local habit lifecycle changes (after persistence).
   Stream<HabitChangeEvent> get habitChanges => _habitChanges.stream;
+
+  /// Habit changes that arrived through sync ([applyRemote]). Kept apart
+  /// from [habitChanges] so the game engine never reacts to them (no XP,
+  /// no celebrations); reminders listen to both.
+  Stream<HabitChangeEvent> get remoteHabitChanges =>
+      _remoteHabitChanges.stream;
 
   /// Today's date according to the injected clock.
   DateTime get today => dateOnly(_now());
@@ -59,6 +68,7 @@ class HabitService {
       reminderTime: reminderTime,
       createdAt: _now(),
       startDate: startDate ?? today,
+      updatedAt: _now().toUtc(),
     );
     await _repository.saveHabit(habit);
     _habitChanges.add(
@@ -71,11 +81,16 @@ class HabitService {
   ///
   /// If the archived flag changed, an `archived`/`unarchived` event is
   /// emitted instead of `updated`.
-  Future<Habit> updateHabit(Habit habit) async {
-    final previous = _require(habit.id);
-    if (habit.name.trim().isEmpty) {
-      throw ArgumentError.value(habit.name, 'name', 'must not be empty');
+  /// Stamps a fresh `updatedAt`; returns the saved habit.
+  Future<Habit> updateHabit(Habit edited) async {
+    final previous = _require(edited.id);
+    if (edited.name.trim().isEmpty) {
+      throw ArgumentError.value(edited.name, 'name', 'must not be empty');
     }
+    final habit = edited.copyWith(
+      updatedAt: nextStamp(_now(), previous.updatedAt),
+      deletedAt: () => null,
+    );
     await _repository.saveHabit(habit);
     final type = previous.archived == habit.archived
         ? HabitChangeType.updated
@@ -96,11 +111,13 @@ class HabitService {
     return updateHabit(habit.copyWith(archived: archived));
   }
 
-  /// Deletes a habit and all of its check-ins.
+  /// Deletes a habit and all of its check-ins. The habit is kept as a
+  /// hidden tombstone so the deletion syncs; its check-ins are removed
+  /// locally (the tombstone hides them on every device).
   Future<void> deleteHabit(String habitId) async {
     final habit = _require(habitId);
     final removed = await _repository.deleteCompletionsFor(habitId);
-    await _repository.deleteHabit(habitId);
+    await _repository.deleteHabit(habitId, at: _now());
     _habitChanges.add(HabitChangeEvent(
       type: HabitChangeType.deleted,
       habit: habit,
@@ -134,10 +151,57 @@ class HabitService {
       throw ArgumentError.value(date, 'date', 'cannot check in in the future');
     }
     if (isCompleted(habitId, d) == completed) return;
-    await _repository.setCompletion(habitId, d, completed);
+    await _repository.setCompletion(habitId, d, completed, updatedAt: _now());
     _completionEvents.add(
       CompletionEvent(habitId: habitId, date: d, completed: completed),
     );
+  }
+
+  /// Applies records pulled from the server (already resolved by
+  /// last-write-wins) through the repository's non-recording path.
+  ///
+  /// Emits no [CompletionEvent] (so the game engine never awards XP for
+  /// them) and no [habitChanges] event; changed habits are announced on
+  /// [remoteHabitChanges] so reminders are rescheduled for those only.
+  Future<void> applyRemote({
+    List<Habit> habits = const [],
+    List<CheckIn> checkIns = const [],
+  }) async {
+    if (habits.isEmpty && checkIns.isEmpty) return;
+    final previous = {
+      for (final h in habits) h.id: _repository.getHabit(h.id),
+    };
+    await _repository.applyRemote(habits: habits, checkIns: checkIns);
+    for (final h in habits) {
+      final before = previous[h.id];
+      final HabitChangeType type;
+      if (h.isDeleted) {
+        if (before == null) continue;
+        type = HabitChangeType.deleted;
+      } else if (before == null) {
+        type = HabitChangeType.created;
+      } else if (before.archived != h.archived) {
+        type = h.archived ? HabitChangeType.archived : HabitChangeType.unarchived;
+      } else {
+        type = HabitChangeType.updated;
+      }
+      _remoteHabitChanges.add(
+        HabitChangeEvent(type: type, habit: h, previous: before),
+      );
+    }
+  }
+
+  /// Wipes every local habit and check-in (a different account signed in
+  /// on this device). Announced on [remoteHabitChanges] as deletions so
+  /// reminders are cancelled; no completion events.
+  Future<void> clearLocalData() async {
+    final habits = _repository.getHabits();
+    await _repository.clearAll();
+    for (final h in habits) {
+      _remoteHabitChanges.add(
+        HabitChangeEvent(type: HabitChangeType.deleted, habit: h),
+      );
+    }
   }
 
   Habit _require(String habitId) {
@@ -150,5 +214,6 @@ class HabitService {
   Future<void> dispose() async {
     await _completionEvents.close();
     await _habitChanges.close();
+    await _remoteHabitChanges.close();
   }
 }

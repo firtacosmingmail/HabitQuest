@@ -10,6 +10,7 @@ import '../game/game_profile.dart';
 import '../game/game_providers.dart';
 import '../game/game_rules.dart';
 import '../game/ui/mascot.dart';
+import '../sync/ui/sync_status_indicator.dart';
 
 /// Quest tab (`/quest`): hero card (mascot, level, title, XP bar), stats,
 /// achievements grid and a "How to earn XP" explainer.
@@ -47,6 +48,8 @@ class QuestScreen extends ConsumerWidget {
             HeroCard(profile: profile),
             const SizedBox(height: 16),
             _StatsRow(stats: profile.stats),
+            const SizedBox(height: 16),
+            const SyncNowCard(),
             const SizedBox(height: 24),
             Row(
               children: [

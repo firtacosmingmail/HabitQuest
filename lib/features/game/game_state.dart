@@ -24,12 +24,17 @@ class GameState {
   /// does not celebrate it again).
   final int maxLevelReached;
 
+  /// Last change (UTC), for sync; `null` for a state never changed. Not
+  /// part of [==].
+  final DateTime? updatedAt;
+
   const GameState({
     this.checkInLedger = const {},
     this.perfectDayLedger = const {},
     this.unlocked = const {},
     this.bestStreakEver = 0,
     this.maxLevelReached = 1,
+    this.updatedAt,
   });
 
   static const empty = GameState();
@@ -54,13 +59,58 @@ class GameState {
     Map<String, DateTime>? unlocked,
     int? bestStreakEver,
     int? maxLevelReached,
+    DateTime? updatedAt,
   }) => GameState(
     checkInLedger: checkInLedger ?? this.checkInLedger,
     perfectDayLedger: perfectDayLedger ?? this.perfectDayLedger,
     unlocked: unlocked ?? this.unlocked,
     bestStreakEver: bestStreakEver ?? this.bestStreakEver,
     maxLevelReached: maxLevelReached ?? this.maxLevelReached,
+    updatedAt: updatedAt ?? this.updatedAt,
   );
+
+  /// Merges two copies of the same player's state (e.g. this device and the
+  /// server) without ever counting an award twice:
+  ///
+  /// * ledgers: union by key (`habitId|date`, `date`); a key present on both
+  ///   sides keeps the larger amount, so it is counted once;
+  /// * achievements: union, keeping the earliest unlock time;
+  /// * best streak, max level reached, updatedAt: the maximum.
+  ///
+  /// Grants whose check-in was undone elsewhere are removed afterwards by
+  /// the engine's reconciliation against the merged check-ins.
+  static GameState merge(GameState a, GameState b) {
+    Map<String, int> union(Map<String, int> x, Map<String, int> y) {
+      final out = Map<String, int>.of(x);
+      y.forEach((k, v) {
+        final cur = out[k];
+        if (cur == null || v > cur) out[k] = v;
+      });
+      return Map.unmodifiable(out);
+    }
+
+    final unlocked = Map<String, DateTime>.of(a.unlocked);
+    b.unlocked.forEach((id, t) {
+      final cur = unlocked[id];
+      if (cur == null || t.isBefore(cur)) unlocked[id] = t;
+    });
+    final ua = a.updatedAt;
+    final ub = b.updatedAt;
+    return GameState(
+      checkInLedger: union(a.checkInLedger, b.checkInLedger),
+      perfectDayLedger: union(a.perfectDayLedger, b.perfectDayLedger),
+      unlocked: Map.unmodifiable(unlocked),
+      bestStreakEver: a.bestStreakEver > b.bestStreakEver
+          ? a.bestStreakEver
+          : b.bestStreakEver,
+      maxLevelReached: a.maxLevelReached > b.maxLevelReached
+          ? a.maxLevelReached
+          : b.maxLevelReached,
+      updatedAt: ua == null
+          ? ub
+          : (ub == null || ua.isAfter(ub) ? ua : ub),
+    );
+  }
 
   Map<String, dynamic> toJson() => {
     'version': schemaVersion,
@@ -71,6 +121,7 @@ class GameState {
     },
     'bestStreakEver': bestStreakEver,
     'maxLevelReached': maxLevelReached,
+    'updatedAt': updatedAt?.toUtc().toIso8601String(),
   };
 
   factory GameState.fromJson(Map<String, dynamic> json) {
@@ -87,6 +138,9 @@ class GameState {
       },
       bestStreakEver: (json['bestStreakEver'] as num?)?.toInt() ?? 0,
       maxLevelReached: (json['maxLevelReached'] as num?)?.toInt() ?? 1,
+      updatedAt: json['updatedAt'] == null
+          ? null
+          : DateTime.parse(json['updatedAt'] as String).toUtc(),
     );
   }
 

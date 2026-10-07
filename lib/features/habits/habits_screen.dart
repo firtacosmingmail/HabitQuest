@@ -11,6 +11,7 @@ import '../../data/models/habit.dart';
 import '../../domain/providers.dart';
 import '../../domain/streaks.dart';
 import '../game/ui/level_chip.dart';
+import '../sync/ui/sync_status_indicator.dart';
 import 'widgets/habit_card.dart';
 import 'widgets/schedule_summary.dart';
 
@@ -173,7 +174,14 @@ class _Header extends StatelessWidget {
             alignment: WrapAlignment.spaceBetween,
             children: [
               Text(greeting, style: theme.textTheme.headlineMedium),
-              const LevelChip(),
+              const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SyncStatusIndicator(),
+                  SizedBox(width: 8),
+                  LevelChip(),
+                ],
+              ),
             ],
           ),
           if (showProgress) ...[

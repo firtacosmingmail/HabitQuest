@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -30,9 +32,28 @@ final notificationsControllerProvider = Provider<NotificationsController>((ref) 
   final controller = NotificationsController(
     scheduler: ref.watch(notificationSchedulerProvider),
     habits: service.repository.getHabits,
-    changes: service.habitChanges,
+    // Local edits and habits changed by sync (only those are rescheduled).
+    changes: _merge(service.habitChanges, service.remoteHabitChanges),
     now: ref.watch(clockProvider),
   );
   ref.onDispose(controller.dispose);
   return controller;
 });
+
+Stream<T> _merge<T>(Stream<T> a, Stream<T> b) {
+  late StreamController<T> controller;
+  final subs = <StreamSubscription<T>>[];
+  controller = StreamController<T>(
+    onListen: () {
+      for (final s in [a, b]) {
+        subs.add(s.listen(controller.add, onError: controller.addError));
+      }
+    },
+    onCancel: () async {
+      for (final s in subs) {
+        await s.cancel();
+      }
+    },
+  );
+  return controller.stream;
+}

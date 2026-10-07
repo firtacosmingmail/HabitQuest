@@ -3,6 +3,8 @@ import 'dart:developer' as developer;
 import 'dart:math' as math;
 
 import '../../core/utils/dates.dart';
+import '../../core/utils/stamps.dart';
+import '../../data/models/check_in.dart';
 import '../../data/models/completion_log.dart';
 import '../../data/models/habit.dart';
 import '../../data/models/habit_schedule.dart';
@@ -38,6 +40,12 @@ import 'game_state.dart';
 /// * Deleting a habit removes the XP of all its check-ins.
 /// * Levels and achievements: see [GameRules] and [achievementCatalog].
 ///   Achievements and [LevelUp] events are emitted at most once, ever.
+///
+/// Sync: data pulled from the server never reaches [handleCompletion] (the
+/// service applies it without completion events). Instead the sync engine
+/// calls [reconcileSynced], which unions the ledgers with the server's game
+/// state ([GameState.merge]) and reconciles them against the merged
+/// check-ins, silently: no [GameEvent] is emitted for remote awards.
 class GameEngine {
   final HabitService _service;
   final GameRepository _repository;
@@ -269,11 +277,14 @@ class GameEngine {
       }
     }
 
-    final newState = next.copyWith(
+    var newState = next.copyWith(
       unlocked: unlocked,
       maxLevelReached: maxLevel,
     );
     if (newState == _state) return;
+    newState = newState.copyWith(
+      updatedAt: nextStamp(_now(), _state.updatedAt),
+    );
     _state = newState;
     _pendingSave = _pendingSave
         .then((_) => _repository.save(newState))
@@ -289,6 +300,114 @@ class GameEngine {
     for (final e in events) {
       _events.add(e);
     }
+  }
+
+  /// Reconciles the state after a sync, without emitting any [GameEvent]
+  /// (remote awards are never celebrated, and never counted twice):
+  ///
+  /// 1. union with the server's [remote] state ([GameState.merge]);
+  /// 2. drop check-in grants whose check-in is no longer done (un-checked or
+  ///    deleted on another device);
+  /// 3. grant the base check-in XP for [appliedCheckIns] (pulled from the
+  ///    server) that are done but hold no grant on either side yet, keyed
+  ///    like any other grant so a later merge cannot double it;
+  /// 4. re-evaluate Perfect Days for the days touched by 2 and 3;
+  /// 5. raise the max level / unlock achievements silently.
+  ///
+  /// The result is saved with [GameRepository.saveSynced] (not queued for
+  /// upload; the sync engine decides whether to push it).
+  Future<GameState> reconcileSynced({
+    GameState? remote,
+    Iterable<CheckIn> appliedCheckIns = const [],
+  }) async {
+    if (_disposed) return _state;
+    final base = remote == null ? _state : GameState.merge(_state, remote);
+    final habits = _service.repository.getHabits();
+    final byId = {for (final h in habits) h.id: h};
+    final log = _service.repository.getCompletions();
+    final today = _service.today;
+    final tx = _Tx(base);
+    final days = <DateTime>{};
+
+    tx.checkIns.removeWhere((key, _) {
+      final p = CheckIn.parseKey(key);
+      if (p != null && log.isCompleted(p.$1, p.$2)) return false;
+      if (p != null) days.addAll(_affectedDays(byId[p.$1], p.$2));
+      return true;
+    });
+
+    for (final c in appliedCheckIns) {
+      final habit = byId[c.habitId];
+      days.addAll(_affectedDays(habit, c.date));
+      if (habit == null || !log.isCompleted(c.habitId, c.date)) continue;
+      final key = GameState.checkInKey(c.habitId, c.date);
+      if (!tx.checkIns.containsKey(key)) {
+        final streak = isScheduledOn(habit, c.date)
+            ? currentStreak(habit, log, c.date)
+            : 0;
+        tx.checkIns[key] = GameRules.checkInReward(streak);
+      }
+      tx.bestStreakEver = math.max(
+        tx.bestStreakEver,
+        bestStreak(habit, log, today),
+      );
+    }
+    for (final d in days) {
+      if (!d.isAfter(today)) _evaluatePerfectDay(tx, d, habits, log);
+    }
+
+    final next = tx.build();
+    final unlocked = Map<String, DateTime>.of(next.unlocked);
+    final values = {
+      AchievementKind.habitsCreated: habits.isNotEmpty ? 1 : 0,
+      AchievementKind.activeHabits: habits.where((h) => !h.archived).length,
+      AchievementKind.totalCheckIns: next.totalCheckIns,
+      AchievementKind.streak: next.bestStreakEver,
+      AchievementKind.perfectDays: next.perfectDays,
+    };
+    final now = _now();
+    for (final a in achievementCatalog) {
+      if (!unlocked.containsKey(a.id) && values[a.kind]! >= a.threshold) {
+        unlocked[a.id] = now;
+      }
+    }
+    final merged = next.copyWith(
+      unlocked: unlocked,
+      maxLevelReached: math.max(
+        next.maxLevelReached,
+        GameRules.levelForXp(next.xp),
+      ),
+    );
+    // tx.events (Perfect Day XP from step 4) are deliberately dropped.
+    await _adopt(merged);
+    return _state;
+  }
+
+  /// Replaces the state without events (e.g. [GameState.empty] when a
+  /// different account signs in on this device).
+  Future<void> resetSilently([GameState state = GameState.empty]) =>
+      _adopt(state, force: true);
+
+  Future<void> _adopt(GameState state, {bool force = false}) async {
+    if (_disposed) return;
+    if (!force &&
+        state == _state &&
+        state.updatedAt == _state.updatedAt) {
+      return;
+    }
+    _state = state;
+    _pendingSave = _pendingSave
+        .then((_) => _repository.saveSynced(state))
+        .catchError((Object e, StackTrace st) {
+          developer.log(
+            'Failed to save game state',
+            name: 'GameEngine',
+            error: e,
+            stackTrace: st,
+          );
+        });
+    _states.add(state);
+    await _pendingSave;
   }
 
   /// Stops listening and closes the streams (pending saves still finish).

@@ -50,6 +50,15 @@ class Habit {
   final DateTime startDate;
   final bool archived;
 
+  /// Last local or remote change (UTC). Drives last-write-wins sync.
+  /// Defaults to [createdAt] (data written before sync existed).
+  final DateTime updatedAt;
+
+  /// Tombstone (UTC): the habit was deleted. Tombstoned habits are hidden
+  /// by the repositories (UI, recurrence, streaks, notifications) and only
+  /// kept so the deletion can sync.
+  final DateTime? deletedAt;
+
   Habit({
     required this.id,
     required this.name,
@@ -60,7 +69,13 @@ class Habit {
     required this.createdAt,
     required DateTime startDate,
     this.archived = false,
-  }) : startDate = dateOnly(startDate);
+    DateTime? updatedAt,
+    DateTime? deletedAt,
+  })  : startDate = dateOnly(startDate),
+        updatedAt = (updatedAt ?? createdAt).toUtc(),
+        deletedAt = deletedAt?.toUtc();
+
+  bool get isDeleted => deletedAt != null;
 
   Habit copyWith({
     String? name,
@@ -71,6 +86,8 @@ class Habit {
     bool clearReminderTime = false,
     DateTime? startDate,
     bool? archived,
+    DateTime? updatedAt,
+    DateTime? Function()? deletedAt,
   }) {
     return Habit(
       id: id,
@@ -83,6 +100,8 @@ class Habit {
       createdAt: createdAt,
       startDate: startDate ?? this.startDate,
       archived: archived ?? this.archived,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt != null ? deletedAt() : this.deletedAt,
     );
   }
 
@@ -96,8 +115,12 @@ class Habit {
         'createdAt': createdAt.toIso8601String(),
         'startDate': dateKey(startDate),
         'archived': archived,
+        'updatedAt': updatedAt.toIso8601String(),
+        'deletedAt': deletedAt?.toIso8601String(),
       };
 
+  /// Tolerant of data saved before sync existed (no `updatedAt` /
+  /// `deletedAt`): `updatedAt` then defaults to `createdAt`.
   factory Habit.fromJson(Map<String, dynamic> json) => Habit(
         id: json['id'] as String,
         name: json['name'] as String,
@@ -114,8 +137,16 @@ class Habit {
         createdAt: DateTime.parse(json['createdAt'] as String),
         startDate: parseDateKey(json['startDate'] as String),
         archived: json['archived'] as bool? ?? false,
+        updatedAt: json['updatedAt'] == null
+            ? null
+            : DateTime.parse(json['updatedAt'] as String),
+        deletedAt: json['deletedAt'] == null
+            ? null
+            : DateTime.parse(json['deletedAt'] as String),
       );
 
+  /// Content equality. [updatedAt] is sync metadata and deliberately not
+  /// compared ([deletedAt] is).
   @override
   bool operator ==(Object other) =>
       other is Habit &&
@@ -127,11 +158,12 @@ class Habit {
       other.reminderTime == reminderTime &&
       other.createdAt == createdAt &&
       other.startDate == startDate &&
-      other.archived == archived;
+      other.archived == archived &&
+      other.deletedAt == deletedAt;
 
   @override
   int get hashCode => Object.hash(id, name, emoji, colorValue, schedule,
-      reminderTime, createdAt, startDate, archived);
+      reminderTime, createdAt, startDate, archived, deletedAt);
 
   @override
   String toString() => 'Habit($id, $emoji $name, $schedule'

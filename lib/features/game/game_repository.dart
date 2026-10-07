@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:hive_ce/hive.dart';
 
+import '../../data/sync/change_recorder.dart';
 import 'game_state.dart';
 
 /// Persistence boundary for the game state.
@@ -12,7 +13,12 @@ abstract interface class GameRepository {
   /// The stored state ([GameState.empty] if nothing is stored yet).
   GameState load();
 
+  /// Saves a state changed on this device (recorded for sync upload).
   Future<void> save(GameState state);
+
+  /// Saves a state that came from (or was merged with) the server, without
+  /// recording it for upload.
+  Future<void> saveSynced(GameState state);
 
   Future<void> close();
 }
@@ -20,15 +26,22 @@ abstract interface class GameRepository {
 /// Non-persistent [GameRepository].
 class InMemoryGameRepository implements GameRepository {
   GameState _state;
+  final ChangeRecorder? recorder;
 
-  InMemoryGameRepository([GameState initial = GameState.empty])
+  InMemoryGameRepository([GameState initial = GameState.empty, this.recorder])
     : _state = initial;
 
   @override
   GameState load() => _state;
 
   @override
-  Future<void> save(GameState state) async => _state = state;
+  Future<void> save(GameState state) async {
+    await recorder?.recordChange(SyncEntityType.gameState, gameStateId);
+    _state = state;
+  }
+
+  @override
+  Future<void> saveSynced(GameState state) async => _state = state;
 
   @override
   Future<void> close() async {}
@@ -42,12 +55,19 @@ class HiveGameRepository implements GameRepository {
   static const stateKey = 'state';
 
   final Box<String> _box;
+  final ChangeRecorder? recorder;
 
-  HiveGameRepository._(this._box);
+  HiveGameRepository._(this._box, this.recorder);
 
-  /// Opens (or creates) the box. [boxPrefix] lets tests isolate data.
-  static Future<HiveGameRepository> open({String boxPrefix = ''}) async =>
-      HiveGameRepository._(await Hive.openBox<String>('$boxPrefix$boxName'));
+  /// Opens (or creates) the box. [boxPrefix] lets tests isolate data. Local
+  /// saves are reported to [recorder] (the sync queue).
+  static Future<HiveGameRepository> open({
+    String boxPrefix = '',
+    ChangeRecorder? recorder,
+  }) async => HiveGameRepository._(
+    await Hive.openBox<String>('$boxPrefix$boxName'),
+    recorder,
+  );
 
   @override
   GameState load() {
@@ -62,7 +82,13 @@ class HiveGameRepository implements GameRepository {
   }
 
   @override
-  Future<void> save(GameState state) =>
+  Future<void> save(GameState state) async {
+    await recorder?.recordChange(SyncEntityType.gameState, gameStateId);
+    await saveSynced(state);
+  }
+
+  @override
+  Future<void> saveSynced(GameState state) =>
       _box.put(stateKey, jsonEncode(state.toJson()));
 
   @override

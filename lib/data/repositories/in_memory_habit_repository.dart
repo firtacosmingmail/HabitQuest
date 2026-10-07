@@ -1,80 +1,43 @@
-import 'dart:async';
-
-import '../../core/utils/dates.dart';
-import '../models/completion_log.dart';
+import '../models/check_in.dart';
 import '../models/habit.dart';
-import 'habit_repository.dart';
-import 'watch.dart';
+import 'cached_habit_repository.dart';
 
 /// Non-persistent [HabitRepository] for tests, previews and widget tests.
-class InMemoryHabitRepository implements HabitRepository {
-  final Map<String, Habit> _habits = {};
-  final Map<String, Set<String>> _completions = {};
-  final _habitChanges = StreamController<void>.broadcast(sync: true);
-  final _completionChanges = StreamController<void>.broadcast(sync: true);
-
+class InMemoryHabitRepository extends CachedHabitRepository {
+  /// Seeds [habits] and [completions] (done check-ins stamped with each
+  /// habit's `updatedAt`, or now when the habit is unknown).
   InMemoryHabitRepository({
     Iterable<Habit> habits = const [],
     Map<String, Iterable<DateTime>> completions = const {},
+    super.recorder,
+    super.now,
   }) {
     for (final h in habits) {
-      _habits[h.id] = h;
+      habitRecords[h.id] = h;
     }
     for (final e in completions.entries) {
-      _completions[e.key] = e.value.map(dateKey).toSet();
+      final stamp = habitRecords[e.key]?.updatedAt ?? DateTime.now().toUtc();
+      for (final date in e.value) {
+        final c = CheckIn(
+          habitId: e.key,
+          date: date,
+          completed: true,
+          updatedAt: stamp,
+        );
+        checkInRecords[c.key] = c;
+      }
     }
   }
 
   @override
-  List<Habit> getHabits() => sortHabits(_habits.values);
+  Future<void> writeHabits(Map<String, Habit?> changes) async {}
 
   @override
-  Habit? getHabit(String id) => _habits[id];
+  Future<void> writeCheckIns(Map<String, CheckIn?> changes) async {}
 
   @override
-  Stream<List<Habit>> watchHabits() =>
-      watchValue(getHabits, _habitChanges.stream);
+  Future<void> clearStorage() async {}
 
   @override
-  Future<void> saveHabit(Habit habit) async {
-    _habits[habit.id] = habit;
-    _habitChanges.add(null);
-  }
-
-  @override
-  Future<void> deleteHabit(String id) async {
-    if (_habits.remove(id) != null) _habitChanges.add(null);
-  }
-
-  @override
-  CompletionLog getCompletions() => CompletionLog.fromKeys(_completions);
-
-  @override
-  Stream<CompletionLog> watchCompletions() =>
-      watchValue(getCompletions, _completionChanges.stream);
-
-  @override
-  Future<void> setCompletion(
-    String habitId,
-    DateTime date,
-    bool completed,
-  ) async {
-    final set = _completions.putIfAbsent(habitId, () => {});
-    final changed =
-        completed ? set.add(dateKey(date)) : set.remove(dateKey(date));
-    if (changed) _completionChanges.add(null);
-  }
-
-  @override
-  Future<List<DateTime>> deleteCompletionsFor(String habitId) async {
-    final removed = _completions.remove(habitId) ?? {};
-    if (removed.isNotEmpty) _completionChanges.add(null);
-    return (removed.toList()..sort()).map(parseDateKey).toList();
-  }
-
-  @override
-  Future<void> close() async {
-    await _habitChanges.close();
-    await _completionChanges.close();
-  }
+  Future<void> closeStorage() async {}
 }
