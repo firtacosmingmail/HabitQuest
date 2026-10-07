@@ -57,6 +57,7 @@ Body: `{ "email": string, "password": string, "displayName"?: string }`
 - `409 email_taken`
 - `400 invalid_input` (missing/invalid email or password, displayName not a
   string or longer than 100 characters) or `400 weak_password`.
+- `403 signup_disabled` when sign-ups are turned off in the project.
 
 ### `auth-login`
 
@@ -211,7 +212,7 @@ PUT uses LWW on `updatedAt` like the other resources.
 |---|---|
 | 400 | `invalid_input`, `weak_password` |
 | 401 | `unauthorized`, `invalid_credentials`, `invalid_refresh_token` |
-| 403 | `email_not_confirmed` |
+| 403 | `email_not_confirmed`, `signup_disabled` |
 | 404 | `not_found` |
 | 405 | `method_not_allowed` |
 | 409 | `email_taken`, `habit_not_found` |

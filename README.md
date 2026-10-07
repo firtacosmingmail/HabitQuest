@@ -190,3 +190,105 @@ and engine, reminder planning), widget tests for every screen, and end-to-end
 flow tests in `test/flows/`. The flow tests cover: create a habit → check in →
 XP and streak update; checking in from the calendar or details shows up on the
 Habits screen and in the Quest profile; un-checking takes the XP back.
+
+## Backend (Supabase)
+
+The backend lives in [`supabase/`](supabase/) and targets the Supabase project
+`fwikodmrfoorbstmkedx`. The app talks only to Edge Functions; the HTTP contract
+(endpoints, JSON shapes, error codes, last-write-wins and delta-pull cursors) is
+in **[supabase/API.md](supabase/API.md)**.
+
+```
+supabase/
+  config.toml                 # local stack + per-function settings (verify_jwt)
+  migrations/                 # schema, RLS policies, LWW SQL functions
+  functions/
+    _shared/                  # cors, errors, auth, validation, mapping, LWW, stores
+    auth-register|auth-login|auth-refresh|auth-logout/
+    habits/ check-ins/ game-state/
+    tests/                    # Deno unit tests + e2e_smoke.ts
+  .env.example                # placeholders only, never commit real keys
+```
+
+Tables `profiles` (created by a trigger on sign-up), `habits`, `check_ins`
+and `game_state` each belong to `auth.uid()` and have row-level security with
+select/insert/update/delete policies. The functions create their Supabase
+client with the anon key plus the caller's JWT, so RLS applies to every query;
+the service-role key is never used.
+
+### 1. Install the Supabase CLI
+
+```sh
+brew install supabase/tap/supabase      # macOS (or: npm i -D supabase, scoop, …)
+supabase --version
+brew install deno                       # only for running the Deno tests/checks
+```
+
+Docker is needed only for the local stack.
+
+### 2. Link the project and push the migrations
+
+```sh
+supabase login
+supabase link --project-ref fwikodmrfoorbstmkedx   # asks for the database password
+supabase db push                                    # applies supabase/migrations/*
+```
+
+### 3. Deploy the Edge Functions
+
+`verify_jwt` is **off for every function** (set in `supabase/config.toml`):
+
+| Function | verify_jwt | Why |
+|---|---|---|
+| `auth-register`, `auth-login`, `auth-refresh` | off | called without a user token |
+| `auth-logout`, `habits`, `check-ins`, `game-state` | off | the function validates the bearer token itself (`supabase.auth.getUser`) so a bad token gets the contract's `401 {"error":{"code":"unauthorized"}}` body instead of the gateway's own format; data is still only reachable with the user's JWT through RLS |
+
+```sh
+supabase functions deploy auth-register --no-verify-jwt
+supabase functions deploy auth-login    --no-verify-jwt
+supabase functions deploy auth-refresh  --no-verify-jwt
+supabase functions deploy auth-logout   --no-verify-jwt
+supabase functions deploy habits        --no-verify-jwt
+supabase functions deploy check-ins     --no-verify-jwt
+supabase functions deploy game-state    --no-verify-jwt
+# or all at once (uses config.toml): supabase functions deploy
+```
+
+### 4. Secrets and auth settings
+
+The functions need **no custom secrets**: `SUPABASE_URL` and
+`SUPABASE_ANON_KEY` are injected by the Edge Runtime. If you add one later, use
+`supabase secrets set NAME=value` (or `supabase secrets set --env-file
+supabase/.env`) and list it in `supabase/.env.example` with a placeholder.
+Never commit keys.
+
+In the dashboard (Authentication → Sign In / Providers → Email), decide
+whether "Confirm email" is on. When it is, `auth-register` answers
+`{"session":null,"needsConfirmation":true}` and the user must confirm before
+logging in.
+
+The app gets the URL and the anon (public) key via `--dart-define`
+(see the app configuration section).
+
+### 5. Run locally
+
+```sh
+supabase start                 # Postgres, Auth, API gateway in Docker; applies migrations
+supabase db reset              # re-apply migrations from scratch
+supabase functions serve       # serves all functions at http://127.0.0.1:54321/functions/v1/
+supabase status                # shows the local anon key
+```
+
+Local email confirmation is off (`[auth.email] enable_confirmations = false`).
+
+### 6. Checks and tests
+
+```sh
+cd supabase/functions
+deno task check                # type-check all functions and tests
+deno task lint
+deno task test                 # unit tests: validation, mapping, LWW, routing, auth errors
+# end-to-end against the local stack (or a deployed project):
+SUPABASE_URL=http://127.0.0.1:54321 SUPABASE_ANON_KEY=<anon key> \
+  deno run --allow-net --allow-env tests/e2e_smoke.ts
+```
