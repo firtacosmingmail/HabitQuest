@@ -232,9 +232,10 @@ enable_confirmations = true
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
 secure_password_change = false
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
-max_frequency = "1s"
+# Habit Quest: max_frequency and otp_length match the live project.
+max_frequency = "1m0s"
 # Number of characters used in the email OTP.
-otp_length = 6
+otp_length = 8
 # Number of seconds before the email OTP expires (defaults to 1 hour).
 otp_expiry = 3600
 
@@ -249,9 +250,13 @@ otp_expiry = 3600
 # sender_name = "Admin"
 
 # Habit Quest: confirmation link goes to the auth-confirm Edge Function.
-[auth.email.template.confirmation]
-subject = "Confirm your Habit Quest account"
-content_path = "./supabase/templates/confirmation.html"
+# DISABLED: the live project is on the free tier with Supabase's default email
+# provider, which rejects template changes (HTTP 400 on `supabase config push`,
+# failing the WHOLE auth update). Uncomment once a custom SMTP provider is set
+# up in [auth.email.smtp] (or the plan is upgraded). See README "Email confirmation".
+# [auth.email.template.confirmation]
+# subject = "Confirm your Habit Quest account"
+# content_path = "./supabase/templates/confirmation.html"
 
 # Uncomment to customize email template
 # [auth.email.template.invite]
@@ -310,8 +315,9 @@ max_enrolled_factors = 10
 
 # Control MFA via App Authenticator (TOTP)
 [auth.mfa.totp]
-enroll_enabled = false
-verify_enabled = false
+# Habit Quest: matches the live project.
+enroll_enabled = true
+verify_enabled = true
 
 # Configure MFA via Phone Messaging
 [auth.mfa.phone]

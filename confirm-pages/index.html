@@ -20,5 +20,24 @@
     <span class="pill">✨ You can close this page</span>
     <div class="brand">Habit Quest</div>
   </main>
+  <script>
+    // With Supabase's default email template, its /auth/v1/verify endpoint
+    // redirects here (site_url / emailRedirectTo). On failure it appends
+    // #error=...&error_code=otp_expired; on success it appends session tokens.
+    (function () {
+      var hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+      var query = new URLSearchParams(window.location.search);
+      var code = hash.get("error_code") || query.get("error_code");
+      var err = code || hash.get("error") || query.get("error");
+      if (err) {
+        window.location.replace("error.html?reason=" + (code === "otp_expired" ? "expired" : "invalid"));
+        return;
+      }
+      // Don't leave session tokens in the address bar or history.
+      if (window.location.hash && window.history.replaceState) {
+        window.history.replaceState(null, "", window.location.pathname);
+      }
+    })();
+  </script>
 </body>
 </html>
