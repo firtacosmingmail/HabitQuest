@@ -93,7 +93,14 @@ p strong { color: var(--text); }
   font-family: "Fredoka", "Nunito", sans-serif;
   font-weight: 600;
   font-size: 17px;
+  text-decoration: none;
+  box-shadow: 0 6px 16px rgba(124, 77, 255, 0.35);
+  transition: transform 0.15s ease;
 }
+
+a.pill:hover, a.pill:focus-visible { transform: translateY(-2px) scale(1.03); }
+
+.fallback { margin-top: 18px; font-size: 15px; }
 
 .brand {
   margin-top: 22px;

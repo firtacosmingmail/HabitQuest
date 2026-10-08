@@ -16,7 +16,8 @@
     <div class="mascot" id="mascot" aria-hidden="true">🦉</div>
     <h1 id="title">Hmm, that link didn't work</h1>
     <p id="message">This confirmation link isn't valid. It may have been used already or copied incompletely.</p>
-    <p><strong>Open Habit Quest and sign up again</strong>, or request a new confirmation link from the app.</p>
+    <a class="pill" id="open-app" href="habitquest://auth-callback?status=error&amp;reason=invalid">📱 Open Habit Quest</a>
+    <p class="fallback">Button not working, or on a computer? <strong>Go back to Habit Quest and log in</strong>, or sign up again for a new confirmation link.</p>
     <div class="brand">Habit Quest</div>
   </main>
   <script>
@@ -39,10 +40,16 @@
         }
       };
       var reason = new URLSearchParams(window.location.search).get("reason");
-      var m = messages[reason] || messages.invalid;
+      if (!messages[reason]) reason = "invalid";
+      var m = messages[reason];
       document.getElementById("mascot").textContent = m.mascot;
       document.getElementById("title").textContent = m.title;
       document.getElementById("message").textContent = m.message;
+      // Pass the error to the app (habitquest:// deep link); without the
+      // app nothing happens and the text above remains.
+      var link = document.getElementById("open-app");
+      link.href = "habitquest://auth-callback?status=error&reason=" + encodeURIComponent(reason);
+      window.location.href = link.href;
     })();
   </script>
 </body>

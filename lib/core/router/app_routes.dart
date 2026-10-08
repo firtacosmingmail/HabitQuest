@@ -7,6 +7,9 @@ abstract final class AppRoutes {
   static const login = '/login';
   static const splash = '/splash';
 
+  /// Email confirmation deep link (`habitquest://auth-callback?...`).
+  static const authCallback = '/auth-callback';
+
   static String habitDetails(String id) => '/habits/$id';
   static String editHabit(String id) => '/habits/$id/edit';
 }

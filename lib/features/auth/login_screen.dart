@@ -5,6 +5,7 @@ import '../../core/config/backend_config.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../game/ui/mascot.dart';
+import 'auth_callback.dart';
 import 'auth_messages.dart';
 import 'auth_providers.dart';
 
@@ -16,7 +17,14 @@ enum AuthMode { login, register }
 class LoginScreen extends ConsumerStatefulWidget {
   final AuthMode initialMode;
 
-  const LoginScreen({super.key, this.initialMode = AuthMode.login});
+  /// Email confirmation outcome from the `/auth-callback` deep link.
+  final AuthCallbackResult? callback;
+
+  const LoginScreen({
+    super.key,
+    this.initialMode = AuthMode.login,
+    this.callback,
+  });
 
   @override
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
@@ -100,6 +108,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final configured = ref.watch(backendConfigProvider).isConfigured;
     final authState = ref.watch(authControllerProvider);
     final signedOutReason = authState is SignedOut ? authState.reason : null;
+    final callback = widget.callback;
 
     return Scaffold(
       body: DecoratedBox(
@@ -135,7 +144,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                       const SizedBox(height: 12),
                     ],
+                    if (callback != null && _confirmationSentTo == null) ...[
+                      _Banner(
+                        key: ValueKey(
+                          callback.confirmed
+                              ? 'auth-callback-confirmed'
+                              : 'auth-callback-error',
+                        ),
+                        emoji: callback.emoji,
+                        color: callback.confirmed
+                            ? AppColors.mint
+                            : AppColors.coral,
+                        title: callback.title,
+                        message: callback.message,
+                      ),
+                      const SizedBox(height: 12),
+                    ],
                     if (signedOutReason != null &&
+                        callback == null &&
                         _error == null &&
                         _confirmationSentTo == null) ...[
                       _Banner(
@@ -189,18 +215,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ),
                   ButtonSegment(
                     value: AuthMode.register,
-                    label: Text(
-                      'Sign up',
-                      key: ValueKey('auth-mode-register'),
-                    ),
+                    label: Text('Sign up', key: ValueKey('auth-mode-register')),
                     icon: Icon(Icons.auto_awesome_rounded),
                   ),
                 ],
                 selected: {_mode},
                 showSelectedIcon: false,
-                onSelectionChanged: _busy
-                    ? null
-                    : (s) => _switchMode(s.first),
+                onSelectionChanged: _busy ? null : (s) => _switchMode(s.first),
               ),
               const SizedBox(height: 20),
               AnimatedSize(
@@ -283,9 +304,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     labelText: 'Confirm password',
                     prefixIcon: Icon(Icons.lock_outline_rounded),
                   ),
-                  validator: (v) => v != _password.text
-                      ? "Passwords don't match"
-                      : null,
+                  validator: (v) =>
+                      v != _password.text ? "Passwords don't match" : null,
                 ),
               ],
               if (_error != null) ...[
