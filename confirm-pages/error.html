@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#7c4dff">
+  <title>Link problem · Habit Quest</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="card error">
+    <div class="mascot" id="mascot" aria-hidden="true">🦉</div>
+    <h1 id="title">Hmm, that link didn't work</h1>
+    <p id="message">This confirmation link isn't valid. It may have been used already or copied incompletely.</p>
+    <p><strong>Open Habit Quest and sign up again</strong>, or request a new confirmation link from the app.</p>
+    <div class="brand">Habit Quest</div>
+  </main>
+  <script>
+    (function () {
+      var messages = {
+        expired: {
+          mascot: "⏳",
+          title: "This link has expired",
+          message: "Confirmation links only last a little while, and this one has run out of time."
+        },
+        invalid: {
+          mascot: "🦉",
+          title: "Hmm, that link didn't work",
+          message: "This confirmation link isn't valid. It may have been used already or copied incompletely."
+        },
+        missing: {
+          mascot: "🧭",
+          title: "Something's missing",
+          message: "This link is missing its confirmation code. Try opening the link from your email again."
+        }
+      };
+      var reason = new URLSearchParams(window.location.search).get("reason");
+      var m = messages[reason] || messages.invalid;
+      document.getElementById("mascot").textContent = m.mascot;
+      document.getElementById("title").textContent = m.title;
+      document.getElementById("message").textContent = m.message;
+    })();
+  </script>
+</body>
+</html>

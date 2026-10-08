@@ -1,0 +1,106 @@
+/* Habit Quest confirmation pages: palette from lib/core/theme/app_colors.dart */
+:root {
+  --grape: #7c4dff;
+  --sunshine: #ffc93c;
+  --coral: #ff6b6b;
+  --mint: #2ec4b6;
+  --sky: #4cc9f0;
+  --bg: #fff8f0;
+  --surface: #ffffff;
+  --text: #1b1b1f;
+  --muted: #5b5670;
+  --shadow: 0 12px 32px rgba(124, 77, 255, 0.18);
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #17142b;
+    --surface: #221e3d;
+    --text: #f4f1ff;
+    --muted: #b7b0d6;
+    --shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  }
+}
+
+* { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  background:
+    radial-gradient(circle at 15% 10%, rgba(255, 201, 60, 0.25), transparent 40%),
+    radial-gradient(circle at 85% 90%, rgba(76, 201, 240, 0.22), transparent 45%),
+    var(--bg);
+  color: var(--text);
+  font-family: "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 17px;
+  line-height: 1.5;
+}
+
+.card {
+  width: 100%;
+  max-width: 440px;
+  background: var(--surface);
+  border-radius: 28px;
+  padding: 36px 28px 30px;
+  text-align: center;
+  box-shadow: var(--shadow);
+  border-top: 8px solid var(--accent, var(--mint));
+}
+
+.mascot {
+  font-size: 72px;
+  line-height: 1;
+  display: inline-block;
+  animation: bounce 1.6s ease-in-out infinite;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0) rotate(0); }
+  50% { transform: translateY(-10px) rotate(-6deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mascot { animation: none; }
+}
+
+h1 {
+  font-family: "Fredoka", "Nunito", system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 30px;
+  line-height: 1.2;
+  margin: 18px 0 10px;
+  color: var(--accent, var(--mint));
+}
+
+p { margin: 0 0 12px; color: var(--muted); }
+
+p strong { color: var(--text); }
+
+.pill {
+  display: inline-block;
+  margin-top: 14px;
+  padding: 12px 22px;
+  border-radius: 999px;
+  background: var(--grape);
+  color: #fff;
+  font-family: "Fredoka", "Nunito", sans-serif;
+  font-weight: 600;
+  font-size: 17px;
+}
+
+.brand {
+  margin-top: 22px;
+  font-family: "Fredoka", "Nunito", sans-serif;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.success { --accent: var(--mint); }
+.error { --accent: var(--coral); }

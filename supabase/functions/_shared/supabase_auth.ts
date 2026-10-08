@@ -9,6 +9,14 @@ const err = (e: { status?: number; code?: string; message?: string }): AuthError
   message: e.message,
 });
 
+/** Hosted "email confirmed" page (see README "Email confirmation"). */
+export const DEFAULT_CONFIRM_SUCCESS_URL = "https://cf-latch.github.io/habit-quest-pages/";
+
+/** Where Supabase sends the user after confirming (CONFIRM_SUCCESS_URL secret). */
+export function confirmSuccessUrl(): string {
+  return Deno.env.get("CONFIRM_SUCCESS_URL") || DEFAULT_CONFIRM_SUCCESS_URL;
+}
+
 export function supabaseAuthGateway(env: Env): AuthGateway {
   const client = () => anonClient(env);
   return {
@@ -16,7 +24,10 @@ export function supabaseAuthGateway(env: Env): AuthGateway {
       const { data, error } = await client().auth.signUp({
         email,
         password,
-        options: displayName ? { data: { display_name: displayName } } : undefined,
+        options: {
+          emailRedirectTo: confirmSuccessUrl(),
+          ...(displayName ? { data: { display_name: displayName } } : {}),
+        },
       });
       if (error) return { data: null, error: err(error) };
       return {
