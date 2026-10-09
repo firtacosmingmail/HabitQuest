@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#7c4dff">
+  <title>Email confirmed · Habit Quest</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="card success">
+    <div class="mascot" aria-hidden="true">🦉</div>
+    <h1>Email confirmed! 🎉</h1>
+    <p>Your quest is ready to begin.</p>
+    <a class="pill" id="open-app" href="habitquest://auth-callback?status=confirmed">📱 Open Habit Quest</a>
+    <p class="fallback">Button not working, or on a computer? <strong>Go back to Habit Quest and log in</strong> to start building your streaks.</p>
+    <div class="brand">Habit Quest</div>
+  </main>
+  <script>
+    // With Supabase's default email template, its /auth/v1/verify endpoint
+    // redirects here (site_url / emailRedirectTo). On failure it appends
+    // #error=...&error_code=otp_expired; on success it appends session tokens.
+    (function () {
+      var hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+      var query = new URLSearchParams(window.location.search);
+      var code = hash.get("error_code") || query.get("error_code");
+      var err = code || hash.get("error") || query.get("error");
+      if (err) {
+        // error.html opens the app with status=error&reason=...
+        window.location.replace("error.html?reason=" + (code === "otp_expired" ? "expired" : "invalid"));
+        return;
+      }
+      // Don't leave session tokens in the address bar or history.
+      if (window.location.hash && window.history.replaceState) {
+        window.history.replaceState(null, "", window.location.pathname);
+      }
+      // Try to open the app (habitquest:// deep link). Without the app
+      // (desktop, not installed) nothing happens and the text above remains.
+      window.location.href = document.getElementById("open-app").href;
+    })();
+  </script>
+</body>
+</html>

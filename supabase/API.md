@@ -59,6 +59,21 @@ Body: `{ "email": string, "password": string, "displayName"?: string }`
   string or longer than 100 characters) or `400 weak_password`.
 - `403 signup_disabled` when sign-ups are turned off in the project.
 
+The confirmation email redirects to the hosted "email confirmed" page
+(`emailRedirectTo` = `CONFIRM_SUCCESS_URL`). See README "Email confirmation".
+
+### `auth-confirm` (GET, browser link)
+
+Not called by the app. The confirmation email links here (custom template):
+`GET auth-confirm?token_hash=...&type=signup|email|email_change|recovery|invite`
+(type defaults to `signup`). It verifies the token with `verifyOtp` and answers:
+
+- `303` → `CONFIRM_SUCCESS_URL` on success.
+- `303` → `CONFIRM_ERROR_URL?reason=expired|invalid|missing` on failure
+  (`otp_expired` → `expired`, which Supabase also returns for unknown or used
+  tokens; missing `token_hash` → `missing`; anything else → `invalid`).
+- Plain-text `200`/`400` if the URL secrets are unset; `405` for other methods.
+
 ### `auth-login`
 
 Body: `{ "email": string, "password": string }`

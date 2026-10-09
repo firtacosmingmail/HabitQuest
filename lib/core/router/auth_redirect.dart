@@ -1,3 +1,4 @@
+import '../../features/auth/auth_callback.dart';
 import '../../features/auth/auth_controller.dart';
 import 'app_routes.dart';
 
@@ -6,6 +7,11 @@ import 'app_routes.dart';
 /// - signed out, everything goes to `/login`;
 /// - signed in, `/login` and the splash go to `/habits` (or to the page the
 ///   user originally asked for, kept in a `from` query parameter).
+///
+/// `/auth-callback` (the email confirmation deep link) passes the gate:
+/// signed out it lands on `/login?status=...&reason=...` (the login screen
+/// shows the outcome); signed in it stays allowed (the router shows a
+/// snackbar and keeps the user in the app).
 ///
 /// Returns the location to redirect to, or `null` to stay.
 String? authRedirect(AuthState auth, Uri uri) {
@@ -19,9 +25,17 @@ String? authRedirect(AuthState auth, Uri uri) {
 
   return switch (auth) {
     AuthUnknown() => onSplash ? null : _withFrom(AppRoutes.splash, wanted),
-    SignedOut() => onLogin ? null : _withFrom(AppRoutes.login, wanted),
+    SignedOut() => _signedOut(onLogin, wanted),
     SignedIn() => onGate ? safeReturnLocation(wanted) : null,
   };
+}
+
+String? _signedOut(bool onLogin, String? wanted) {
+  final target = wanted == null ? null : Uri.tryParse(wanted);
+  if (target != null && target.path == AppRoutes.authCallback) {
+    return loginWithCallback(target);
+  }
+  return onLogin ? null : _withFrom(AppRoutes.login, wanted);
 }
 
 /// [from] if it is an in-app location outside the auth gate, else `/habits`.
