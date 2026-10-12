@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:habit_quest/core/router/app_router.dart';
 import 'package:habit_quest/core/router/auth_redirect.dart';
+import 'package:habit_quest/data/remote/fake_account_api.dart';
 import 'package:habit_quest/data/remote/fake_auth_api.dart';
 import 'package:habit_quest/data/remote/session.dart';
 import 'package:habit_quest/features/auth/auth_providers.dart';
@@ -13,13 +14,17 @@ import 'package:habit_quest/features/auth/session_store.dart';
 import 'package:habit_quest/features/auth/splash_screen.dart';
 import 'package:habit_quest/features/habit_details/habit_details_screen.dart';
 import 'package:habit_quest/features/habits/habits_screen.dart';
+import 'package:habit_quest/features/profile/profile_screen.dart';
 import 'package:habit_quest/features/quest/quest_screen.dart';
 
 import '../../helpers/test_app.dart';
 
-String path(ProviderContainer container) =>
-    container.read(routerProvider).routerDelegate.currentConfiguration.uri
-        .toString();
+String path(ProviderContainer container) => container
+    .read(routerProvider)
+    .routerDelegate
+    .currentConfiguration
+    .uri
+    .toString();
 
 void main() {
   group('authRedirect', () {
@@ -76,8 +81,7 @@ void main() {
       expect(path(c), '/login');
     });
 
-    testWidgets('splash while the session loads, then the app',
-        (tester) async {
+    testWidgets('splash while the session loads, then the app', (tester) async {
       final store = _SlowStore(testSession);
       final c = await pumpHabitQuestApp(
         tester,
@@ -101,8 +105,9 @@ void main() {
       expect(find.byType(HabitDetailsScreen), findsOneWidget);
     });
 
-    testWidgets('login → /habits; logout from Quest → /login',
-        (tester) async {
+    testWidgets('login → /habits; logout from Quest → Profile → /login', (
+      tester,
+    ) async {
       final api = FakeAuthApi()..addUser('hero@example.com', 'secret1');
       final store = InMemorySessionStore();
       final c = await pumpHabitQuestApp(
@@ -110,6 +115,7 @@ void main() {
         signedIn: false,
         overrides: [
           authApiProvider.overrideWithValue(api),
+          accountApiProvider.overrideWithValue(FakeAccountApi()),
           sessionStoreProvider.overrideWithValue(store),
           authControllerProvider.overrideWith(
             () => AuthController(proactiveRefresh: false),
@@ -137,12 +143,15 @@ void main() {
       await tester.tap(find.text('Quest'));
       await tester.pumpAndSettle();
       expect(find.byType(QuestScreen), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('profile-button')));
+      await tester.pumpAndSettle();
+      expect(find.byType(ProfileScreen), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('logout-button')));
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('logout-dialog')), findsOneWidget);
       await tester.tap(find.text('Stay'));
       await tester.pumpAndSettle();
-      expect(find.byType(QuestScreen), findsOneWidget);
+      expect(find.byType(ProfileScreen), findsOneWidget);
       expect(store.session, isNotNull);
 
       await tester.tap(find.byKey(const ValueKey('logout-button')));
@@ -154,8 +163,9 @@ void main() {
       expect(api.calls.last, 'logout');
     });
 
-    testWidgets('a session expiring mid-use sends the user to login',
-        (tester) async {
+    testWidgets('a session expiring mid-use sends the user to login', (
+      tester,
+    ) async {
       final c = await pumpHabitQuestApp(tester);
       expect(find.byType(HabitsScreen), findsOneWidget);
       await c.read(authControllerProvider.notifier).logout();
