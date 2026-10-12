@@ -58,6 +58,21 @@
 				<string>habitquest</string>
 			</array>
 		</dict>
+		<!-- Google Sign-In callback: the REVERSED iOS OAuth client ID.
+		     PLACEHOLDER: replace REPLACE-WITH-IOS-CLIENT-ID so the scheme reads
+		     com.googleusercontent.apps.<the part of the iOS client ID before
+		     ".apps.googleusercontent.com">, and set googleIosClientId in
+		     lib/core/config/env.dart (README "Sign in with Google & Apple"). -->
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>google-sign-in</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.REPLACE-WITH-IOS-CLIENT-ID</string>
+			</array>
+		</dict>
 	</array>
 	<key>FlutterDeepLinkingEnabled</key>
 	<true/>
