@@ -188,12 +188,14 @@ The live Supabase project (`fwikodmrfoorbstmkedx`) has email confirmations
 they can log in.
 
 **Pages.** Two static pages (plain HTML/CSS, no build, no secrets) live in
-[`confirm-pages/`](confirm-pages/) and are published from a separate public
-repo, [cf-latch/habit-quest-pages](https://github.com/cf-latch/habit-quest-pages),
-on GitHub Pages:
+[`confirm-pages/`](confirm-pages/) and are published on GitHub Pages from the
+`gh-pages` branch of
+[firtacosmingmail/HabitQuest](https://github.com/firtacosmingmail/HabitQuest):
 
-- success: <https://cf-latch.github.io/habit-quest-pages/>
-- error: <https://cf-latch.github.io/habit-quest-pages/error.html?reason=expired|invalid|missing>
+- success: <https://firtacosmingmail.github.io/HabitQuest/>
+- error: <https://firtacosmingmail.github.io/HabitQuest/error.html?reason=expired|invalid|missing>
+
+The old `cf-latch/habit-quest-pages` repo is no longer used and can be deleted.
 
 **Flow today (Supabase's default email template).** The free tier with the
 built-in email provider does not allow custom templates, so the email still
@@ -218,8 +220,8 @@ dashboard, uncomment `[auth.email.template.confirmation]` in
 
 ```bash
 supabase secrets set --project-ref fwikodmrfoorbstmkedx \
-  CONFIRM_SUCCESS_URL=https://cf-latch.github.io/habit-quest-pages/ \
-  CONFIRM_ERROR_URL=https://cf-latch.github.io/habit-quest-pages/error.html
+  CONFIRM_SUCCESS_URL=https://firtacosmingmail.github.io/HabitQuest/ \
+  CONFIRM_ERROR_URL=https://firtacosmingmail.github.io/HabitQuest/error.html
 supabase functions deploy auth-confirm --no-verify-jwt
 supabase functions deploy auth-register --no-verify-jwt
 ```
@@ -227,14 +229,13 @@ supabase functions deploy auth-register --no-verify-jwt
 If the secrets are unset, `auth-confirm` answers in plain text and
 `auth-register` falls back to the success page URL.
 
-**Redeploying the pages.** Edit `confirm-pages/`, then copy the changed files
-into the `habit-quest-pages` repo (clone it, or upload a file with
-`gh api -X PUT repos/cf-latch/habit-quest-pages/contents/<file>` and its current
-`sha`). GitHub Pages rebuilds from `main` in a minute or so. Never push this app
-repo there.
+**Redeploying the pages.** Edit `confirm-pages/`, copy the changed files to the
+root of the `gh-pages` branch of firtacosmingmail/HabitQuest, commit and push
+that branch. GitHub Pages rebuilds in a minute or so.
 
 **Auth settings on the live project:** `site_url` is the success page, and the
-redirect allow-list holds both page URLs plus the `auth-confirm` URL.
+redirect allow-list holds both page URLs, the `auth-confirm` URL and
+`habitquest://auth-callback`.
 
 **Config push caveat.** `supabase config push` pushes the **whole**
 `config.toml` (API, DB, storage, all auth settings) and does **not** stop when
@@ -246,8 +247,13 @@ for single auth fields:
 ```bash
 curl -X PATCH https://api.supabase.com/v1/projects/fwikodmrfoorbstmkedx/config/auth \
   -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H "Content-Type: application/json" \
-  -d '{"site_url":"https://cf-latch.github.io/habit-quest-pages/"}'
+  -d '{"site_url":"https://firtacosmingmail.github.io/HabitQuest/"}'
 ```
+
+`SUPABASE_ACCESS_TOKEN` is the token `supabase login` saved. On macOS it is in
+the Keychain (service "Supabase CLI", stored as `go-keyring-base64:<base64>`):
+`export SUPABASE_ACCESS_TOKEN=$(security find-generic-password -s "Supabase CLI" -w | sed 's/^go-keyring-base64://' | base64 -d)`.
+Never print or commit it.
 
 **Testing by hand.** Sign up in the app with a real address, open the email,
 tap the link, check that the "Email confirmed! 🎉" page appears, then log in

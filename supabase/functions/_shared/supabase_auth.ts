@@ -10,7 +10,7 @@ const err = (e: { status?: number; code?: string; message?: string }): AuthError
 });
 
 /** Hosted "email confirmed" page (see README "Email confirmation"). */
-export const DEFAULT_CONFIRM_SUCCESS_URL = "https://cf-latch.github.io/habit-quest-pages/";
+export const DEFAULT_CONFIRM_SUCCESS_URL = "https://firtacosmingmail.github.io/HabitQuest/";
 
 /** Where Supabase sends the user after confirming (CONFIRM_SUCCESS_URL secret). */
 export function confirmSuccessUrl(): string {
