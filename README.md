@@ -204,6 +204,95 @@ signs in).
   nothing fires. A reminder missed while the tab was asleep for more than 15
   minutes is skipped rather than replayed.
 
+## Advertising (AdMob)
+
+Habit Quest shows small Google AdMob banners on iOS and Android
+(`google_mobile_ads`). **Web has no ads**, and neither do tests.
+
+### Where ads appear
+
+- **Habits list**: one inline ad after the 3rd habit card, then after every 6
+  more (9th, 15th, ...), counted across *Today* and *Other habits*. With 1-2
+  habits, one ad at the end of the list; none when the list is empty.
+  Archived habits get no ads. Ads always sit between whole cards, so never
+  between a card and its check-in button.
+- **Habit details**: one ad under the monthly calendar, above the actions.
+- **Nowhere else**: never on login, profile, splash, create or edit screens.
+
+Each ad sits in a rounded frame about 85% as wide as a habit card, centred,
+with a small "Ad" label. Banners load lazily (when the slot is first laid
+out) and take no space until they load, so a failed ad collapses cleanly. The
+list uses an inline adaptive banner (max 100 pt tall); details uses a medium
+rectangle (300x250) when it fits, else an inline adaptive banner.
+
+### Where the IDs live
+
+Every ID defaults to **Google's official test IDs**, which always serve test
+ads. All of them are listed in one place, `lib/core/config/env.dart`
+(`admobEnvs`, per environment):
+
+| What | Default (test) | Also set in |
+|---|---|---|
+| iOS app ID | `ca-app-pub-3940256099942544~1458002511` | `ios/Runner/Info.plist` `GADApplicationIdentifier` |
+| Android app ID | `ca-app-pub-3940256099942544~3347511713` | `android/app/src/main/AndroidManifest.xml` `com.google.android.gms.ads.APPLICATION_ID` |
+| Habits list banner (iOS / Android) | `.../2934735716` / `.../6300978111` | — |
+| Habit details banner (iOS / Android) | `.../2934735716` / `.../6300978111` | — |
+
+The native SDKs read the **app IDs** before any Dart code runs, so those must
+also be changed in `Info.plist` and `AndroidManifest.xml` (keep all three in
+sync). Unit IDs can be overridden per build without editing code:
+
+```sh
+flutter run \
+  --dart-define=ADMOB_IOS_HABITS_LIST_UNIT_ID=ca-app-pub-XXXX/YYYY \
+  --dart-define=ADMOB_ANDROID_HABITS_LIST_UNIT_ID=ca-app-pub-XXXX/YYYY \
+  --dart-define=ADMOB_IOS_HABIT_DETAILS_UNIT_ID=ca-app-pub-XXXX/YYYY \
+  --dart-define=ADMOB_ANDROID_HABIT_DETAILS_UNIT_ID=ca-app-pub-XXXX/YYYY
+flutter run --dart-define=ADS_ENABLED=false   # no ads at all
+```
+
+### Switching to real ads
+
+1. Create an AdMob account at <https://admob.google.com> and add two apps:
+   *Habit Quest* for iOS and for Android. Each has an **app ID**
+   (`ca-app-pub-…~…`, under *App settings*).
+2. In each app create two **Banner** ad units, e.g. *Habits list* and
+   *Habit details*. Each has an **ad unit ID** (`ca-app-pub-…/…`).
+3. Put the IDs in `admobEnvs` in `lib/core/config/env.dart` (prod; keep test
+   IDs for dev, as Google asks you not to click your own live ads), and the
+   app IDs in `Info.plist` and `AndroidManifest.xml`.
+4. In AdMob, *Privacy & messaging*: create a **GDPR** consent message (and the
+   US state regulations message if you serve the US), and optionally an
+   **IDFA explainer** for iOS. Publish them.
+5. Add an `app-ads.txt` on your developer website.
+
+### Consent and privacy
+
+- At app start (after the first frame) the app runs **Google UMP**
+  (`ConsentInformation` / `ConsentForm`): it refreshes the consent
+  requirement and shows the consent form when required (EU/UK). No ad is
+  requested and the Mobile Ads SDK is not started before this finishes. If
+  UMP says ads may not be requested, no ads are shown.
+- On **iOS**, the **App Tracking Transparency** prompt follows UMP
+  (`NSUserTrackingUsageDescription` in `Info.plist`). If tracking is not
+  authorised, or the consent status is unresolved, ads are requested as
+  **non-personalised**. EU users who decline in the UMP form get limited /
+  non-personalised ads automatically (the SDK reads the IAB TCF consent string
+  UMP stores).
+- `Info.plist` lists Google's `SKAdNetworkItems` (from
+  <https://developers.google.com/admob/ios/3p-skadnetworks>; refresh it when
+  Google updates the list).
+- Android needs `minSdk` 24 (set in `android/app/build.gradle.kts`).
+
+### Code
+
+`lib/features/ads/`: `AdService` (interface), `NoopAdService` (web, tests,
+`ADS_ENABLED=false`, desktop), `GoogleAdService` (consent + banners,
+`platform_ad_service_mobile.dart`, only compiled off the web), `AdSlot` /
+`AdFrame` (the widget and its look), `AdsBootstrap` (starts consent from
+`main.dart`). Widget tests override `adServiceProvider` with
+`test/helpers/fake_ad_service.dart`, which renders a placeholder box.
+
 ## Email confirmation
 
 The live Supabase project (`fwikodmrfoorbstmkedx`) has email confirmations
