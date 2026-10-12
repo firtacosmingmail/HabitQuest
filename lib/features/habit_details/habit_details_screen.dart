@@ -9,6 +9,8 @@ import '../../data/models/completion_log.dart';
 import '../../data/models/habit.dart';
 import '../../domain/providers.dart';
 import '../../domain/streaks.dart';
+import '../ads/ad_placement.dart';
+import '../ads/ad_slot.dart';
 import 'completion_rate.dart';
 import 'widgets/habit_header.dart';
 import 'widgets/habit_month_calendar.dart';
@@ -171,7 +173,12 @@ class _HabitDetailsBody extends ConsumerWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 8),
+            const AdSlot(
+              key: ValueKey('details-ad'),
+              placement: AdPlacement.habitDetails,
+            ),
+            const SizedBox(height: 16),
             _Actions(habit: habit),
           ],
         ),

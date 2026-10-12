@@ -10,6 +10,8 @@ import '../../data/models/completion_log.dart';
 import '../../data/models/habit.dart';
 import '../../domain/providers.dart';
 import '../../domain/streaks.dart';
+import '../ads/ad_placement.dart';
+import '../ads/ad_slot.dart';
 import '../game/ui/level_chip.dart';
 import '../sync/ui/sync_status_indicator.dart';
 import 'widgets/habit_card.dart';
@@ -88,6 +90,27 @@ class _HabitsList extends ConsumerWidget {
         h.id: ref.watch(streakProvider(h.id)),
     };
 
+    // Inline ads go between whole cards (see habitsListAdAfter), counted
+    // across the Today and Other sections; archived cards get none.
+    final cardCount = due.length + others.length;
+    var position = 0;
+    List<Widget> tileWithAd(Habit h, {required bool canCheckIn}) {
+      position++;
+      return [
+        _HabitTile(
+          habit: h,
+          log: log,
+          streak: streaks[h.id],
+          canCheckIn: canCheckIn,
+        ),
+        if (habitsListAdAfter(position, cardCount))
+          AdSlot(
+            key: ValueKey('habits-ad-$position'),
+            placement: AdPlacement.habitsList,
+          ),
+      ];
+    }
+
     return ListView(
       padding: const EdgeInsets.only(bottom: 112),
       children: [
@@ -104,22 +127,10 @@ class _HabitsList extends ConsumerWidget {
           if (due.isEmpty)
             const _Note('Nothing due today. Enjoy the break 🌴')
           else
-            for (final h in due)
-              _HabitTile(
-                habit: h,
-                log: log,
-                streak: streaks[h.id],
-                canCheckIn: true,
-              ),
+            for (final h in due) ...tileWithAd(h, canCheckIn: true),
           if (others.isNotEmpty) ...[
             const _SectionTitle('Other habits'),
-            for (final h in others)
-              _HabitTile(
-                habit: h,
-                log: log,
-                streak: streaks[h.id],
-                canCheckIn: false,
-              ),
+            for (final h in others) ...tileWithAd(h, canCheckIn: false),
           ],
         ],
         if (archived.isNotEmpty)

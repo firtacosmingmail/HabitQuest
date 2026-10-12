@@ -8,6 +8,7 @@ import 'data/sync/string_store.dart';
 import 'data/sync/sync_meta.dart';
 import 'data/sync/sync_queue.dart';
 import 'domain/providers.dart';
+import 'features/ads/ads_bootstrap.dart';
 import 'features/game/game_providers.dart';
 import 'features/game/game_repository.dart';
 import 'features/notifications/notifications_bootstrap.dart';
@@ -33,7 +34,7 @@ Future<void> main() async {
         syncMetaProvider.overrideWithValue(meta),
       ],
       child: const NotificationsBootstrap(
-        child: SyncBootstrap(child: HabitQuestApp()),
+        child: SyncBootstrap(child: AdsBootstrap(child: HabitQuestApp())),
       ),
     ),
   );

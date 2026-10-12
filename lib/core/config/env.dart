@@ -26,6 +26,68 @@ const Map<AppEnv, EnvEntry> appEnvs = {
   AppEnv.prod: EnvEntry(supabaseUrl: _liveUrl, supabaseAnonKey: _liveAnonKey),
 };
 
+// ---------------------------------------------------------------------------
+// Advertising (Google AdMob). THIS is the one place to edit the AdMob IDs.
+//
+// Every ID below defaults to Google's official TEST IDs, which always serve
+// test ads and are safe to click. Replace them with the IDs from your AdMob
+// console (Apps > App settings for the app IDs, Apps > Ad units for the unit
+// IDs) before releasing. Each unit ID can also be overridden per build with a
+// --dart-define (see AdConfig in lib/features/ads/ad_config.dart):
+//
+//   ADS_ENABLED=false                       turn ads off entirely
+//   ADMOB_IOS_HABITS_LIST_UNIT_ID=...       ADMOB_ANDROID_HABITS_LIST_UNIT_ID=...
+//   ADMOB_IOS_HABIT_DETAILS_UNIT_ID=...     ADMOB_ANDROID_HABIT_DETAILS_UNIT_ID=...
+//
+// The *app* IDs are read by the native SDKs before any Dart code runs, so they
+// must ALSO be set natively: GADApplicationIdentifier in ios/Runner/Info.plist
+// and com.google.android.gms.ads.APPLICATION_ID in
+// android/app/src/main/AndroidManifest.xml. They are kept here so all AdMob
+// IDs are listed in one place; keep the three in sync.
+// ---------------------------------------------------------------------------
+
+/// AdMob app and ad unit IDs for one [AppEnv].
+class AdMobIds {
+  final String iosAppId;
+  final String androidAppId;
+
+  /// Banner unit shown inline in the Habits list.
+  final String iosHabitsListUnitId;
+  final String androidHabitsListUnitId;
+
+  /// Banner unit shown under the calendar on the habit details screen.
+  final String iosHabitDetailsUnitId;
+  final String androidHabitDetailsUnitId;
+
+  const AdMobIds({
+    required this.iosAppId,
+    required this.androidAppId,
+    required this.iosHabitsListUnitId,
+    required this.androidHabitsListUnitId,
+    required this.iosHabitDetailsUnitId,
+    required this.androidHabitDetailsUnitId,
+  });
+}
+
+/// Google's official sample IDs (always serve test ads).
+/// https://developers.google.com/admob/ios/test-ads and
+/// https://developers.google.com/admob/android/test-ads
+const admobTestIds = AdMobIds(
+  iosAppId: 'ca-app-pub-3940256099942544~1458002511',
+  androidAppId: 'ca-app-pub-3940256099942544~3347511713',
+  iosHabitsListUnitId: 'ca-app-pub-3940256099942544/2934735716',
+  androidHabitsListUnitId: 'ca-app-pub-3940256099942544/6300978111',
+  iosHabitDetailsUnitId: 'ca-app-pub-3940256099942544/2934735716',
+  androidHabitDetailsUnitId: 'ca-app-pub-3940256099942544/6300978111',
+);
+
+/// AdMob IDs per environment. Swap prod (and dev, if you want real ads in
+/// debug builds; Google recommends test ads during development) for your own.
+const Map<AppEnv, AdMobIds> admobEnvs = {
+  AppEnv.dev: admobTestIds,
+  AppEnv.prod: admobTestIds,
+};
+
 /// Picks the environment: an explicit `ENV=dev|prod` define wins (case
 /// insensitive); otherwise prod in release builds and dev in debug/profile.
 AppEnv selectAppEnv({required String envDefine, required bool isRelease}) {
