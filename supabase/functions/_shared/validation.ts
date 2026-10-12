@@ -265,6 +265,37 @@ export function validateRegistration(body: JsonObject): Registration {
   return { ...creds, displayName };
 }
 
+export interface OAuthInput {
+  provider: "google" | "apple";
+  idToken: string;
+  nonce: string | null;
+}
+
+/** auth-oauth body: {provider: "google"|"apple", idToken, nonce?}. */
+export function validateOAuth(body: JsonObject): OAuthInput {
+  const provider = body.provider;
+  if (provider !== "google" && provider !== "apple") {
+    throw invalidInput('provider must be "google" or "apple"');
+  }
+  const idToken = body.idToken;
+  if (typeof idToken !== "string" || idToken.trim() === "") {
+    throw invalidInput("idToken is required");
+  }
+  if (idToken.length > 16384) throw invalidInput("idToken is too long");
+  const nonce = body.nonce;
+  if (nonce !== undefined && nonce !== null && typeof nonce !== "string") {
+    throw invalidInput("nonce must be a string");
+  }
+  if (typeof nonce === "string" && nonce.length > 512) {
+    throw invalidInput("nonce is too long");
+  }
+  return {
+    provider,
+    idToken: idToken.trim(),
+    nonce: typeof nonce === "string" && nonce !== "" ? nonce : null,
+  };
+}
+
 export function validateRefresh(body: JsonObject): string {
   const t = body.refreshToken;
   if (typeof t !== "string" || t.trim() === "") {

@@ -83,6 +83,26 @@ Body: `{ "email": string, "password": string }`
 - `403 email_not_confirmed` (account exists but its email is not confirmed)
 - `400 invalid_input`
 
+### `auth-oauth`
+
+Sign in (or sign up) with Google or Apple. The app gets an ID token from the
+native SDK and sends it here; the function calls
+`supabase.auth.signInWithIdToken` on an anon client.
+
+Body: `{ "provider": "google" | "apple", "idToken": string, "nonce"?: string }`
+
+- `nonce` is the **raw** nonce (Apple: the app sends its SHA-256 to Apple and
+  the raw value here; Supabase hashes it and compares with the token).
+- `200 { "session": Session }`. A first sign-in creates the user; the signup
+  trigger creates the `profiles` row with the provider's name
+  (`full_name` / `name` metadata) as `displayName`, or `null`.
+- `400 invalid_input` (unknown provider, missing/empty `idToken`, non-string
+  `nonce`).
+- `401 invalid_token`: Supabase rejected the token (bad signature, wrong
+  audience / client ID not authorized, expired, nonce mismatch).
+- `400 provider_disabled`: the provider is not enabled in Supabase Auth.
+- `403 signup_disabled`, `429 rate_limited`, `500 internal_error`.
+
 ### `auth-refresh`
 
 Body: `{ "refreshToken": string }`
@@ -283,8 +303,8 @@ Body: `{ "confirm": "DELETE" }` (exactly; anything else → `400 invalid_input`)
 
 | Status | Codes |
 |---|---|
-| 400 | `invalid_input`, `weak_password`, `same_password` |
-| 401 | `unauthorized`, `invalid_credentials`, `invalid_refresh_token` |
+| 400 | `invalid_input`, `weak_password`, `same_password`, `provider_disabled` |
+| 401 | `unauthorized`, `invalid_credentials`, `invalid_refresh_token`, `invalid_token` |
 | 403 | `email_not_confirmed`, `signup_disabled` |
 | 404 | `not_found` |
 | 405 | `method_not_allowed` |

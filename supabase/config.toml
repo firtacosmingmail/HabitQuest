@@ -448,6 +448,10 @@ verify_jwt = false
 [functions.auth-logout]
 verify_jwt = false
 
+# Google / Apple ID token → session (signInWithIdToken on an anon client).
+[functions.auth-oauth]
+verify_jwt = false
+
 [functions.habits]
 verify_jwt = false
 

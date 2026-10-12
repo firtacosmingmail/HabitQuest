@@ -5,6 +5,7 @@ import {
   type AuthResult,
   handleLogin,
   handleLogout,
+  handleOAuth,
   handleRefresh,
   handleRegister,
   mapAuthError,
@@ -53,6 +54,10 @@ function gateway(over: Partial<AuthGateway> = {}): AuthGateway & { calls: unknow
     signOut: (...a) => {
       calls.push(["signOut", ...a]);
       return Promise.resolve({ error: null });
+    },
+    signInWithIdToken: (...a) => {
+      calls.push(["signInWithIdToken", ...a]);
+      return Promise.resolve({ data: session, error: null });
     },
     ...over,
   };
@@ -182,6 +187,72 @@ Deno.test("logout: 204 with bearer, 401 without or when rejected", async () => {
   });
   res = await logout(gone)(req("POST", "auth-logout", undefined, { authorization: "Bearer x" }));
   assertEquals(res.status, 204);
+});
+
+Deno.test("oauth → session; passes provider, token and nonce", async () => {
+  const g = gateway();
+  let res = await run(handleOAuth, g)(
+    req("POST", "auth-oauth", { provider: "apple", idToken: " tok ", nonce: "raw-nonce" }),
+  );
+  assertEquals(res.status, 200);
+  assertEquals(await res.json(), { session: sessionJson });
+  assertEquals(g.calls[0], ["signInWithIdToken", "apple", "tok", "raw-nonce"]);
+
+  res = await run(handleOAuth, g)(req("POST", "auth-oauth", { provider: "google", idToken: "g" }));
+  assertEquals(res.status, 200);
+  assertEquals(g.calls[1], ["signInWithIdToken", "google", "g", null]);
+});
+
+Deno.test("oauth: invalid input → 400 invalid_input, GET → 405", async () => {
+  const bodies: Record<string, unknown>[] = [
+    {},
+    { provider: "github", idToken: "t" },
+    { provider: "google" },
+    { provider: "google", idToken: "  " },
+    { provider: "google", idToken: 5 },
+    { provider: "apple", idToken: "t", nonce: 1 },
+  ];
+  for (const body of bodies) {
+    const g = gateway();
+    const res = await run(handleOAuth, g)(req("POST", "auth-oauth", body));
+    assertEquals(res.status, 400, JSON.stringify(body));
+    assertEquals((await res.json()).error.code, "invalid_input");
+    assertEquals(g.calls.length, 0);
+  }
+  const res = await run(handleOAuth, gateway())(req("GET", "auth-oauth"));
+  assertEquals(res.status, 405);
+});
+
+Deno.test("oauth: rejected token → 401 invalid_token; disabled → 400 provider_disabled", async () => {
+  const cases: [AuthErrorLike, number, string][] = [
+    [{ status: 400, code: "validation_failed", message: "Bad ID token" }, 401, "invalid_token"],
+    [
+      {
+        status: 400,
+        message: "Passed nonce and nonce in id_token should either both exist or not.",
+      },
+      401,
+      "invalid_token",
+    ],
+    [{ status: 422, code: "bad_jwt" }, 401, "invalid_token"],
+    [{ status: 400, code: "provider_disabled" }, 400, "provider_disabled"],
+    [
+      { status: 400, message: 'Provider (issuer "https://accounts.google.com") is not enabled' },
+      400,
+      "provider_disabled",
+    ],
+    [{ status: 422, code: "signup_disabled" }, 403, "signup_disabled"],
+    [{ status: 429 }, 429, "rate_limited"],
+    [{ status: 500 }, 500, "internal_error"],
+  ];
+  for (const [error, status, code] of cases) {
+    const g = gateway({ signInWithIdToken: () => Promise.resolve(fail(error)) });
+    const res = await run(handleOAuth, g)(
+      req("POST", "auth-oauth", { provider: "google", idToken: "t" }),
+    );
+    assertEquals(res.status, status, JSON.stringify(error));
+    assertEquals((await res.json()).error.code, code);
+  }
 });
 
 Deno.test("mapAuthError: rate limits and server errors", () => {

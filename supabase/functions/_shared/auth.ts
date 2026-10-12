@@ -13,7 +13,12 @@ import {
 } from "./errors.ts";
 import { readJsonObject } from "./http.ts";
 import { type AuthSessionLike, toSession } from "./mapping.ts";
-import { validateCredentials, validateRefresh, validateRegistration } from "./validation.ts";
+import {
+  validateCredentials,
+  validateOAuth,
+  validateRefresh,
+  validateRegistration,
+} from "./validation.ts";
 
 /** Subset of Supabase Auth's error (AuthApiError). */
 export interface AuthErrorLike {
@@ -41,9 +46,17 @@ export interface AuthGateway {
   signIn(email: string, password: string): Promise<AuthResult<AuthSessionLike>>;
   refresh(refreshToken: string): Promise<AuthResult<AuthSessionLike>>;
   signOut(accessToken: string): Promise<{ error: AuthErrorLike | null }>;
+  /** Google/Apple ID token → session (supabase.auth.signInWithIdToken). */
+  signInWithIdToken(
+    provider: OAuthProvider,
+    idToken: string,
+    nonce: string | null,
+  ): Promise<AuthResult<AuthSessionLike>>;
 }
 
-export type AuthOperation = "register" | "login" | "refresh" | "logout";
+export type OAuthProvider = "google" | "apple";
+
+export type AuthOperation = "register" | "login" | "refresh" | "logout" | "oauth";
 
 const RATE_LIMIT_CODES = new Set([
   "over_request_rate_limit",
@@ -89,6 +102,20 @@ export function mapAuthError(op: AuthOperation, err: AuthErrorLike): ApiError {
       return new ApiError(401, "invalid_refresh_token", "Refresh token is invalid or expired");
     case "logout":
       return unauthorized();
+    case "oauth":
+      // GoTrue: 400 provider_disabled "Provider (issuer ...) is not enabled".
+      if (code === "provider_disabled" || /not enabled|disabled/i.test(message)) {
+        return new ApiError(
+          400,
+          "provider_disabled",
+          "This sign-in provider is not enabled on the server",
+        );
+      }
+      if (code === "signup_disabled") {
+        return new ApiError(403, "signup_disabled", "Sign-ups are disabled");
+      }
+      // Bad signature, wrong audience, expired, nonce mismatch, ...
+      return new ApiError(401, "invalid_token", "The sign-in token was rejected");
   }
 }
 
@@ -124,6 +151,14 @@ export async function handleRefresh(req: Request, gw: AuthGateway): Promise<Resp
   const token = validateRefresh(await readJsonObject(req));
   const r = await gw.refresh(token);
   if (r.error) throw mapAuthError("refresh", r.error);
+  return json({ session: toSession(r.data) });
+}
+
+export async function handleOAuth(req: Request, gw: AuthGateway): Promise<Response> {
+  requirePost(req);
+  const input = validateOAuth(await readJsonObject(req));
+  const r = await gw.signInWithIdToken(input.provider, input.idToken, input.nonce);
+  if (r.error) throw mapAuthError("oauth", r.error);
   return json({ session: toSession(r.data) });
 }
 

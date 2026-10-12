@@ -56,6 +56,18 @@ export function supabaseAuthGateway(env: Env): AuthGateway {
       }
       return { data: data.session as AuthSessionLike, error: null };
     },
+    async signInWithIdToken(provider, idToken, nonce) {
+      const { data, error } = await client().auth.signInWithIdToken({
+        provider,
+        token: idToken,
+        ...(nonce ? { nonce } : {}),
+      });
+      if (error) return { data: null, error: err(error) };
+      if (!data.session) {
+        return { data: null, error: { status: 400, code: "invalid_token" } };
+      }
+      return { data: data.session as AuthSessionLike, error: null };
+    },
     async signOut(accessToken) {
       // POST /auth/v1/logout authenticated with the caller's own JWT (the
       // admin helper only needs the anon key for this call). Revokes the
