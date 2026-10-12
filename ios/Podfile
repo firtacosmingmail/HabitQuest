@@ -42,6 +42,10 @@ post_install do |installer|
     # Plugin pods declare 11.0/13.0, which current Xcode rejects.
     target.build_configurations.each do |config|
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+      # google_mobile_ads' public headers include the Google Mobile Ads SDK's
+      # private (non-modular) headers, which current Xcode rejects inside a
+      # framework module unless this is allowed.
+      config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
     end
   end
 end

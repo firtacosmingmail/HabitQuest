@@ -1,2 +1,6 @@
 #include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"
 #include "Generated.xcconfig"
+// google_mobile_ads' headers include the Google Mobile Ads SDK's private,
+// non-modular headers; current Xcode rejects that when importing the plugin
+// module unless it is allowed (see also the Podfile post_install).
+CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES = YES
