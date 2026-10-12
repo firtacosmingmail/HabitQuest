@@ -221,15 +221,73 @@ Same semantics as `habits`, with CheckIn bodies:
 
 PUT uses LWW on `updatedAt` like the other resources.
 
+## Account
+
+All three functions need `Authorization: Bearer <accessToken>` (checked in
+code with `auth.getUser`; `401 unauthorized` otherwise). The user is always
+the token's user: nothing in the body can name another account.
+
+### `profile`
+
+`GET /profile` →
+
+```json
+{
+  "id": "uuid",
+  "email": "a@b.c",
+  "displayName": "Quest Hero",
+  "createdAt": "2026-10-01T08:00:00.000Z",
+  "providers": ["email"],
+  "hasPassword": true
+}
+```
+
+- `displayName` is `null` when unset. `createdAt` is the auth user's creation
+  time ("member since").
+- `providers` lists the sign-in methods from the user's identities
+  (`email`, `google`, `apple`, ...). `hasPassword` is `true` when they include
+  `email`.
+
+`PUT /profile` with `{ "displayName": string }` → `200` with the same body.
+The name is trimmed and must be 1–50 characters (`400 invalid_input`
+otherwise). Written to `profiles` with the caller's JWT (RLS).
+
+### `auth-change-password` (POST)
+
+Body: `{ "currentPassword": string, "newPassword": string }`
+
+- `204` (no body). The current password is checked with
+  `signInWithPassword` on a separate anon client, then the new one is set with
+  `auth.updateUser` on that session (which is then signed out).
+- `400 invalid_input` (a field missing), `400 weak_password` (fewer than 6
+  or more than 72 characters, or refused by Supabase), `400 same_password`.
+- `401 invalid_credentials`: the current password is wrong.
+- `409 no_password`: the account has no email identity (Google/Apple).
+
+Supabase Auth revokes the user's other sessions when the password changes
+(verified live: the old access and refresh tokens stop working), so the app
+signs in again with the new password right after the `204`.
+
+### `account-delete` (POST)
+
+Body: `{ "confirm": "DELETE" }` (exactly; anything else → `400 invalid_input`).
+
+- `204`: the caller's `check_ins`, `habits`, `game_state` and `profiles` rows
+  are deleted (with their JWT, RLS), then the auth user with
+  `auth.admin.deleteUser`. That admin call uses a service-role client built
+  from `SUPABASE_SERVICE_ROLE_KEY`, which Supabase provides to deployed
+  functions; it never leaves the server.
+- `401 unauthorized`, `500 internal_error`.
+
 ## Status code summary
 
 | Status | Codes |
 |---|---|
-| 400 | `invalid_input`, `weak_password` |
+| 400 | `invalid_input`, `weak_password`, `same_password` |
 | 401 | `unauthorized`, `invalid_credentials`, `invalid_refresh_token` |
 | 403 | `email_not_confirmed`, `signup_disabled` |
 | 404 | `not_found` |
 | 405 | `method_not_allowed` |
-| 409 | `email_taken`, `habit_not_found` |
+| 409 | `email_taken`, `habit_not_found`, `no_password` |
 | 429 | `rate_limited` (Supabase Auth rate limit) |
 | 500 | `internal_error` |

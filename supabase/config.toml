@@ -459,3 +459,15 @@ verify_jwt = false
 
 [functions.auth-confirm]
 verify_jwt = false
+
+# Account functions: they check the caller's token in code too. Only
+# account-delete uses the service role key (auth.admin.deleteUser), from the
+# function environment, server-side only.
+[functions.profile]
+verify_jwt = false
+
+[functions.auth-change-password]
+verify_jwt = false
+
+[functions.account-delete]
+verify_jwt = false

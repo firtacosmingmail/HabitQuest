@@ -166,7 +166,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         _confirmationSentTo == null) ...[
                       _Banner(
                         key: const ValueKey('auth-signed-out-reason'),
-                        emoji: '⏳',
+                        emoji:
+                            signedOutReason ==
+                                AuthController.accountDeletedMessage
+                            ? '👋'
+                            : '⏳',
                         color: AppColors.sky,
                         message: signedOutReason,
                       ),

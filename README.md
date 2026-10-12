@@ -23,6 +23,9 @@ on the device (hive_ce). There is no account and no server.
 - **Quest tab**: mascot, level, title, an animated XP bar, stats (check-ins,
   best streak, Perfect Days), an achievements grid (locked badges show a hint)
   and a "How to earn XP" card.
+- **Profile** (`/profile`, the avatar in the Quest header): your name,
+  email, member-since date and sign-in method; change your password, log out
+  or delete your account. See [Profile & account](#profile--account).
 - **Celebrations** across the app: a floating "+N XP", confetti and a dialog
   on level-up, and toasts when you unlock an achievement.
 - **Reminders**: notifications at each habit's reminder time, following its
@@ -375,6 +378,49 @@ Never print or commit it.
 tap the link, check that the "Email confirmed! 🎉" page appears, then log in
 in the app. The built-in email provider sends only a few emails per hour.
 
+## Profile & account
+
+Tap the avatar (your initials) at the top right of the Quest tab to open
+`/profile` (`lib/features/profile/`). The Logout button lives there too,
+behind a confirmation.
+
+- **Header**: avatar initials (from the display name, else the email), the
+  display name with an inline ✏️ edit (trimmed, 1–50 characters), and the
+  email.
+- **Member since** and **Sign-in method** ("Email & password", "Google",
+  "Apple"), from `GET /profile`.
+- **Change password** (hidden for accounts without a password, such as
+  Google/Apple sign-ins): current, new and confirm fields, checked in the
+  app (6–72 characters, different from the current one, matching) and on the
+  server (wrong current password → shown on that field). Supabase revokes the
+  existing sessions when the password changes, so the app signs in again with
+  the new password straight away.
+- **Danger zone → Delete account**: a dialog explains what goes, and you must
+  type `DELETE`. The server deletes your check-ins, habits, game state and
+  profile, then the auth user. The app then wipes everything it keeps on the
+  device (habits, check-ins, game state, sync queue, sync cursors and the
+  owner marker), cancels scheduled reminders, clears the session and shows
+  "Your account was deleted" on the login screen. Offline, the dialog says
+  "You need to be online to delete your account" and nothing is deleted.
+
+Backend: the `profile`, `auth-change-password` and `account-delete` Edge
+Functions (contract in [supabase/API.md](supabase/API.md#account)). They
+check the caller's token in code and read or write the user's rows with the
+caller's JWT, so RLS applies; the user is always the token's user, never an
+id from the request. Only `account-delete` uses the service role key, for
+`auth.admin.deleteUser`: Supabase provides `SUPABASE_SERVICE_ROLE_KEY` to
+deployed functions, so it stays on the server and is never in the app.
+
+Deploy them with:
+
+```sh
+supabase functions deploy profile auth-change-password account-delete \
+  --no-verify-jwt --project-ref fwikodmrfoorbstmkedx
+```
+
+In code, the app talks to them through `AccountApi` (`HttpAccountApi`;
+`FakeAccountApi` in tests), and `LocalDataWiper` does the local cleanup.
+
 ## Sync
 
 Habit Quest is **offline-first**: hive_ce on the device is the source of
@@ -604,6 +650,7 @@ supabase/
     _shared/                  # cors, errors, auth, validation, mapping, LWW, stores
     auth-register|auth-login|auth-refresh|auth-logout/
     habits/ check-ins/ game-state/
+    profile/ auth-change-password/ account-delete/
     tests/                    # Deno unit tests + e2e_smoke.ts
   .env.example                # placeholders only, never commit real keys
 ```
@@ -612,7 +659,8 @@ Tables `profiles` (created by a trigger on sign-up), `habits`, `check_ins`
 and `game_state` each belong to `auth.uid()` and have row-level security with
 select/insert/update/delete policies. The functions create their Supabase
 client with the anon key plus the caller's JWT, so RLS applies to every query;
-the service-role key is never used.
+the service-role key is used only by `account-delete` (for
+`auth.admin.deleteUser`, see [Profile & account](#profile--account)).
 
 ### 1. Install the Supabase CLI
 
@@ -639,7 +687,7 @@ supabase db push                                    # applies supabase/migration
 | Function | verify_jwt | Why |
 |---|---|---|
 | `auth-register`, `auth-login`, `auth-refresh` | off | called without a user token |
-| `auth-logout`, `habits`, `check-ins`, `game-state` | off | the function validates the bearer token itself (`supabase.auth.getUser`) so a bad token gets the contract's `401 {"error":{"code":"unauthorized"}}` body instead of the gateway's own format; data is still only reachable with the user's JWT through RLS |
+| `auth-logout`, `habits`, `check-ins`, `game-state`, `profile`, `auth-change-password`, `account-delete` | off | the function validates the bearer token itself (`supabase.auth.getUser`) so a bad token gets the contract's `401 {"error":{"code":"unauthorized"}}` body instead of the gateway's own format; data is still only reachable with the user's JWT through RLS |
 
 ```sh
 supabase functions deploy auth-register --no-verify-jwt
@@ -649,13 +697,15 @@ supabase functions deploy auth-logout   --no-verify-jwt
 supabase functions deploy habits        --no-verify-jwt
 supabase functions deploy check-ins     --no-verify-jwt
 supabase functions deploy game-state    --no-verify-jwt
+supabase functions deploy profile auth-change-password account-delete --no-verify-jwt
 # or all at once (uses config.toml): supabase functions deploy
 ```
 
 ### 4. Secrets and auth settings
 
 The functions need **no custom secrets**: `SUPABASE_URL` and
-`SUPABASE_ANON_KEY` are injected by the Edge Runtime. If you add one later, use
+`SUPABASE_ANON_KEY` (and `SUPABASE_SERVICE_ROLE_KEY`, used server-side by
+`account-delete` only) are injected by the Edge Runtime. If you add one later, use
 `supabase secrets set NAME=value` (or `supabase secrets set --env-file
 supabase/.env`) and list it in `supabase/.env.example` with a placeholder.
 Never commit keys.

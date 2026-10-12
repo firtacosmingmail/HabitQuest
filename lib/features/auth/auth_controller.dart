@@ -63,6 +63,11 @@ class AuthController extends Notifier<AuthState>
   static const sessionExpiredMessage =
       'Your session expired. Please log in again.';
 
+  /// Message shown on the login screen after deleting the account.
+  static const accountDeletedMessage =
+      'Your account was deleted. Thanks for questing with us, '
+      'and good luck out there!';
+
   Timer? _timer;
   Future<Session?>? _inflightRefresh;
   Future<void>? _restoring;
@@ -128,6 +133,15 @@ class AuthController extends Notifier<AuthState>
         // Offline or already revoked: the local session is gone anyway.
       }
     }
+  }
+
+  /// Signs out locally after the account was deleted on the server (the
+  /// session is already gone there); the login screen shows
+  /// [accountDeletedMessage].
+  Future<void> signOutAfterAccountDeletion() async {
+    _timer?.cancel();
+    await _store.clear();
+    if (ref.mounted) state = const SignedOut(reason: accountDeletedMessage);
   }
 
   /// Refreshes the session now (deduplicated while one is in flight).
