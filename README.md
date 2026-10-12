@@ -421,6 +421,128 @@ supabase functions deploy profile auth-change-password account-delete \
 In code, the app talks to them through `AccountApi` (`HttpAccountApi`;
 `FakeAccountApi` in tests), and `LocalDataWiper` does the local cleanup.
 
+## Sign in with Google & Apple
+
+The login/register screen shows **Continue with Google** and **Sign in with
+Apple** above the email form (with an "or" divider). The native SDK
+(`google_sign_in`, `sign_in_with_apple`) returns an **ID token**; the app
+sends it to the `auth-oauth` Edge Function, which calls
+`supabase.auth.signInWithIdToken` and returns the usual session (contract in
+[supabase/API.md](supabase/API.md#auth-oauth)). The app never talks to
+Supabase Auth directly. After that it behaves exactly like an email login
+(stored session, refresh, sync ownership, redirect to `/habits`). A first
+sign-in creates the account; the signup trigger fills the profile's display
+name from the provider's name when it has one. On the Profile screen these
+accounts show "Google" / "Apple" as the sign-in method and have no Change
+password.
+
+**Until you configure it, the buttons are hidden** (debug builds show a small
+"not configured" hint under the form). Exception: on iOS/macOS the Apple
+button always shows (native flow), but it answers "Apple sign-in isn't set up
+yet" until Apple is enabled in Supabase.
+
+| Platform | Google | Apple |
+|---|---|---|
+| iOS / macOS | native, iOS client ID | native (bundle ID) |
+| Android | native (Credential Manager), web client ID as `serverClientId` | Apple's web flow, only if `appleServiceId` + `appleRedirectUri` are set |
+| Web | Google's own rendered button, web client ID | Apple's JS popup, only if `appleServiceId` + `appleRedirectUri` are set |
+
+Code: `lib/features/auth/oauth/` (`OAuthSignIn` interface,
+`PlatformOAuthSignIn`, `FakeOAuthSignIn` for tests, `OAuthConfig`, brand
+buttons), `AuthController.signInWithGoogle/signInWithApple`. Apple gets a
+fresh random nonce per sign-in: its SHA-256 goes to Apple (and into the
+token), the raw value goes to the server, which Supabase hashes to compare.
+
+### 1. Google Cloud: OAuth clients
+
+In the [Google Cloud console](https://console.cloud.google.com/) (one
+project for the app):
+
+1. **APIs & Services → OAuth consent screen** (Google Auth Platform →
+   Branding / Audience): app name "Habit Quest", support email, logo,
+   authorized domain `supabase.co` (plus your web domain), the scopes
+   `openid`, `email`, `profile`. Publish it (or add test users while in
+   Testing).
+2. **Credentials → Create credentials → OAuth client ID**, three times:
+   - **iOS**: bundle ID `com.habitquest.habitQuest`. Gives the *iOS client
+     ID* (`1234-abcd.apps.googleusercontent.com`) and its reversed form
+     `com.googleusercontent.apps.1234-abcd` (shown as "iOS URL scheme").
+   - **Android**: package name `com.habitquest.habit_quest` and the
+     **SHA-1** of the signing certificate. Get it with
+     `cd android && ./gradlew signingReport` (the `debug` variant for
+     development) or
+     `keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android`.
+     Add one Android client per certificate (debug, your upload/release key,
+     and the Play App Signing key from the Play Console). The app never
+     uses this client's ID directly: Google matches package + SHA-1.
+   - **Web application**: gives the *web client ID* and a **client
+     secret**. Authorized JavaScript origins: your web app's origin(s), e.g.
+     `http://localhost:5000` for `flutter run -d chrome --web-port 5000`.
+     Authorized redirect URI:
+     `https://fwikodmrfoorbstmkedx.supabase.co/auth/v1/callback`.
+
+### 2. Apple Developer: App ID, Services ID, key
+
+Needs a **paid Apple Developer Program** membership (team `9QMS59N2BZ` is
+set in the Xcode project).
+
+1. **Certificates, Identifiers & Profiles → Identifiers → App IDs**:
+   `com.habitquest.habitQuest`, enable the **Sign in with Apple**
+   capability. The app already ships `ios/Runner/Runner.entitlements`
+   (`com.apple.developer.applesignin = Default`, wired via
+   `CODE_SIGN_ENTITLEMENTS`); Xcode's automatic signing then picks a profile
+   with the capability.
+2. Only for Android / web (Apple's web flow): **Identifiers → Services
+   IDs**, e.g. `com.habitquest.signin`; enable Sign in with Apple, primary
+   App ID `com.habitquest.habitQuest`, domain = your web domain, and a
+   **Return URL**. On web the return URL is your site (the JS popup posts back
+   to it). On Android it must be an HTTPS endpoint that redirects to
+   `intent://callback?<the posted params>#Intent;package=com.habitquest.habit_quest;scheme=signinwithapple;end`
+   (see the `sign_in_with_apple` package docs; the Android callback activity
+   is already in `AndroidManifest.xml`). Without it, leave the Apple button
+   hidden on Android.
+3. **Keys → +**: enable Sign in with Apple (primary App ID as above),
+   download the `.p8` once, and note the **Key ID** and your **Team ID**
+   (top right of the portal). Supabase uses them to generate the client
+   secret (a JWT, valid at most 6 months: regenerate it before it expires).
+
+### 3. Supabase dashboard → Authentication → Sign In / Providers
+
+- **Google**: enable; *Client ID* = the **web client ID**, *Client Secret* =
+  the web client's secret. **Authorized Client IDs**: add the **iOS client
+  ID** and the **web client ID** (comma separated; plus any Android client
+  IDs if you ever make tokens for them). Leave "Skip nonce check" off.
+- **Apple**: enable; *Client IDs* = the bundle ID
+  `com.habitquest.habitQuest` (native iOS tokens) and, if used, the Services
+  ID `com.habitquest.signin` (web flow tokens), comma separated; *Secret
+  Key* = the client secret generated from the Team ID, Key ID and `.p8`
+  (the dashboard has a generator).
+
+Until a provider is enabled, `auth-oauth` answers `400 provider_disabled`
+and the app says "Google sign-in isn't set up yet (it's turned off on the
+quest server)".
+
+### 4. Values to put in the app
+
+| Value | Where |
+|---|---|
+| iOS client ID | `googleIosClientId` in `lib/core/config/env.dart` (or `--dart-define=GOOGLE_IOS_CLIENT_ID=...`) |
+| Reversed iOS client ID | `ios/Runner/Info.plist` → `CFBundleURLSchemes`: replace `com.googleusercontent.apps.REPLACE-WITH-IOS-CLIENT-ID`. Required: Google Sign-In on iOS returns through this URL scheme and refuses to start without it |
+| Web client ID | `googleWebClientId` in `env.dart` (or `GOOGLE_WEB_CLIENT_ID`). Used on web and as the Android `serverClientId`, so Android ID tokens have the web client as their audience |
+| Android SHA-1(s) | Google Cloud only (Android OAuth client), nothing in the app |
+| Apple Services ID + return URL | `appleServiceId` / `appleRedirectUri` in `env.dart` (or `APPLE_SERVICE_ID` / `APPLE_REDIRECT_URI`): Android/web only |
+| Web client secret, Apple Team ID / Key ID / `.p8` | Supabase dashboard only. **Never** in the app |
+
+Example run without editing files:
+
+```sh
+flutter run \
+  --dart-define=GOOGLE_IOS_CLIENT_ID=1234-ios.apps.googleusercontent.com \
+  --dart-define=GOOGLE_WEB_CLIENT_ID=1234-web.apps.googleusercontent.com
+```
+
+(The Info.plist URL scheme still has to be edited for iOS.)
+
 ## Sync
 
 Habit Quest is **offline-first**: hive_ce on the device is the source of
@@ -686,7 +808,7 @@ supabase db push                                    # applies supabase/migration
 
 | Function | verify_jwt | Why |
 |---|---|---|
-| `auth-register`, `auth-login`, `auth-refresh` | off | called without a user token |
+| `auth-register`, `auth-login`, `auth-refresh`, `auth-oauth` | off | called without a user token |
 | `auth-logout`, `habits`, `check-ins`, `game-state`, `profile`, `auth-change-password`, `account-delete` | off | the function validates the bearer token itself (`supabase.auth.getUser`) so a bad token gets the contract's `401 {"error":{"code":"unauthorized"}}` body instead of the gateway's own format; data is still only reachable with the user's JWT through RLS |
 
 ```sh
@@ -694,6 +816,7 @@ supabase functions deploy auth-register --no-verify-jwt
 supabase functions deploy auth-login    --no-verify-jwt
 supabase functions deploy auth-refresh  --no-verify-jwt
 supabase functions deploy auth-logout   --no-verify-jwt
+supabase functions deploy auth-oauth    --no-verify-jwt
 supabase functions deploy habits        --no-verify-jwt
 supabase functions deploy check-ins     --no-verify-jwt
 supabase functions deploy game-state    --no-verify-jwt
