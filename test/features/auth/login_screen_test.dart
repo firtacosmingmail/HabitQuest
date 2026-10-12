@@ -10,6 +10,7 @@ import 'package:habit_quest/data/remote/fake_auth_api.dart';
 import 'package:habit_quest/data/remote/session.dart';
 import 'package:habit_quest/features/auth/auth_providers.dart';
 import 'package:habit_quest/features/auth/login_screen.dart';
+import 'package:habit_quest/features/auth/oauth/fake_oauth_sign_in.dart';
 import 'package:habit_quest/features/auth/session_store.dart';
 
 import '../../helpers/test_app.dart';
@@ -19,7 +20,10 @@ class _SlowAuthApi extends FakeAuthApi {
   final gate = Completer<void>();
 
   @override
-  Future<Session> login({required String email, required String password}) async {
+  Future<Session> login({
+    required String email,
+    required String password,
+  }) async {
     await gate.future;
     return super.login(email: email, password: password);
   }
@@ -73,8 +77,9 @@ Future<void> submit(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('shows the mascot welcome and login mode by default',
-      (tester) async {
+  testWidgets('shows the mascot welcome and login mode by default', (
+    tester,
+  ) async {
     await pumpLogin(tester);
     expect(find.byKey(const ValueKey('mascot')), findsOneWidget);
     expect(find.textContaining('Welcome back'), findsOneWidget);
@@ -116,8 +121,7 @@ void main() {
     expect(find.textContaining("Can't reach the quest server"), findsOneWidget);
   });
 
-  testWidgets('loading state disables the form, then signs in',
-      (tester) async {
+  testWidgets('loading state disables the form, then signs in', (tester) async {
     final api = _SlowAuthApi()..addUser('hero@example.com', 'secret1');
     final store = InMemorySessionStore();
     final c = await pumpLogin(tester, api: api, store: store);
@@ -126,14 +130,16 @@ void main() {
     await tester.tap(byKey('auth-submit'));
     await tester.pump();
     expect(byKey('auth-loading'), findsOneWidget);
+    expect(tester.widget<FilledButton>(byKey('auth-submit')).onPressed, isNull);
     expect(
-      tester.widget<FilledButton>(byKey('auth-submit')).onPressed,
-      isNull,
-    );
-    expect(
-      tester.widget<TextField>(
-        find.descendant(of: byKey('auth-email'), matching: find.byType(TextField)),
-      ).enabled,
+      tester
+          .widget<TextField>(
+            find.descendant(
+              of: byKey('auth-email'),
+              matching: find.byType(TextField),
+            ),
+          )
+          .enabled,
       isFalse,
     );
 
@@ -144,8 +150,9 @@ void main() {
     expect(store.session, isNotNull);
   });
 
-  testWidgets('sign up: extra fields, password rules and match',
-      (tester) async {
+  testWidgets('sign up: extra fields, password rules and match', (
+    tester,
+  ) async {
     final api = FakeAuthApi();
     final c = await pumpLogin(tester, api: api);
     await tester.tap(byKey('auth-mode-register'));
@@ -208,15 +215,102 @@ void main() {
     expect(find.textContaining('Confirm your email first'), findsOneWidget);
   });
 
-  testWidgets('missing anon key shows a clear message and disables submit',
-      (tester) async {
+  testWidgets('missing anon key shows a clear message and disables submit', (
+    tester,
+  ) async {
     await pumpLogin(tester, configured: false);
     expect(byKey('auth-not-configured'), findsOneWidget);
     expect(find.textContaining('SUPABASE_ANON_KEY'), findsOneWidget);
-    expect(
-      tester.widget<FilledButton>(byKey('auth-submit')).onPressed,
-      isNull,
-    );
+    expect(tester.widget<FilledButton>(byKey('auth-submit')).onPressed, isNull);
+  });
+
+  group('Google & Apple', () {
+    testWidgets('buttons and the "or" divider show when configured', (
+      tester,
+    ) async {
+      await pumpLogin(
+        tester,
+        extra: [oauthSignInProvider.overrideWithValue(FakeOAuthSignIn())],
+      );
+      expect(byKey('oauth-google'), findsOneWidget);
+      expect(byKey('oauth-apple'), findsOneWidget);
+      expect(find.text('Continue with Google'), findsOneWidget);
+      expect(find.text('Sign in with Apple'), findsOneWidget);
+      expect(byKey('google-g-logo'), findsOneWidget);
+      expect(byKey('oauth-or-divider'), findsOneWidget);
+      expect(byKey('oauth-not-configured-hint'), findsNothing);
+      // Above the email form.
+      expect(
+        tester.getTopLeft(byKey('oauth-or-divider')).dy,
+        lessThan(tester.getTopLeft(byKey('auth-email')).dy),
+      );
+    });
+
+    testWidgets('hidden while the client IDs are placeholders (debug hint)', (
+      tester,
+    ) async {
+      // The real implementation with the shipped (empty) env.dart IDs.
+      await pumpLogin(
+        tester,
+        extra: [
+          oauthConfigProvider.overrideWithValue(
+            const OAuthConfig.unconfigured(platform: OAuthPlatform.android),
+          ),
+        ],
+      );
+      expect(byKey('oauth-google'), findsNothing);
+      expect(byKey('oauth-apple'), findsNothing);
+      expect(byKey('oauth-or-divider'), findsNothing);
+      expect(byKey('oauth-not-configured-hint'), findsOneWidget);
+    });
+
+    testWidgets('only Google when Apple is not available', (tester) async {
+      await pumpLogin(
+        tester,
+        extra: [
+          oauthSignInProvider.overrideWithValue(
+            FakeOAuthSignIn(available: {OAuthProvider.google}),
+          ),
+        ],
+      );
+      expect(byKey('oauth-google'), findsOneWidget);
+      expect(byKey('oauth-apple'), findsNothing);
+    });
+
+    testWidgets('cancel is silent; rejected token shows a friendly error', (
+      tester,
+    ) async {
+      final oauth = FakeOAuthSignIn()
+        ..failNextWith = const OAuthCancelled(OAuthProvider.google);
+      final api = FakeAuthApi()..rejectedIdTokens.add('fake-apple-id-token');
+      final c = await pumpLogin(
+        tester,
+        api: api,
+        extra: [oauthSignInProvider.overrideWithValue(oauth)],
+      );
+      await tester.tap(byKey('oauth-google'));
+      await tester.pumpAndSettle();
+      expect(byKey('auth-error'), findsNothing);
+      expect(c.read(authControllerProvider), isA<SignedOut>());
+
+      await tester.tap(byKey('oauth-apple'));
+      await tester.pumpAndSettle();
+      expect(byKey('auth-error'), findsOneWidget);
+      expect(find.textContaining("Apple couldn't confirm"), findsOneWidget);
+    });
+
+    testWidgets('Google web button credentials sign in too', (tester) async {
+      final oauth = FakeOAuthSignIn();
+      final c = await pumpLogin(
+        tester,
+        extra: [oauthSignInProvider.overrideWithValue(oauth)],
+      );
+      oauth.emitWebCredential(
+        const OAuthCredential(provider: OAuthProvider.google, idToken: 'web'),
+      );
+      await tester.pumpAndSettle();
+      expect(c.read(authControllerProvider), isA<SignedIn>());
+    });
   });
 
   testWidgets('shows why the user was signed out', (tester) async {

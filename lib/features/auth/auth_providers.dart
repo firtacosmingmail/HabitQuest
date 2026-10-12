@@ -20,9 +20,12 @@ import '../../data/remote/http_account_api.dart';
 import '../../data/remote/http_auth_api.dart';
 import '../../data/remote/http_habit_quest_api.dart';
 import 'auth_controller.dart';
+import 'oauth/oauth_sign_in.dart';
+import 'oauth/platform_oauth_sign_in.dart';
 import 'session_store.dart';
 
 export 'auth_controller.dart';
+export 'oauth/oauth_sign_in.dart';
 
 /// The shared HTTP client.
 final httpClientProvider = Provider<http.Client>((ref) {
@@ -41,6 +44,16 @@ final apiTransportProvider = Provider<ApiTransport>(
 
 final authApiProvider = Provider<AuthApi>(
   (ref) => HttpAuthApi(ref.watch(apiTransportProvider)),
+);
+
+/// Google / Apple client IDs of this build (`lib/core/config/env.dart`).
+final oauthConfigProvider = Provider<OAuthConfig>(
+  (ref) => OAuthConfig.fromEnvironment(),
+);
+
+/// Native Google / Apple sign-in (`FakeOAuthSignIn` in tests).
+final oauthSignInProvider = Provider<OAuthSignIn>(
+  (ref) => PlatformOAuthSignIn(ref.watch(oauthConfigProvider)),
 );
 
 final sessionStoreProvider = Provider<SessionStore>(

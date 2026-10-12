@@ -18,10 +18,11 @@ class HttpHabitQuestApi implements HabitQuestApi {
   // Habits ------------------------------------------------------------------
 
   @override
-  Future<DeltaPage<RemoteHabit>> listHabits({DateTime? since}) =>
-      _list(_habits, RemoteHabit.fromJson, {
-        if (since != null) 'since': formatTimestamp(since),
-      });
+  Future<DeltaPage<RemoteHabit>> listHabits({DateTime? since}) => _list(
+    _habits,
+    RemoteHabit.fromJson,
+    {if (since != null) 'since': formatTimestamp(since)},
+  );
 
   @override
   Future<RemoteHabit?> getHabit(String id) =>
@@ -171,7 +172,9 @@ class HttpHabitQuestApi implements HabitQuestApi {
       'POST',
       function,
       path: ['batch'],
-      body: {'items': [for (final i in items) i.toJson()]},
+      body: {
+        'items': [for (final i in items) i.toJson()],
+      },
     );
     return [
       for (final r in readObjectList(json, 'results'))

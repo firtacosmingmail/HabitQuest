@@ -136,6 +136,41 @@ class FakeAuthApi implements AuthApi {
     return issueSession(key);
   }
 
+  /// ID tokens the fake `auth-oauth` rejects with `invalid_token`.
+  final rejectedIdTokens = <String>{};
+
+  /// Providers the fake answers `provider_disabled` for.
+  final disabledProviders = <String>{};
+
+  /// Last `auth-oauth` call: provider, idToken, nonce.
+  ({String provider, String idToken, String? nonce})? lastOAuth;
+
+  @override
+  Future<Session> oauth({
+    required String provider,
+    required String idToken,
+    String? nonce,
+  }) async {
+    _enter('oauth');
+    lastOAuth = (provider: provider, idToken: idToken, nonce: nonce);
+    if (disabledProviders.contains(provider)) {
+      throw const ApiException(
+        status: 400,
+        code: ApiException.providerDisabled,
+        message: 'Provider is not enabled',
+      );
+    }
+    if (rejectedIdTokens.contains(idToken)) {
+      throw const ApiException(
+        status: 401,
+        code: ApiException.invalidToken,
+        message: 'The sign-in token was rejected',
+      );
+    }
+    // One account per provider in the fake.
+    return issueSession('$provider-user@example.com');
+  }
+
   @override
   Future<Session> refresh(String refreshToken) async {
     _enter('refresh');

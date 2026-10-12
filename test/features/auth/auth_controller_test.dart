@@ -106,7 +106,10 @@ void main() {
 
     test('register signs in, or reports needsConfirmation', () async {
       final ctrl = c.read(authControllerProvider.notifier);
-      final r = await ctrl.register(email: 'new@example.com', password: 'abcdef');
+      final r = await ctrl.register(
+        email: 'new@example.com',
+        password: 'abcdef',
+      );
       expect(r.needsConfirmation, isFalse);
       expect(c.read(authControllerProvider), isA<SignedIn>());
 
@@ -207,10 +210,7 @@ void main() {
         async.elapse(const Duration(hours: 1));
         final s = c.read(authControllerProvider);
         expect(s, isA<SignedOut>());
-        expect(
-          (s as SignedOut).reason,
-          AuthController.sessionExpiredMessage,
-        );
+        expect((s as SignedOut).reason, AuthController.sessionExpiredMessage);
         expect(store.session, isNull);
         c.dispose();
       });
@@ -326,14 +326,14 @@ void main() {
 
     tearDown(() => c.dispose());
 
-    test('401 → refresh → retry succeeds and stores the new session',
-        () async {
+    test('401 → refresh → retry succeeds and stores the new session', () async {
       final page = await c.read(habitQuestApiProvider).listHabits();
       expect(page.items, isEmpty);
-      expect(
-        requests.map((r) => r.url.pathSegments.last),
-        ['habits', 'auth-refresh', 'habits'],
-      );
+      expect(requests.map((r) => r.url.pathSegments.last), [
+        'habits',
+        'auth-refresh',
+        'habits',
+      ]);
       expect(requests.first.headers['authorization'], 'Bearer access-old');
       expect(requests.last.headers['authorization'], 'Bearer access-new');
       expect(store.session!.accessToken, 'access-new');
@@ -356,10 +356,10 @@ void main() {
       );
       expect(c.read(authControllerProvider), isA<SignedOut>());
       expect(store.session, isNull);
-      expect(
-        requests.map((r) => r.url.pathSegments.last),
-        ['habits', 'auth-refresh'],
-      );
+      expect(requests.map((r) => r.url.pathSegments.last), [
+        'habits',
+        'auth-refresh',
+      ]);
     });
 
     test('an expired token is refreshed before the request', () async {
@@ -394,10 +394,10 @@ void main() {
       );
       requests.clear();
       await c.read(habitQuestApiProvider).listHabits();
-      expect(
-        requests.map((r) => r.url.pathSegments.last),
-        ['auth-refresh', 'habits'],
-      );
+      expect(requests.map((r) => r.url.pathSegments.last), [
+        'auth-refresh',
+        'habits',
+      ]);
       expect(requests.last.headers['authorization'], 'Bearer access-new');
     });
   });

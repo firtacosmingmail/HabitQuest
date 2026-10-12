@@ -1,7 +1,26 @@
 import '../../data/remote/api_exception.dart';
+import 'oauth/oauth_sign_in.dart';
 
 /// Friendly, playful copy for auth failures.
-String friendlyAuthError(Object error) {
+String friendlyAuthError(Object error, {OAuthProvider? provider}) {
+  if (error is OAuthNotConfigured) {
+    return "${error.provider.label} sign-in isn't set up yet.";
+  }
+  if (error is OAuthFailure) {
+    return "Couldn't sign in with ${error.provider.label}. Please try again.";
+  }
+  final via = provider?.label;
+  if (error is ApiException && via != null) {
+    switch (error.code) {
+      case ApiException.invalidToken:
+        return "$via couldn't confirm it's you. Please try again.";
+      case ApiException.providerDisabled:
+        return "$via sign-in isn't set up yet (it's turned off on the "
+            'quest server).';
+      case ApiException.signupDisabled:
+        return 'New sign-ups are closed right now.';
+    }
+  }
   if (error is! ApiException) {
     return 'Something unexpected happened. Please try again.';
   }

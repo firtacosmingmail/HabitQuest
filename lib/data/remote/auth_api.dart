@@ -26,6 +26,15 @@ abstract interface class AuthApi {
   /// Throws `invalid_credentials` (401) or `email_not_confirmed` (403).
   Future<Session> login({required String email, required String password});
 
+  /// `auth-oauth`: exchanges a Google/Apple ID token (and Apple's raw
+  /// [nonce]) for a session. [provider] is `google` or `apple`. Throws
+  /// `invalid_token` (401) or `provider_disabled` (400).
+  Future<Session> oauth({
+    required String provider,
+    required String idToken,
+    String? nonce,
+  });
+
   /// Throws `invalid_refresh_token` (401) when the refresh token is dead.
   Future<Session> refresh(String refreshToken);
 

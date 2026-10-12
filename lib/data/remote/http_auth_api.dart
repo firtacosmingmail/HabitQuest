@@ -34,7 +34,8 @@ class HttpAuthApi implements AuthApi {
     }
     throw const ApiException(
       code: ApiException.badResponse,
-      message: 'auth-register returned neither a session nor '
+      message:
+          'auth-register returned neither a session nor '
           'needsConfirmation.',
     );
   }
@@ -48,6 +49,24 @@ class HttpAuthApi implements AuthApi {
       'POST',
       'auth-login',
       body: {'email': email, 'password': password},
+    );
+    return _session(json);
+  }
+
+  @override
+  Future<Session> oauth({
+    required String provider,
+    required String idToken,
+    String? nonce,
+  }) async {
+    final json = await transport.sendForObject(
+      'POST',
+      'auth-oauth',
+      body: {
+        'provider': provider,
+        'idToken': idToken,
+        if (nonce != null && nonce.isNotEmpty) 'nonce': nonce,
+      },
     );
     return _session(json);
   }

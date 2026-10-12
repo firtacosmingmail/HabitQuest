@@ -102,6 +102,43 @@ class AuthController extends Notifier<AuthState>
     await _signIn(s);
   }
 
+  /// Google sign-in: native SDK → ID token → `auth-oauth` → session, then
+  /// the same path as [login] (stored session, refresh timer, router gate,
+  /// sync ownership via the SignedIn state).
+  ///
+  /// Returns `false` when the user cancelled (show nothing). Throws
+  /// [OAuthNotConfigured] (placeholder client IDs), [OAuthFailure] or
+  /// [ApiException] (`invalid_token`, `provider_disabled`, network...).
+  Future<bool> signInWithGoogle() => _signInWithProvider(OAuthProvider.google);
+
+  /// Apple sign-in; same contract as [signInWithGoogle]. The raw nonce goes
+  /// to the server, its SHA-256 went to Apple.
+  Future<bool> signInWithApple() => _signInWithProvider(OAuthProvider.apple);
+
+  /// Finishes a sign-in whose ID token came from elsewhere (the Google web
+  /// button). Throws like [signInWithGoogle].
+  Future<void> signInWithCredential(OAuthCredential credential) async {
+    final s = await _api.oauth(
+      provider: credential.provider.wire,
+      idToken: credential.idToken,
+      nonce: credential.nonce,
+    );
+    await _signIn(s);
+  }
+
+  Future<bool> _signInWithProvider(OAuthProvider provider) async {
+    final oauth = ref.read(oauthSignInProvider);
+    if (!oauth.isAvailable(provider)) throw OAuthNotConfigured(provider);
+    final OAuthCredential credential;
+    try {
+      credential = await oauth.signIn(provider);
+    } on OAuthCancelled {
+      return false;
+    }
+    await signInWithCredential(credential);
+    return true;
+  }
+
   /// Signs in when the server returns a session; otherwise the result has
   /// `needsConfirmation`. Throws [ApiException] (e.g. `email_taken`).
   Future<RegisterResult> register({
@@ -126,6 +163,8 @@ class AuthController extends Notifier<AuthState>
     _timer?.cancel();
     await _store.clear();
     if (ref.mounted) state = const SignedOut();
+    // Let the next Google sign-in offer the account picker again.
+    unawaited(ref.read(oauthSignInProvider).signOut().catchError((_) {}));
     if (current != null) {
       try {
         await _api.logout(current.accessToken);
@@ -148,10 +187,8 @@ class AuthController extends Notifier<AuthState>
   /// Returns the new session, or `null` when signed out (including because
   /// the server rejected the refresh token). Rethrows transient failures
   /// (network, 5xx, rate limiting) without signing out.
-  Future<Session?> refreshSession() =>
-      _inflightRefresh ??= _doRefresh().whenComplete(
-        () => _inflightRefresh = null,
-      );
+  Future<Session?> refreshSession() => _inflightRefresh ??= _doRefresh()
+      .whenComplete(() => _inflightRefresh = null);
 
   // AccessTokenProvider -------------------------------------------------------
 

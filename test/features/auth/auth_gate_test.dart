@@ -10,6 +10,7 @@ import 'package:habit_quest/data/remote/fake_auth_api.dart';
 import 'package:habit_quest/data/remote/session.dart';
 import 'package:habit_quest/features/auth/auth_providers.dart';
 import 'package:habit_quest/features/auth/login_screen.dart';
+import 'package:habit_quest/features/auth/oauth/fake_oauth_sign_in.dart';
 import 'package:habit_quest/features/auth/session_store.dart';
 import 'package:habit_quest/features/auth/splash_screen.dart';
 import 'package:habit_quest/features/habit_details/habit_details_screen.dart';
@@ -172,6 +173,35 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(LoginScreen), findsOneWidget);
     });
+
+    for (final provider in OAuthProvider.values) {
+      testWidgets('tap ${provider.label} → signed in via the fake → /habits', (
+        tester,
+      ) async {
+        final api = FakeAuthApi();
+        final store = InMemorySessionStore();
+        final c = await pumpHabitQuestApp(
+          tester,
+          signedIn: false,
+          overrides: [
+            authApiProvider.overrideWithValue(api),
+            sessionStoreProvider.overrideWithValue(store),
+            oauthSignInProvider.overrideWithValue(FakeOAuthSignIn()),
+            authControllerProvider.overrideWith(
+              () => AuthController(proactiveRefresh: false),
+            ),
+            backendConfigOverride,
+          ],
+        );
+        expect(find.byType(LoginScreen), findsOneWidget);
+        await tester.tap(find.byKey(ValueKey('oauth-${provider.wire}')));
+        await tester.pumpAndSettle();
+        expect(path(c), '/habits');
+        expect(find.byType(HabitsScreen), findsOneWidget);
+        expect(api.lastOAuth?.provider, provider.wire);
+        expect(store.session?.user.email, '${provider.wire}-user@example.com');
+      });
+    }
   });
 }
 

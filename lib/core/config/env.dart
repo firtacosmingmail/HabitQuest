@@ -88,6 +88,70 @@ const Map<AppEnv, AdMobIds> admobEnvs = {
   AppEnv.prod: admobTestIds,
 };
 
+// ---------------------------------------------------------------------------
+// Sign in with Google & Apple. THIS is the one place to put the OAuth client
+// IDs (see "Sign in with Google & Apple" in the README for how to create them).
+//
+// >>> PLACEHOLDERS: every value below is EMPTY until you supply it. <<<
+// While a value is empty the matching button is hidden (debug builds show a
+// small "not configured" hint instead). Client IDs are public identifiers,
+// not secrets; the Google client SECRET and the Apple key (.p8) go ONLY into
+// the Supabase dashboard, never here.
+//
+// Each value can be overridden per build with a --dart-define:
+//
+//   GOOGLE_IOS_CLIENT_ID=1234-abc.apps.googleusercontent.com
+//   GOOGLE_WEB_CLIENT_ID=1234-xyz.apps.googleusercontent.com
+//   APPLE_SERVICE_ID=com.habitquest.signin
+//   APPLE_REDIRECT_URI=https://<your-site>/apple-callback
+//
+// The iOS client ID must ALSO be added natively, reversed, as a URL scheme in
+// ios/Runner/Info.plist (CFBundleURLSchemes, the "com.googleusercontent.apps."
+// placeholder entry); keep the two in sync.
+// ---------------------------------------------------------------------------
+
+/// OAuth client IDs for one [AppEnv].
+class OAuthIds {
+  /// Google Cloud "iOS" OAuth client ID (used by google_sign_in on iOS).
+  final String googleIosClientId;
+
+  /// Google Cloud "Web application" OAuth client ID. Used on web, and as the
+  /// Android `serverClientId` so the ID token's audience is this client.
+  final String googleWebClientId;
+
+  /// Apple Services ID, for Apple's web flow on Android and web only (iOS
+  /// and macOS use the native flow with the app's bundle ID).
+  final String appleServiceId;
+
+  /// Return URL registered on the Services ID for the web flow.
+  final String appleRedirectUri;
+
+  const OAuthIds({
+    this.googleIosClientId = '',
+    this.googleWebClientId = '',
+    this.appleServiceId = '',
+    this.appleRedirectUri = '',
+  });
+}
+
+/// PLACEHOLDER IDs: empty until the user supplies real ones (see above).
+const oauthPlaceholderIds = OAuthIds(
+  googleIosClientId:
+      '', // TODO(you): <number>-<id>.apps.googleusercontent.com (iOS client)
+  googleWebClientId:
+      '', // TODO(you): <number>-<id>.apps.googleusercontent.com (Web client)
+  appleServiceId:
+      '', // TODO(you): e.g. com.habitquest.signin (only for Android/web)
+  appleRedirectUri:
+      '', // TODO(you): Services ID return URL (only for Android/web)
+);
+
+/// OAuth IDs per environment (dev and prod share the one Supabase project).
+const Map<AppEnv, OAuthIds> oauthEnvs = {
+  AppEnv.dev: oauthPlaceholderIds,
+  AppEnv.prod: oauthPlaceholderIds,
+};
+
 /// Picks the environment: an explicit `ENV=dev|prod` define wins (case
 /// insensitive); otherwise prod in release builds and dev in debug/profile.
 AppEnv selectAppEnv({required String envDefine, required bool isRelease}) {

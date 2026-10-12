@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -8,6 +11,7 @@ import '../game/ui/mascot.dart';
 import 'auth_callback.dart';
 import 'auth_messages.dart';
 import 'auth_providers.dart';
+import 'oauth/oauth_buttons.dart';
 
 enum AuthMode { login, register }
 
@@ -45,10 +49,82 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   /// Email awaiting confirmation after sign-up.
   String? _confirmationSentTo;
 
+  /// Provider whose sign-in is running (spinner on its button).
+  OAuthProvider? _busyProvider;
+  StreamSubscription<OAuthCredential>? _webCredentials;
+
   bool get _isRegister => _mode == AuthMode.register;
 
   @override
+  void initState() {
+    super.initState();
+    // Google on web: sign-ins come from Google's own rendered button.
+    _webCredentials = ref
+        .read(oauthSignInProvider)
+        .webCredentials
+        .listen(
+          (c) => _runOAuth(c.provider, () async {
+            await ref
+                .read(authControllerProvider.notifier)
+                .signInWithCredential(c);
+            return true;
+          }),
+          onError: (Object e) {
+            if (mounted) {
+              setState(
+                () => _error = friendlyAuthError(
+                  e,
+                  provider: OAuthProvider.google,
+                ),
+              );
+            }
+          },
+        );
+  }
+
+  Future<void> _oauth(OAuthProvider provider) {
+    final auth = ref.read(authControllerProvider.notifier);
+    return _runOAuth(
+      provider,
+      () => switch (provider) {
+        OAuthProvider.google => auth.signInWithGoogle(),
+        OAuthProvider.apple => auth.signInWithApple(),
+      },
+    );
+  }
+
+  /// Shared busy/error handling; a cancelled sign-in shows nothing.
+  Future<void> _runOAuth(
+    OAuthProvider provider,
+    Future<bool> Function() run,
+  ) async {
+    if (_busy) return;
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _busy = true;
+      _busyProvider = provider;
+      _error = null;
+      _confirmationSentTo = null;
+    });
+    try {
+      await run();
+    } catch (e) {
+      if (mounted) {
+        setState(() => _error = friendlyAuthError(e, provider: provider));
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _busyProvider = null;
+        });
+      }
+    }
+  }
+
+  @override
   void dispose() {
+    _webCredentials?.cancel();
     _name.dispose();
     _email.dispose();
     _password.dispose();
@@ -189,6 +265,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       const SizedBox(height: 12),
                     ],
                     _formCard(theme, configured),
+                    ..._notConfiguredHint(),
                   ],
                 ),
               ),
@@ -209,6 +286,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              ..._socialButtons(configured),
               SegmentedButton<AuthMode>(
                 key: const ValueKey('auth-mode'),
                 segments: const [
@@ -344,6 +422,62 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         ),
       ),
     );
+  }
+}
+
+extension on _LoginScreenState {
+  /// Google / Apple buttons and the "or" divider; nothing (or a debug-only
+  /// hint) when neither provider is configured in this build.
+  /// Debug builds only, under the form: why there are no social buttons.
+  List<Widget> _notConfiguredHint() {
+    final oauth = ref.watch(oauthSignInProvider);
+    if (!kDebugMode ||
+        oauth.isAvailable(OAuthProvider.google) ||
+        oauth.isAvailable(OAuthProvider.apple)) {
+      return const [];
+    }
+    return [
+      const SizedBox(height: 14),
+      Text(
+        'Debug: Google & Apple sign-in are not configured '
+        '(lib/core/config/env.dart, see the README).',
+        key: const ValueKey('oauth-not-configured-hint'),
+        textAlign: TextAlign.center,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      ),
+    ];
+  }
+
+  List<Widget> _socialButtons(bool configured) {
+    final oauth = ref.watch(oauthSignInProvider);
+    final google = oauth.isAvailable(OAuthProvider.google);
+    final apple = oauth.isAvailable(OAuthProvider.apple);
+    final enabled = !_busy && configured;
+    final buttons = <Widget>[
+      if (apple)
+        AppleSignInButton(
+          key: const ValueKey('oauth-apple'),
+          busy: _busyProvider == OAuthProvider.apple,
+          onPressed: enabled ? () => _oauth(OAuthProvider.apple) : null,
+        ),
+      if (google)
+        oauth.googleWebButton() ??
+            GoogleSignInButton(
+              key: const ValueKey('oauth-google'),
+              busy: _busyProvider == OAuthProvider.google,
+              onPressed: enabled ? () => _oauth(OAuthProvider.google) : null,
+            ),
+    ];
+    if (buttons.isEmpty) return const [];
+    return [
+      for (var i = 0; i < buttons.length; i++) ...[
+        if (i > 0) const SizedBox(height: 12),
+        buttons[i],
+      ],
+      const OrDivider(key: ValueKey('oauth-or-divider')),
+    ];
   }
 }
 
