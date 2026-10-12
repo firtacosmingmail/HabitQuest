@@ -283,6 +283,10 @@ flutter run --dart-define=ADS_ENABLED=false   # no ads at all
   <https://developers.google.com/admob/ios/3p-skadnetworks>; refresh it when
   Google updates the list).
 - Android needs `minSdk` 24 (set in `android/app/build.gradle.kts`).
+- iOS builds with CocoaPods. `ios/Flutter/{Debug,Release}.xcconfig` and the
+  `Podfile` set `CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES = YES`,
+  because the plugin's headers include the Google Mobile Ads SDK's
+  non-modular private headers, which current Xcode otherwise rejects.
 
 ### Code
 
