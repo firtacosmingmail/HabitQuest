@@ -125,27 +125,44 @@ flutter test
 ### Environment config
 
 The app talks to the Supabase Edge Functions only (never to tables
-directly). Where they live is compiled in with `--dart-define`s:
+directly). **The app works out of the box**: a plain `flutter run` (no
+`--dart-define`) talks to the live backend.
+
+**Where dev/prod live (the one file to edit):**
+[`lib/core/config/env.dart`](lib/core/config/env.dart) has an `AppEnv`
+enum (`dev`, `prod`) and the `appEnvs` map with each environment's
+`supabaseUrl` and `supabaseAnonKey`. Both currently point at
+`https://fwikodmrfoorbstmkedx.supabase.co`. To move prod to another project,
+change the `AppEnv.prod` entry there.
+
+**Picking an environment:** `prod` in release builds, `dev` otherwise
+(debug/profile). Force one with `ENV`:
+
+```sh
+flutter run --dart-define=ENV=prod
+flutter build web --dart-define=ENV=dev
+```
+
+**Overriding (other servers, local Supabase):** a non-empty
+`SUPABASE_URL` and/or `SUPABASE_ANON_KEY` define replaces the chosen
+environment's value, each one independently:
 
 | Define | Default | Meaning |
 |---|---|---|
-| `SUPABASE_URL` | `https://fwikodmrfoorbstmkedx.supabase.co` | Project URL; the app calls `{SUPABASE_URL}/functions/v1/<name>` |
-| `SUPABASE_ANON_KEY` | *(none)* | The project's public **anon** key (Supabase dashboard → Project Settings → API). Sent as `apikey` on every request |
-
-Without `SUPABASE_ANON_KEY` the app still starts, but the login screen shows
-a "Server not configured" message and sign-in is disabled.
+| `ENV` | `prod` in release, else `dev` | Which `appEnvs` entry to use |
+| `SUPABASE_URL` | the env entry's URL | Project URL; the app calls `{SUPABASE_URL}/functions/v1/<name>` |
+| `SUPABASE_ANON_KEY` | the env entry's anon key | Public **anon** key, sent as `apikey` on every request |
 
 ```sh
-# One-off
-flutter run -d chrome --dart-define=SUPABASE_ANON_KEY=eyJhbGciOi...
+flutter run --dart-define=SUPABASE_URL=http://127.0.0.1:54321 \
+            --dart-define=SUPABASE_ANON_KEY=eyJhbGciOi...
 
-# Or keep the values in a file (env/*.json is gitignored)
-cp env/example.json env/dev.json     # then paste your anon key into it
-flutter run -d chrome --dart-define-from-file=env/dev.json
-flutter build web --dart-define-from-file=env/dev.json
+# Or keep overrides in a file (env/*.json is gitignored)
+cp env/example.json env/local.json     # then fill it in
+flutter run --dart-define-from-file=env/local.json
 ```
 
-`env/dev.json` looks like:
+`env/local.json` looks like:
 
 ```json
 {
@@ -154,9 +171,15 @@ flutter build web --dart-define-from-file=env/dev.json
 }
 ```
 
-The anon key is public by design (row-level security protects the data), but
-keep it out of git anyway so each environment can use its own project. Never
-put the `service_role` key in the app.
+The login screen's "Server not configured" message only appears if the
+resulting URL or key is empty, which does not happen with the built-in
+entries.
+
+**Keys:** the anon (publishable) key is public by design: it ships inside
+every client, and row-level security plus the Edge Functions protect the
+data. That is why it is committed in `env.dart`. The `service_role` (secret)
+key bypasses all of that and must **never** be put in the app, in
+`env.dart`, or in any define.
 
 **Session storage**: the session (access + refresh token) is kept with
 `flutter_secure_storage`: Keychain on iOS, Keystore-backed encrypted
@@ -549,7 +572,8 @@ whether "Confirm email" is on. When it is, `auth-register` answers
 `{"session":null,"needsConfirmation":true}` and the user must confirm before
 logging in.
 
-The app gets the URL and the anon (public) key via `--dart-define`
+The app has the URL and the anon (public) key built in
+(`lib/core/config/env.dart`), overridable with `--dart-define`
 (see [Environment config](#environment-config)).
 
 ### 5. Run locally

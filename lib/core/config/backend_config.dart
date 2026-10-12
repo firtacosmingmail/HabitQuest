@@ -1,4 +1,9 @@
+import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'env.dart';
+
+export 'env.dart' show AppEnv, EnvEntry, appEnvs, selectAppEnv;
 
 /// Where the Supabase Edge Functions live, read from `--dart-define`s:
 ///
@@ -22,12 +27,36 @@ class BackendConfig {
   static const defaultSupabaseUrl = 'https://fwikodmrfoorbstmkedx.supabase.co';
 
   /// The config compiled into this build.
-  factory BackendConfig.fromEnvironment() => const BackendConfig(
-    supabaseUrl: String.fromEnvironment(
-      'SUPABASE_URL',
-      defaultValue: defaultSupabaseUrl,
-    ),
-    anonKey: String.fromEnvironment('SUPABASE_ANON_KEY'),
+  /// Pure resolution from raw define values: the env entry chosen by
+  /// [envDefine]/[isRelease] (see [selectAppEnv]) supplies the defaults, and
+  /// a non-empty [urlOverride] / [anonKeyOverride] replaces each one
+  /// independently.
+  factory BackendConfig.resolve({
+    String envDefine = '',
+    String urlOverride = '',
+    String anonKeyOverride = '',
+    required bool isRelease,
+    Map<AppEnv, EnvEntry> envs = appEnvs,
+  }) {
+    final entry =
+        envs[selectAppEnv(envDefine: envDefine, isRelease: isRelease)]!;
+    return BackendConfig(
+      supabaseUrl: urlOverride.trim().isNotEmpty
+          ? urlOverride.trim()
+          : entry.supabaseUrl,
+      anonKey: anonKeyOverride.trim().isNotEmpty
+          ? anonKeyOverride.trim()
+          : entry.supabaseAnonKey,
+    );
+  }
+
+  /// Reads `ENV`, `SUPABASE_URL` and `SUPABASE_ANON_KEY` from the
+  /// `--dart-define`s and resolves them with [BackendConfig.resolve].
+  factory BackendConfig.fromEnvironment() => BackendConfig.resolve(
+    envDefine: const String.fromEnvironment('ENV'),
+    urlOverride: const String.fromEnvironment('SUPABASE_URL'),
+    anonKeyOverride: const String.fromEnvironment('SUPABASE_ANON_KEY'),
+    isRelease: kReleaseMode,
   );
 
   /// Both the URL and the anon key are present.
