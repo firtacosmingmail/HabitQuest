@@ -17,8 +17,8 @@ class AdSlot extends ConsumerWidget {
       ref.watch(adServiceProvider).buildAd(context, placement);
 }
 
-/// The look shared by every visible ad: about 85% of the available width
-/// (visibly narrower than the habit cards), centred, rounded in the playful
+/// The look shared by every visible ad: about 85% of a habit card's width
+/// (visibly narrower than the cards), centred, rounded in the playful
 /// theme, with a small "Ad" label on top.
 class AdFrame extends StatelessWidget {
   /// Fraction of the available width the frame takes.
@@ -27,9 +27,13 @@ class AdFrame extends StatelessWidget {
   /// Inner padding around the ad content.
   static const padding = 8.0;
 
+  /// Outer horizontal inset, matching the habit cards' margin, before the
+  /// [widthFactor] is applied.
+  static const inset = 16.0;
+
   /// Width left for the ad itself inside a frame laid out in [maxWidth].
   static double contentWidth(double maxWidth) =>
-      maxWidth * widthFactor - 2 * padding;
+      (maxWidth - 2 * inset) * widthFactor - 2 * padding;
 
   final Widget child;
 
@@ -40,7 +44,7 @@ class AdFrame extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: inset, vertical: 10),
       child: FractionallySizedBox(
         widthFactor: widthFactor,
         child: Semantics(
