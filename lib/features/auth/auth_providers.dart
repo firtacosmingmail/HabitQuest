@@ -11,10 +11,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
 import '../../core/config/backend_config.dart';
+import '../../data/remote/account_api.dart';
 import '../../data/remote/api_transport.dart';
 import '../../data/remote/auth_api.dart';
 import '../../data/remote/authenticated_transport.dart';
 import '../../data/remote/habit_quest_api.dart';
+import '../../data/remote/http_account_api.dart';
 import '../../data/remote/http_auth_api.dart';
 import '../../data/remote/http_habit_quest_api.dart';
 import 'auth_controller.dart';
@@ -50,12 +52,20 @@ final authControllerProvider = NotifierProvider<AuthController, AuthState>(
   AuthController.new,
 );
 
+/// The bearer-token transport for the signed-in user (401 refresh/retry).
+final authenticatedTransportProvider = Provider<AuthenticatedTransport>(
+  (ref) => AuthenticatedTransport(
+    transport: ref.watch(apiTransportProvider),
+    tokens: ref.watch(authControllerProvider.notifier),
+  ),
+);
+
 /// The data API for the signed-in user (tokens + 401 refresh/retry handled).
 final habitQuestApiProvider = Provider<HabitQuestApi>(
-  (ref) => HttpHabitQuestApi(
-    AuthenticatedTransport(
-      transport: ref.watch(apiTransportProvider),
-      tokens: ref.watch(authControllerProvider.notifier),
-    ),
-  ),
+  (ref) => HttpHabitQuestApi(ref.watch(authenticatedTransportProvider)),
+);
+
+/// Profile, password and account deletion (`FakeAccountApi` in tests).
+final accountApiProvider = Provider<AccountApi>(
+  (ref) => HttpAccountApi(ref.watch(authenticatedTransportProvider)),
 );

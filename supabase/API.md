@@ -264,8 +264,9 @@ Body: `{ "currentPassword": string, "newPassword": string }`
 - `401 invalid_credentials`: the current password is wrong.
 - `409 no_password`: the account has no email identity (Google/Apple).
 
-The app signs in again with the new password afterwards to get a fresh
-session.
+Supabase Auth revokes the user's other sessions when the password changes
+(verified live: the old access and refresh tokens stop working), so the app
+signs in again with the new password right after the `204`.
 
 ### `account-delete` (POST)
 

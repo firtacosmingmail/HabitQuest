@@ -11,6 +11,7 @@ import '../../features/habit_details/habit_details_screen.dart';
 import '../../features/habits/habit_form_screen.dart';
 import '../../features/habits/habits_screen.dart';
 import '../../features/notifications/in_app_reminder.dart';
+import '../../features/profile/profile_screen.dart';
 import '../../features/quest/quest_screen.dart';
 import '../widgets/message_view.dart';
 import 'app_routes.dart';
@@ -88,6 +89,11 @@ GoRouter createRouter({
         ),
       ),
       GoRoute(path: AppRoutes.splash, builder: (_, _) => const SplashScreen()),
+      // Full screen above the bottom navigation (from the Quest header).
+      GoRoute(
+        path: AppRoutes.profile,
+        builder: (_, _) => const ProfileScreen(),
+      ),
       // Never rendered: signed out the auth gate sends it to /login with the
       // outcome; signed in (or without a gate) this redirect handles it.
       GoRoute(

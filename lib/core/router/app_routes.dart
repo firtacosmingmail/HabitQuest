@@ -5,6 +5,7 @@ abstract final class AppRoutes {
   static const quest = '/quest';
   static const newHabit = '/habits/new';
   static const login = '/login';
+  static const profile = '/profile';
   static const splash = '/splash';
 
   /// Email confirmation deep link (`habitquest://auth-callback?...`).

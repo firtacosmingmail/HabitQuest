@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/router/app_routes.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../auth/auth_providers.dart';
@@ -10,6 +12,8 @@ import '../game/game_profile.dart';
 import '../game/game_providers.dart';
 import '../game/game_rules.dart';
 import '../game/ui/mascot.dart';
+import '../profile/profile_controller.dart';
+import '../profile/profile_screen.dart';
 import '../sync/ui/sync_status_indicator.dart';
 
 /// Quest tab (`/quest`): hero card (mascot, level, title, XP bar), stats,
@@ -36,12 +40,7 @@ class QuestScreen extends ConsumerWidget {
                     style: theme.textTheme.headlineMedium,
                   ),
                 ),
-                IconButton(
-                  key: const ValueKey('logout-button'),
-                  tooltip: 'Log out',
-                  icon: const Icon(Icons.logout_rounded),
-                  onPressed: () => confirmAndLogout(context, ref),
-                ),
+                const _ProfileButton(),
               ],
             ),
             const SizedBox(height: 12),
@@ -79,33 +78,30 @@ class QuestScreen extends ConsumerWidget {
   }
 }
 
-/// Asks for confirmation, then logs out (the auth gate then shows /login).
-/// Local habit data stays on the device.
-Future<void> confirmAndLogout(BuildContext context, WidgetRef ref) async {
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      key: const ValueKey('logout-dialog'),
-      icon: const Text('👋', style: TextStyle(fontSize: 40)),
-      title: const Text('Leaving the quest?'),
-      content: const Text(
-        'You will be logged out. Your habits stay on this device.',
+/// The avatar (initials) in the header that opens the Profile screen, where
+/// Logout and the account settings live.
+class _ProfileButton extends ConsumerWidget {
+  const _ProfileButton();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final auth = ref.watch(authControllerProvider);
+    final email = auth is SignedIn ? auth.session.user.email : '';
+    return Tooltip(
+      message: 'Your profile',
+      child: InkResponse(
+        key: const ValueKey('profile-button'),
+        radius: 28,
+        onTap: () => context.push(AppRoutes.profile),
+        child: Semantics(
+          button: true,
+          label: 'Your profile',
+          excludeSemantics: true,
+          child: ProfileAvatar(initials: initialsFor(null, email), size: 44),
+        ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Stay'),
-        ),
-        FilledButton(
-          key: const ValueKey('confirm-logout'),
-          onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('Log out'),
-        ),
-      ],
-    ),
-  );
-  if (confirmed != true) return;
-  await ref.read(authControllerProvider.notifier).logout();
+    );
+  }
 }
 
 /// Mascot, level, title and the animated XP bar.

@@ -18,6 +18,8 @@ class ApiException implements Exception {
   static const emailNotConfirmed = 'email_not_confirmed';
   static const invalidInput = 'invalid_input';
   static const weakPassword = 'weak_password';
+  static const samePassword = 'same_password';
+  static const noPassword = 'no_password';
   static const notFound = 'not_found';
   static const habitNotFound = 'habit_not_found';
   static const rateLimited = 'rate_limited';
