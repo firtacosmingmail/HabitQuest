@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Android 13+ themed-icon layer: single-colour silhouette on transparent.
+  Shield and badge are solid; the check mark, the star and a gap ring around
+  the badge are knocked out so the shapes still read when tinted.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <mask id="knockout" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">
+      <rect width="1024" height="1024" fill="#FFFFFF"/>
+      <path d="M404 494 L484 574 L628 420" fill="none" stroke="#000000" stroke-width="86" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="680" cy="668" r="94" fill="#000000"/>
+    </mask>
+    <mask id="star" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">
+      <rect width="1024" height="1024" fill="#FFFFFF"/>
+      <path transform="translate(680 670) scale(1.15) translate(-680 -668)" d="M680 620 L692.9 650.2 L725.7 653.2 L700.9 674.8 L708.2 706.8 L680 690 L651.8 706.8 L659.1 674.8 L634.3 653.2 L667.1 650.2 Z" fill="#000000" stroke="#000000" stroke-width="10" stroke-linejoin="round"/>
+    </mask>
+  </defs>
+  <path mask="url(#knockout)" fill="#FFFFFF" d="M300 300 Q300 272 328 270 C400 264 462 246 512 214 C562 246 624 264 696 270 Q724 272 724 300 L724 480 C724 630 630 730 512 800 C394 730 300 630 300 480 Z"/>
+  <circle mask="url(#star)" cx="680" cy="668" r="74" fill="#FFFFFF"/>
+</svg>

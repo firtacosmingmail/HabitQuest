@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Habit Quest app icon — master artwork (1024 x 1024).
+  A grape quest shield with a bold white check mark and a coral star badge
+  (XP / streak), on a warm sunshine-to-tangerine gradient.
+  Palette: lib/core/theme/app_colors.dart.
+  The motif stays inside the central 66% circle (radius ~338 px) so Android
+  adaptive masks and iOS rounded corners never clip it.
+  Layers for the launcher icons: icon_background.svg, icon_foreground.svg,
+  icon_monochrome.svg (same geometry).
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFD45C"/>
+      <stop offset="0.55" stop-color="#FFAA3F"/>
+      <stop offset="1" stop-color="#FF7F45"/>
+    </linearGradient>
+    <linearGradient id="shield" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8A5FFF"/>
+      <stop offset="1" stop-color="#6A3BF0"/>
+    </linearGradient>
+    <path id="shieldPath" d="M300 300 Q300 272 328 270 C400 264 462 246 512 214 C562 246 624 264 696 270 Q724 272 724 300 L724 480 C724 630 630 730 512 800 C394 730 300 630 300 480 Z"/>
+    <clipPath id="shieldClip"><use href="#shieldPath"/></clipPath>
+  </defs>
+
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+
+  <!-- soft drop shadows -->
+  <use href="#shieldPath" transform="translate(0 24)" fill="#B8441A" fill-opacity="0.28"/>
+  <circle cx="680" cy="692" r="94" fill="#B8441A" fill-opacity="0.28"/>
+
+  <!-- shield with a lighter left half (heraldic split) -->
+  <use href="#shieldPath" fill="url(#shield)"/>
+  <rect x="300" y="200" width="212" height="620" fill="#FFFFFF" fill-opacity="0.12" clip-path="url(#shieldClip)"/>
+
+  <!-- check mark -->
+  <path d="M404 494 L484 574 L628 420" fill="none" stroke="#FFFFFF" stroke-width="86" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- star badge -->
+  <circle cx="680" cy="668" r="94" fill="#FFFFFF"/>
+  <circle cx="680" cy="668" r="72" fill="#FF6B6B"/>
+  <path transform="translate(680 670) scale(1.15) translate(-680 -668)" d="M680 620 L692.9 650.2 L725.7 653.2 L700.9 674.8 L708.2 706.8 L680 690 L651.8 706.8 L659.1 674.8 L634.3 653.2 L667.1 650.2 Z" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="10" stroke-linejoin="round"/>
+</svg>

@@ -66,6 +66,26 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
   fake_async: ^1.3.3
+  flutter_launcher_icons: ^0.14.4
+
+# App icon: `dart run flutter_launcher_icons`. Source art lives in assets/icon/
+# (icon.svg master; PNGs rendered by `flutter test tool/render_app_icon.dart`).
+flutter_launcher_icons:
+  image_path: assets/icon/icon_1024.png
+  android: true
+  ios: true
+  remove_alpha_ios: true
+  min_sdk_android: 24
+  adaptive_icon_background: assets/icon/icon_background.png
+  adaptive_icon_foreground: assets/icon/icon_foreground.png
+  adaptive_icon_monochrome: assets/icon/icon_monochrome.png
+  # The foreground art already keeps the motif inside the 66% safe zone.
+  adaptive_icon_foreground_inset: 0
+  web:
+    generate: true
+    image_path: assets/icon/icon_1024.png
+    background_color: "#FFAA3F"
+    theme_color: "#7C4DFF"
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
