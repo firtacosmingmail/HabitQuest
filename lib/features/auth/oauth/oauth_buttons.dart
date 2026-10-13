@@ -82,7 +82,14 @@ class GoogleSignInButton extends StatelessWidget {
                       ),
                     )
                   else
-                    Text('Continue with Google', style: style),
+                    Flexible(
+                      child: Text(
+                        'Continue with Google',
+                        style: style,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                 ],
               ),
             ),

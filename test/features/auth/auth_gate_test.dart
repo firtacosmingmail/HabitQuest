@@ -134,6 +134,7 @@ void main() {
         find.byKey(const ValueKey('auth-password')),
         'secret1',
       );
+      await tester.ensureVisible(find.byKey(const ValueKey('auth-submit')));
       await tester.tap(find.byKey(const ValueKey('auth-submit')));
       await tester.pumpAndSettle();
       expect(path(c), '/habits');

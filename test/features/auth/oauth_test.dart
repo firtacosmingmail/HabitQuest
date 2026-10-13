@@ -107,10 +107,11 @@ void main() {
       expect(c.googleServerClientId, web);
     });
 
-    test('the shipped env.dart values are placeholders (empty)', () {
+    test('the shipped env.dart sets the Google web client; the rest are '
+        'placeholders (empty)', () {
       for (final ids in oauthEnvs.values) {
         expect(ids.googleIosClientId, isEmpty);
-        expect(ids.googleWebClientId, isEmpty);
+        expect(ids.googleWebClientId, endsWith('.apps.googleusercontent.com'));
         expect(ids.appleServiceId, isEmpty);
       }
     });

@@ -134,12 +134,15 @@ class OAuthIds {
   });
 }
 
-/// PLACEHOLDER IDs: empty until the user supplies real ones (see above).
+/// OAuth IDs: the Google web client is set (it is the client configured in
+/// the Supabase Google provider); the others are still empty placeholders.
 const oauthPlaceholderIds = OAuthIds(
   googleIosClientId:
       '', // TODO(you): <number>-<id>.apps.googleusercontent.com (iOS client)
+  // Web client (also the Android serverClientId); matches Supabase's
+  // external_google_client_id.
   googleWebClientId:
-      '', // TODO(you): <number>-<id>.apps.googleusercontent.com (Web client)
+      '1004491055558-ki4qtpcukb7l3859khfs7kla2h9s6ric.apps.googleusercontent.com',
   appleServiceId:
       '', // TODO(you): e.g. com.habitquest.signin (only for Android/web)
   appleRedirectUri:

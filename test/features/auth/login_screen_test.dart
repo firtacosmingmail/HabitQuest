@@ -127,6 +127,7 @@ void main() {
     final c = await pumpLogin(tester, api: api, store: store);
     await fill(tester, 'auth-email', 'hero@example.com');
     await fill(tester, 'auth-password', 'secret1');
+    await tester.ensureVisible(byKey('auth-submit'));
     await tester.tap(byKey('auth-submit'));
     await tester.pump();
     expect(byKey('auth-loading'), findsOneWidget);
