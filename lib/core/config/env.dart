@@ -140,9 +140,11 @@ const oauthPlaceholderIds = OAuthIds(
   googleIosClientId:
       '', // TODO(you): <number>-<id>.apps.googleusercontent.com (iOS client)
   // Web client (also the Android serverClientId); matches Supabase's
-  // external_google_client_id.
+  // external_google_client_id. Must be a "Web application" OAuth client,
+  // otherwise GMS fails with [28444] "You must use a Web client as the
+  // server client ID".
   googleWebClientId:
-      '1004491055558-ki4qtpcukb7l3859khfs7kla2h9s6ric.apps.googleusercontent.com',
+      '1004491055558-o1h2t0ncb5dsdna7l0hb1ci2rhk6aqnd.apps.googleusercontent.com',
   appleServiceId:
       '', // TODO(you): e.g. com.habitquest.signin (only for Android/web)
   appleRedirectUri:
