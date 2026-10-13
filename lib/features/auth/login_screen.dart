@@ -109,6 +109,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     try {
       await run();
     } catch (e) {
+      debugPrint(
+        'OAuth sign-in (${provider.wire}) failed: ${e.runtimeType}: $e',
+      );
       if (mounted) {
         setState(() => _error = friendlyAuthError(e, provider: provider));
       }

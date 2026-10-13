@@ -33,22 +33,39 @@ class OAuthCancelled implements Exception {
 }
 
 /// The client IDs for [provider] are placeholders in this build.
+/// Also thrown when the provider SDK reports a configuration error; then
+/// [code] / [message] carry the SDK's error so the UI can show it.
 class OAuthNotConfigured implements Exception {
   final OAuthProvider provider;
-  const OAuthNotConfigured(this.provider);
+
+  /// The SDK error code (e.g. `providerConfigurationError`), if any.
+  final String? code;
+
+  /// The SDK error description, if any.
+  final String? message;
+
+  const OAuthNotConfigured(this.provider, {this.code, this.message});
 
   @override
-  String toString() => 'OAuthNotConfigured(${provider.wire})';
+  String toString() => code == null
+      ? 'OAuthNotConfigured(${provider.wire})'
+      : 'OAuthNotConfigured(${provider.wire}) [$code] ${message ?? ''}'.trim();
 }
 
 /// The provider SDK failed (no ID token, platform error, ...).
 class OAuthFailure implements Exception {
   final OAuthProvider provider;
   final String message;
-  const OAuthFailure(this.provider, this.message);
+
+  /// The SDK error code (e.g. `unknownError`), if any.
+  final String? code;
+
+  const OAuthFailure(this.provider, this.message, {this.code});
 
   @override
-  String toString() => 'OAuthFailure(${provider.wire}): $message';
+  String toString() => code == null
+      ? 'OAuthFailure(${provider.wire}): $message'
+      : 'OAuthFailure(${provider.wire}) [$code]: $message';
 }
 
 /// Gets an ID token from the native Google / Apple SDKs. The app sends it

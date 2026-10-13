@@ -4,10 +4,25 @@ import 'oauth/oauth_sign_in.dart';
 /// Friendly, playful copy for auth failures.
 String friendlyAuthError(Object error, {OAuthProvider? provider}) {
   if (error is OAuthNotConfigured) {
-    return "${error.provider.label} sign-in isn't set up yet.";
+    final label = error.provider.label;
+    if (error.code == null) return "$label sign-in isn't set up yet.";
+    return "$label sign-in isn't set up correctly for this app "
+        '(${_detail(error.code!, error.message)}).';
   }
   if (error is OAuthFailure) {
-    return "Couldn't sign in with ${error.provider.label}. Please try again.";
+    final label = error.provider.label;
+    final code = error.code;
+    if (code == null) {
+      return "Couldn't sign in with $label. Please try again.";
+    }
+    final detail = _detail(code, error.message);
+    // GMS 28444 / "Developer console is not set up correctly": the Google
+    // Cloud OAuth clients don't match this build; retrying won't help.
+    if (error.message.contains('28444') ||
+        error.message.contains('Developer console')) {
+      return "$label sign-in isn't set up correctly for this app ($detail).";
+    }
+    return "Couldn't sign in with $label ($detail). Please try again.";
   }
   final via = provider?.label;
   if (error is ApiException && via != null) {
@@ -43,6 +58,9 @@ String friendlyAuthError(Object error, {OAuthProvider? provider}) {
     _ => 'The quest server stumbled. Please try again in a moment.',
   };
 }
+
+String _detail(String code, String? message) =>
+    message == null || message.isEmpty ? code : '$code: $message';
 
 const notConfiguredMessage =
     'This build has no server key yet. Run it with '

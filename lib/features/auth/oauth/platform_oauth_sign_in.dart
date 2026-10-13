@@ -15,6 +15,46 @@ import 'oauth_sign_in.dart';
 /// `clientId` on web. Apple: native on iOS/macOS, Apple's web flow (Services
 /// ID + return URL) on Android and web. A fresh random nonce per Apple
 /// sign-in: its SHA-256 goes to Apple, the raw value to the server.
+/// One log line with everything google_sign_in told us: type, code,
+/// description and details. The plugin often leaves the description null
+/// (e.g. Credential Manager errors such as GMS `[28444] Developer console is
+/// not set up correctly`), so the code is the reliable part.
+String describeGoogleSignInException(GoogleSignInException e) =>
+    'GoogleSignIn failed: ${e.runtimeType} code=${e.code.name} '
+    'description=${e.description} details=${e.details}';
+
+/// The SDK's description, or null when it is missing / empty / "null".
+String? _cleanDescription(String? description) {
+  final d = description?.trim();
+  if (d == null || d.isEmpty || d == 'null') return null;
+  return d;
+}
+
+/// Maps a google_sign_in failure to our exceptions, keeping the SDK's code
+/// and description so the UI can show something actionable (never "null").
+@visibleForTesting
+Exception mapGoogleSignInException(GoogleSignInException e) {
+  final code = e.code.name;
+  final description = _cleanDescription(e.description);
+  switch (e.code) {
+    case GoogleSignInExceptionCode.canceled:
+      return const OAuthCancelled(OAuthProvider.google);
+    case GoogleSignInExceptionCode.clientConfigurationError:
+    case GoogleSignInExceptionCode.providerConfigurationError:
+      return OAuthNotConfigured(
+        OAuthProvider.google,
+        code: code,
+        message: description,
+      );
+    default:
+      return OAuthFailure(
+        OAuthProvider.google,
+        description ?? 'Google returned no details',
+        code: code,
+      );
+  }
+}
+
 class PlatformOAuthSignIn implements OAuthSignIn {
   PlatformOAuthSignIn(this.config);
 
@@ -124,21 +164,37 @@ class PlatformOAuthSignIn implements OAuthSignIn {
         throw const OAuthFailure(OAuthProvider.google, 'No ID token');
       }
       return OAuthCredential(provider: OAuthProvider.google, idToken: token);
-    } on GoogleSignInException catch (e) {
-      if (e.code == GoogleSignInExceptionCode.canceled) {
-        throw const OAuthCancelled(OAuthProvider.google);
-      }
-      if (e.code == GoogleSignInExceptionCode.clientConfigurationError ||
-          e.code == GoogleSignInExceptionCode.providerConfigurationError) {
-        throw const OAuthNotConfigured(OAuthProvider.google);
-      }
-      throw OAuthFailure(OAuthProvider.google, e.description ?? e.code.name);
+    } on GoogleSignInException catch (e, st) {
+      debugPrint(describeGoogleSignInException(e));
+      debugPrintStack(stackTrace: st, label: 'GoogleSignIn', maxFrames: 8);
+      throw mapGoogleSignInException(e);
+    } on OAuthFailure {
+      rethrow;
+    } catch (e, st) {
+      debugPrint('GoogleSignIn failed: ${e.runtimeType}: $e');
+      debugPrintStack(stackTrace: st, label: 'GoogleSignIn', maxFrames: 8);
+      throw OAuthFailure(
+        OAuthProvider.google,
+        '$e',
+        code: e.runtimeType.toString(),
+      );
     }
   }
 
   // Apple -----------------------------------------------------------------------
 
   Future<OAuthCredential> _apple() async {
+    try {
+      return await _appleInner();
+    } on OAuthCancelled {
+      rethrow;
+    } catch (e) {
+      debugPrint('AppleSignIn failed: ${e.runtimeType}: $e');
+      rethrow;
+    }
+  }
+
+  Future<OAuthCredential> _appleInner() async {
     final rawNonce = generateNonce();
     try {
       final useWebFlow = !config.isApplePlatform;

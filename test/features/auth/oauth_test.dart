@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:habit_quest/core/config/env.dart';
 import 'package:habit_quest/data/remote/api_exception.dart';
 import 'package:habit_quest/data/remote/fake_auth_api.dart';
@@ -12,6 +13,86 @@ import 'package:habit_quest/features/auth/oauth/platform_oauth_sign_in.dart';
 import 'package:habit_quest/features/auth/session_store.dart';
 
 void main() {
+  group('Google SDK errors', () {
+    test('null description → code shown, never "null"', () {
+      final e = mapGoogleSignInException(
+        const GoogleSignInException(
+          code: GoogleSignInExceptionCode.unknownError,
+        ),
+      );
+      expect(e, isA<OAuthFailure>());
+      final f = e as OAuthFailure;
+      expect(f.code, 'unknownError');
+      final msg = friendlyAuthError(f, provider: OAuthProvider.google);
+      expect(msg, contains('unknownError'));
+      expect(msg, isNot(contains('null')));
+    });
+
+    test('"null" description string is treated as missing', () {
+      final f =
+          mapGoogleSignInException(
+                const GoogleSignInException(
+                  code: GoogleSignInExceptionCode.unknownError,
+                  description: 'null',
+                ),
+              )
+              as OAuthFailure;
+      expect(f.message, isNot('null'));
+    });
+
+    test('28444 → "not set up correctly" with the code', () {
+      final f = mapGoogleSignInException(
+        const GoogleSignInException(
+          code: GoogleSignInExceptionCode.unknownError,
+          description: '[28444] Developer console is not set up correctly.',
+        ),
+      );
+      expect(
+        friendlyAuthError(f),
+        "Google sign-in isn't set up correctly for this app (unknownError: "
+        '[28444] Developer console is not set up correctly.).',
+      );
+    });
+
+    test('configuration errors keep code and description', () {
+      final e = mapGoogleSignInException(
+        const GoogleSignInException(
+          code: GoogleSignInExceptionCode.providerConfigurationError,
+          description: 'bad client',
+        ),
+      );
+      expect(e, isA<OAuthNotConfigured>());
+      expect(
+        friendlyAuthError(e),
+        "Google sign-in isn't set up correctly for this app "
+        '(providerConfigurationError: bad client).',
+      );
+    });
+
+    test('canceled → OAuthCancelled', () {
+      expect(
+        mapGoogleSignInException(
+          const GoogleSignInException(code: GoogleSignInExceptionCode.canceled),
+        ),
+        isA<OAuthCancelled>(),
+      );
+    });
+
+    test('describe logs type, code, description and details', () {
+      expect(
+        describeGoogleSignInException(
+          const GoogleSignInException(
+            code: GoogleSignInExceptionCode.interrupted,
+            description: 'd',
+            details: 'x',
+          ),
+        ),
+        'GoogleSignIn failed: GoogleSignInException code=interrupted '
+        'description=d details=x',
+      );
+    });
+  });
+
   group('Apple nonce', () {
     test('SHA-256 of the raw nonce, lower-case hex', () {
       // Known vectors.
