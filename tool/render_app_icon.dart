@@ -163,6 +163,11 @@ void main() {
     await tester.runAsync(() async {
       await _render('icon_1024.png', (c) {
         _paintBackground(c);
+        // Larger motif for the full-square icon (see icon.svg).
+        c
+          ..translate(_size / 2, _size / 2)
+          ..scale(1.2)
+          ..translate(-_size / 2, -_size / 2);
         _paintMotif(c);
       });
       await _render('icon_background.png', _paintBackground);

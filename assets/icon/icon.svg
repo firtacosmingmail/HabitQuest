@@ -26,6 +26,10 @@
 
   <rect width="1024" height="1024" fill="url(#bg)"/>
 
+  <!-- Motif scaled 1.2x around the centre for the full-square icon (iOS only
+       rounds the corners; web maskable keeps an 80% safe zone). The adaptive
+       foreground layer uses the unscaled motif. -->
+  <g transform="translate(512 512) scale(1.2) translate(-512 -512)">
   <!-- soft drop shadows -->
   <use href="#shieldPath" transform="translate(0 24)" fill="#B8441A" fill-opacity="0.28"/>
   <circle cx="680" cy="692" r="94" fill="#B8441A" fill-opacity="0.28"/>
@@ -41,4 +45,5 @@
   <circle cx="680" cy="668" r="94" fill="#FFFFFF"/>
   <circle cx="680" cy="668" r="72" fill="#FF6B6B"/>
   <path transform="translate(680 670) scale(1.15) translate(-680 -668)" d="M680 620 L692.9 650.2 L725.7 653.2 L700.9 674.8 L708.2 706.8 L680 690 L651.8 706.8 L659.1 674.8 L634.3 653.2 L667.1 650.2 Z" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="10" stroke-linejoin="round"/>
+  </g>
 </svg>
