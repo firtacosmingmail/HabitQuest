@@ -94,18 +94,23 @@ class OAuthConfig {
       platform == OAuthPlatform.ios || platform == OAuthPlatform.macos;
 
   /// The Google client ID google_sign_in needs on this platform: the iOS
-  /// client on iOS/macOS, the web client on web (Android passes the web
-  /// client as `serverClientId` instead, see [googleServerClientId]).
+  /// client on iOS/macOS, the web client on web (Android passes only the web
+  /// client, as `serverClientId`, see [googleServerClientId]).
   String? get googleClientId => switch (platform) {
     OAuthPlatform.ios || OAuthPlatform.macos => _real(ids.googleIosClientId),
     OAuthPlatform.web => _real(ids.googleWebClientId),
     _ => null,
   };
 
-  /// `serverClientId` (the web client) on Android, so the ID token's
-  /// audience is the web client registered in Supabase.
-  String? get googleServerClientId =>
-      platform == OAuthPlatform.android ? _real(ids.googleWebClientId) : null;
+  /// `serverClientId` (the web client) on Android and iOS/macOS, so the ID
+  /// token's audience is the web client registered in Supabase (on iOS,
+  /// GIDConfiguration.serverClientID becomes the ID token's `aud`).
+  String? get googleServerClientId => switch (platform) {
+    OAuthPlatform.android ||
+    OAuthPlatform.ios ||
+    OAuthPlatform.macos => _real(ids.googleWebClientId),
+    _ => null,
+  };
 
   /// Whether Google sign-in has the IDs it needs on this platform.
   bool get googleConfigured => switch (platform) {

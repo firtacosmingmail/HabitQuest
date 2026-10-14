@@ -92,8 +92,8 @@ const Map<AppEnv, AdMobIds> admobEnvs = {
 // Sign in with Google & Apple. THIS is the one place to put the OAuth client
 // IDs (see "Sign in with Google & Apple" in the README for how to create them).
 //
-// >>> PLACEHOLDERS: every value below is EMPTY until you supply it. <<<
-// While a value is empty the matching button is hidden (debug builds show a
+// The Google iOS and web client IDs are set; the Apple values are still EMPTY
+// placeholders until you supply them. While a value is empty the matching button is hidden (debug builds show a
 // small "not configured" hint instead). Client IDs are public identifiers,
 // not secrets; the Google client SECRET and the Apple key (.p8) go ONLY into
 // the Supabase dashboard, never here.
@@ -134,11 +134,14 @@ class OAuthIds {
   });
 }
 
-/// OAuth IDs: the Google web client is set (it is the client configured in
-/// the Supabase Google provider); the others are still empty placeholders.
+/// OAuth IDs: the Google iOS and web clients are set (the web client is the
+/// one configured in the Supabase Google provider); the Apple values are
+/// still empty placeholders.
 const oauthPlaceholderIds = OAuthIds(
+  // iOS client (bundle com.habitquest.habitQuest). Its reversed form is the
+  // URL scheme in ios/Runner/Info.plist; keep the two in sync.
   googleIosClientId:
-      '', // TODO(you): <number>-<id>.apps.googleusercontent.com (iOS client)
+      '1004491055558-g9e3c66039g0tpn16c2ovfvu7ts9pbv0.apps.googleusercontent.com',
   // Web client (also the Android serverClientId); matches Supabase's
   // external_google_client_id. Must be a "Web application" OAuth client,
   // otherwise GMS fails with [28444] "You must use a Web client as the

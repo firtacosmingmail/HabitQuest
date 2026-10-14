@@ -58,11 +58,11 @@
 				<string>habitquest</string>
 			</array>
 		</dict>
-		<!-- Google Sign-In callback: the REVERSED iOS OAuth client ID.
-		     PLACEHOLDER: replace REPLACE-WITH-IOS-CLIENT-ID so the scheme reads
-		     com.googleusercontent.apps.<the part of the iOS client ID before
-		     ".apps.googleusercontent.com">, and set googleIosClientId in
-		     lib/core/config/env.dart (README "Sign in with Google & Apple"). -->
+		<!-- Google Sign-In callback: the REVERSED iOS OAuth client ID
+		     1004491055558-g9e3c66039g0tpn16c2ovfvu7ts9pbv0.apps.googleusercontent.com
+		     (Google Cloud project 1004491055558, bundle com.habitquest.habitQuest).
+		     Keep it in sync with googleIosClientId in lib/core/config/env.dart
+		     (README "Sign in with Google & Apple"). -->
 		<dict>
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
@@ -70,10 +70,18 @@
 			<string>google-sign-in</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>com.googleusercontent.apps.REPLACE-WITH-IOS-CLIENT-ID</string>
+				<string>com.googleusercontent.apps.1004491055558-g9e3c66039g0tpn16c2ovfvu7ts9pbv0</string>
 			</array>
 		</dict>
 	</array>
+	<!-- Google Sign-In fallback IDs (the app also passes clientId and
+	     serverClientId in code): GIDClientID is the iOS client, and
+	     GIDServerClientID is the WEB client, so the ID token's audience is the
+	     client registered in the Supabase Google provider. -->
+	<key>GIDClientID</key>
+	<string>1004491055558-g9e3c66039g0tpn16c2ovfvu7ts9pbv0.apps.googleusercontent.com</string>
+	<key>GIDServerClientID</key>
+	<string>1004491055558-o1h2t0ncb5dsdna7l0hb1ci2rhk6aqnd.apps.googleusercontent.com</string>
 	<key>FlutterDeepLinkingEnabled</key>
 	<true/>
 	<!-- Google AdMob app ID. This is Google's TEST app ID; replace it with your

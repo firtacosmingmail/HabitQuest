@@ -143,11 +143,11 @@ void main() {
       expect(OAuthConfig.isPlaceholder(web), isFalse);
     });
 
-    test('client IDs per platform: iOS client on iOS, web client as '
-        'serverClientId on Android and clientId on web', () {
+    test('client IDs per platform: iOS client + web serverClientId on iOS, '
+        'web client as serverClientId on Android and clientId on web', () {
       const ids = OAuthIds(googleIosClientId: ios, googleWebClientId: web);
       final i = cfg(OAuthPlatform.ios, ids: ids);
-      expect((i.googleClientId, i.googleServerClientId), (ios, null));
+      expect((i.googleClientId, i.googleServerClientId), (ios, web));
       final a = cfg(OAuthPlatform.android, ids: ids);
       expect((a.googleClientId, a.googleServerClientId), (null, web));
       final w = cfg(OAuthPlatform.web, ids: ids);
@@ -188,10 +188,14 @@ void main() {
       expect(c.googleServerClientId, web);
     });
 
-    test('the shipped env.dart sets the Google web client; the rest are '
-        'placeholders (empty)', () {
+    test('the shipped env.dart sets the Google iOS and web clients; the '
+        'Apple values are placeholders (empty)', () {
       for (final ids in oauthEnvs.values) {
-        expect(ids.googleIosClientId, isEmpty);
+        expect(
+          ids.googleIosClientId,
+          '1004491055558-g9e3c66039g0tpn16c2ovfvu7ts9pbv0'
+          '.apps.googleusercontent.com',
+        );
         expect(ids.googleWebClientId, endsWith('.apps.googleusercontent.com'));
         expect(ids.appleServiceId, isEmpty);
       }
