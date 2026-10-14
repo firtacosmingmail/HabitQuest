@@ -467,7 +467,7 @@ project for the app):
    - **iOS**: bundle ID `com.vvs.habitquest`. Gives the *iOS client
      ID* (`1234-abcd.apps.googleusercontent.com`) and its reversed form
      `com.googleusercontent.apps.1234-abcd` (shown as "iOS URL scheme").
-   - **Android**: package name `com.habitquest.habit_quest` and the
+   - **Android**: package name `com.vvs.habitquest` and the
      **SHA-1** of the signing certificate. Get it with
      `cd android && ./gradlew signingReport` (the `debug` variant for
      development) or
@@ -497,7 +497,7 @@ set in the Xcode project).
    App ID `com.vvs.habitquest`, domain = your web domain, and a
    **Return URL**. On web the return URL is your site (the JS popup posts back
    to it). On Android it must be an HTTPS endpoint that redirects to
-   `intent://callback?<the posted params>#Intent;package=com.habitquest.habit_quest;scheme=signinwithapple;end`
+   `intent://callback?<the posted params>#Intent;package=com.vvs.habitquest;scheme=signinwithapple;end`
    (see the `sign_in_with_apple` package docs; the Android callback activity
    is already in `AndroidManifest.xml`). Without it, leave the Apple button
    hidden on Android.

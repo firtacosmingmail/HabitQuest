@@ -1,4 +1,4 @@
-package com.habitquest.habit_quest
+package com.vvs.habitquest
 
 import io.flutter.embedding.android.FlutterActivity
 

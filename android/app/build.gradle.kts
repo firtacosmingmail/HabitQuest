@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.habitquest.habit_quest"
+    namespace = "com.vvs.habitquest"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -23,7 +23,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.habitquest.habit_quest"
+        applicationId = "com.vvs.habitquest"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         // google_mobile_ads 9.x needs at least API 24.
