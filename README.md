@@ -464,7 +464,7 @@ project for the app):
    `openid`, `email`, `profile`. Publish it (or add test users while in
    Testing).
 2. **Credentials → Create credentials → OAuth client ID**, three times:
-   - **iOS**: bundle ID `com.habitquest.habitQuest`. Gives the *iOS client
+   - **iOS**: bundle ID `com.vvs.habitquest`. Gives the *iOS client
      ID* (`1234-abcd.apps.googleusercontent.com`) and its reversed form
      `com.googleusercontent.apps.1234-abcd` (shown as "iOS URL scheme").
    - **Android**: package name `com.habitquest.habit_quest` and the
@@ -487,14 +487,14 @@ Needs a **paid Apple Developer Program** membership (team `9QMS59N2BZ` is
 set in the Xcode project).
 
 1. **Certificates, Identifiers & Profiles → Identifiers → App IDs**:
-   `com.habitquest.habitQuest`, enable the **Sign in with Apple**
+   `com.vvs.habitquest`, enable the **Sign in with Apple**
    capability. The app already ships `ios/Runner/Runner.entitlements`
    (`com.apple.developer.applesignin = Default`, wired via
    `CODE_SIGN_ENTITLEMENTS`); Xcode's automatic signing then picks a profile
    with the capability.
 2. Only for Android / web (Apple's web flow): **Identifiers → Services
    IDs**, e.g. `com.habitquest.signin`; enable Sign in with Apple, primary
-   App ID `com.habitquest.habitQuest`, domain = your web domain, and a
+   App ID `com.vvs.habitquest`, domain = your web domain, and a
    **Return URL**. On web the return URL is your site (the JS popup posts back
    to it). On Android it must be an HTTPS endpoint that redirects to
    `intent://callback?<the posted params>#Intent;package=com.habitquest.habit_quest;scheme=signinwithapple;end`
@@ -513,7 +513,7 @@ set in the Xcode project).
   ID** and the **web client ID** (comma separated; plus any Android client
   IDs if you ever make tokens for them). Leave "Skip nonce check" off.
 - **Apple**: enable; *Client IDs* = the bundle ID
-  `com.habitquest.habitQuest` (native iOS tokens) and, if used, the Services
+  `com.vvs.habitquest` (native iOS tokens) and, if used, the Services
   ID `com.habitquest.signin` (web flow tokens), comma separated; *Secret
   Key* = the client secret generated from the Team ID, Key ID and `.p8`
   (the dashboard has a generator).

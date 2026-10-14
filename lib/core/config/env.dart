@@ -138,7 +138,7 @@ class OAuthIds {
 /// one configured in the Supabase Google provider); the Apple values are
 /// still empty placeholders.
 const oauthPlaceholderIds = OAuthIds(
-  // iOS client (bundle com.habitquest.habitQuest). Its reversed form is the
+  // iOS client (bundle com.vvs.habitquest). Its reversed form is the
   // URL scheme in ios/Runner/Info.plist; keep the two in sync.
   googleIosClientId:
       '1004491055558-g9e3c66039g0tpn16c2ovfvu7ts9pbv0.apps.googleusercontent.com',
