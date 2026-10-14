@@ -7,7 +7,7 @@
          user has not granted it (Android 14+ denies it by default). -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
     <application
-        android:label="habit_quest"
+        android:label="Habit Quest"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

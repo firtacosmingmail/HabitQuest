@@ -1,6 +1,6 @@
 {
-    "name": "habit_quest",
-    "short_name": "habit_quest",
+    "name": "Habit Quest",
+    "short_name": "Habit Quest",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#FFAA3F",
