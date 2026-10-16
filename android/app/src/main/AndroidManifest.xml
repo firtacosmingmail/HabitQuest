@@ -53,12 +53,13 @@
                 <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
             </intent-filter>
         </receiver>
-        <!-- Google AdMob app ID. This is Google's TEST app ID; replace it with
-             your own from the AdMob console and keep it in sync with
+        <!-- Google AdMob app ID: Habit Quest's real Android app ID, used for
+             every build (debug builds still get test ads via the dev test
+             unit IDs). Keep in sync with admobAndroidAppId in
              lib/core/config/env.dart (see README "Advertising (AdMob)"). -->
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-3940256099942544~3347511713"/>
+            android:value="ca-app-pub-5156448354942178~1318609576"/>
         <!-- Sign in with Apple on Android (Apple's web flow, only used when
              appleServiceId / appleRedirectUri are set in env.dart): the return
              URL bounces back to the app through this callback

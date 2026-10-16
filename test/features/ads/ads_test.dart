@@ -76,34 +76,81 @@ void main() {
   });
 
   group('AdConfig', () {
-    test('defaults to Google test IDs', () {
-      final c = AdConfig.resolve(isRelease: true);
-      expect(c.enabled, isTrue);
-      expect(c.ids.iosAppId, 'ca-app-pub-3940256099942544~1458002511');
-      expect(c.ids.androidAppId, 'ca-app-pub-3940256099942544~3347511713');
+    test('prod (release) uses the real app and banner unit IDs', () {
+      for (final c in [
+        AdConfig.resolve(isRelease: true),
+        AdConfig.resolve(isRelease: false, envDefine: 'prod'),
+      ]) {
+        expect(c.enabled, isTrue);
+        expect(c.ids.iosAppId, 'ca-app-pub-5156448354942178~4999843447');
+        expect(c.ids.androidAppId, 'ca-app-pub-5156448354942178~1318609576');
+        expect(
+          c.unitId(AdPlacement.habitsList, ios: true),
+          'ca-app-pub-5156448354942178/9628344434',
+        );
+        expect(
+          c.unitId(AdPlacement.habitDetails, ios: true),
+          'ca-app-pub-5156448354942178/4842921616',
+        );
+        expect(
+          c.unitId(AdPlacement.habitsList, ios: false),
+          'ca-app-pub-5156448354942178/3303618395',
+        );
+        expect(
+          c.unitId(AdPlacement.habitDetails, ios: false),
+          'ca-app-pub-5156448354942178/3338268258',
+        );
+      }
+    });
+
+    test('dev (debug) uses Google test banner units with the real app IDs', () {
+      for (final c in [
+        AdConfig.resolve(isRelease: false),
+        AdConfig.resolve(isRelease: true, envDefine: 'dev'),
+      ]) {
+        expect(c.ids.iosAppId, 'ca-app-pub-5156448354942178~4999843447');
+        expect(c.ids.androidAppId, 'ca-app-pub-5156448354942178~1318609576');
+        for (final p in AdPlacement.values) {
+          expect(
+            c.unitId(p, ios: true),
+            'ca-app-pub-3940256099942544/2934735716',
+          );
+          expect(
+            c.unitId(p, ios: false),
+            'ca-app-pub-3940256099942544/6300978111',
+          );
+        }
+      }
+    });
+
+    test('dart-define overrides also apply in prod', () {
+      final c = AdConfig.resolve(
+        isRelease: true,
+        iosHabitDetails: 'ca-app-pub-2/2',
+      );
+      expect(c.unitId(AdPlacement.habitDetails, ios: true), 'ca-app-pub-2/2');
       expect(
         c.unitId(AdPlacement.habitsList, ios: true),
-        'ca-app-pub-3940256099942544/2934735716',
-      );
-      expect(
-        c.unitId(AdPlacement.habitDetails, ios: false),
-        'ca-app-pub-3940256099942544/6300978111',
+        admobProdIds.iosHabitsListUnitId,
       );
     });
 
-    test('dart-define overrides replace single unit IDs; ADS_ENABLED=false', () {
-      final c = AdConfig.resolve(
-        isRelease: false,
-        enabledDefine: 'false',
-        androidHabitsList: ' ca-app-pub-1/1 ',
-      );
-      expect(c.enabled, isFalse);
-      expect(c.unitId(AdPlacement.habitsList, ios: false), 'ca-app-pub-1/1');
-      expect(
-        c.unitId(AdPlacement.habitsList, ios: true),
-        admobTestIds.iosHabitsListUnitId,
-      );
-    });
+    test(
+      'dart-define overrides replace single unit IDs; ADS_ENABLED=false',
+      () {
+        final c = AdConfig.resolve(
+          isRelease: false,
+          enabledDefine: 'false',
+          androidHabitsList: ' ca-app-pub-1/1 ',
+        );
+        expect(c.enabled, isFalse);
+        expect(c.unitId(AdPlacement.habitsList, ios: false), 'ca-app-pub-1/1');
+        expect(
+          c.unitId(AdPlacement.habitsList, ios: true),
+          admobTestIds.iosHabitsListUnitId,
+        );
+      },
+    );
   });
 
   group('habits list placement (fake ads)', () {

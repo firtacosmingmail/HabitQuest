@@ -29,10 +29,10 @@ const Map<AppEnv, EnvEntry> appEnvs = {
 // ---------------------------------------------------------------------------
 // Advertising (Google AdMob). THIS is the one place to edit the AdMob IDs.
 //
-// Every ID below defaults to Google's official TEST IDs, which always serve
-// test ads and are safe to click. Replace them with the IDs from your AdMob
-// console (Apps > App settings for the app IDs, Apps > Ad units for the unit
-// IDs) before releasing. Each unit ID can also be overridden per build with a
+// PROD (release builds) uses the app's real banner unit IDs. DEV (debug and
+// profile builds) keeps Google's official TEST unit IDs, which always serve
+// test ads and are safe to click: never click your own real ads. Both use the
+// real app IDs. Each unit ID can also be overridden per build with a
 // --dart-define (see AdConfig in lib/features/ads/ad_config.dart):
 //
 //   ADS_ENABLED=false                       turn ads off entirely
@@ -81,11 +81,38 @@ const admobTestIds = AdMobIds(
   androidHabitDetailsUnitId: 'ca-app-pub-3940256099942544/6300978111',
 );
 
-/// AdMob IDs per environment. Swap prod (and dev, if you want real ads in
-/// debug builds; Google recommends test ads during development) for your own.
+/// Habit Quest's real AdMob app IDs (com.vvs.habitquest). The native
+/// Info.plist / AndroidManifest use these for EVERY build: Google's test unit
+/// IDs work fine with a real app ID, so no per-build switching is needed.
+const admobIosAppId = 'ca-app-pub-5156448354942178~4999843447';
+const admobAndroidAppId = 'ca-app-pub-5156448354942178~1318609576';
+
+/// Release builds: the real banner units (serve real, paying ads).
+const admobProdIds = AdMobIds(
+  iosAppId: admobIosAppId,
+  androidAppId: admobAndroidAppId,
+  iosHabitsListUnitId: 'ca-app-pub-5156448354942178/9628344434',
+  androidHabitsListUnitId: 'ca-app-pub-5156448354942178/3303618395',
+  iosHabitDetailsUnitId: 'ca-app-pub-5156448354942178/4842921616',
+  androidHabitDetailsUnitId: 'ca-app-pub-5156448354942178/3338268258',
+);
+
+/// Debug/profile builds: the real app IDs but Google's TEST banner units, so
+/// development never shows (or clicks) real ads, which could get the AdMob
+/// account suspended.
+const admobDevIds = AdMobIds(
+  iosAppId: admobIosAppId,
+  androidAppId: admobAndroidAppId,
+  iosHabitsListUnitId: 'ca-app-pub-3940256099942544/2934735716',
+  androidHabitsListUnitId: 'ca-app-pub-3940256099942544/6300978111',
+  iosHabitDetailsUnitId: 'ca-app-pub-3940256099942544/2934735716',
+  androidHabitDetailsUnitId: 'ca-app-pub-3940256099942544/6300978111',
+);
+
+/// AdMob IDs per environment: real units in prod only, test units in dev.
 const Map<AppEnv, AdMobIds> admobEnvs = {
-  AppEnv.dev: admobTestIds,
-  AppEnv.prod: admobTestIds,
+  AppEnv.dev: admobDevIds,
+  AppEnv.prod: admobProdIds,
 };
 
 // ---------------------------------------------------------------------------

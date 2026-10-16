@@ -230,20 +230,31 @@ rectangle (300x250) when it fits, else an inline adaptive banner.
 
 ### Where the IDs live
 
-Every ID defaults to **Google's official test IDs**, which always serve test
-ads. All of them are listed in one place, `lib/core/config/env.dart`
-(`admobEnvs`, per environment):
+All AdMob IDs are listed in one place, `lib/core/config/env.dart`
+(`admobEnvs`, per environment). **Release builds (prod) use the real banner
+units; debug/profile builds (dev) use Google's official test units**, which
+always serve test ads and are safe to click. Never click your own real ads:
+AdMob can suspend the account for it. `--dart-define=ENV=dev|prod` forces an
+environment (see *Environment config*).
 
-| What | Default (test) | Also set in |
+| What | Release (prod) | Debug (dev) |
 |---|---|---|
-| iOS app ID | `ca-app-pub-3940256099942544~1458002511` | `ios/Runner/Info.plist` `GADApplicationIdentifier` |
-| Android app ID | `ca-app-pub-3940256099942544~3347511713` | `android/app/src/main/AndroidManifest.xml` `com.google.android.gms.ads.APPLICATION_ID` |
-| Habits list banner (iOS / Android) | `.../2934735716` / `.../6300978111` | — |
-| Habit details banner (iOS / Android) | `.../2934735716` / `.../6300978111` | — |
+| iOS app ID | `ca-app-pub-5156448354942178~4999843447` | same (real) |
+| Android app ID | `ca-app-pub-5156448354942178~1318609576` | same (real) |
+| iOS Habits list banner | `ca-app-pub-5156448354942178/9628344434` | test `ca-app-pub-3940256099942544/2934735716` |
+| iOS Habit details banner | `ca-app-pub-5156448354942178/4842921616` | test `ca-app-pub-3940256099942544/2934735716` |
+| Android Habits list banner | `ca-app-pub-5156448354942178/3303618395` | test `ca-app-pub-3940256099942544/6300978111` |
+| Android Habit details banner | `ca-app-pub-5156448354942178/3338268258` | test `ca-app-pub-3940256099942544/6300978111` |
 
-The native SDKs read the **app IDs** before any Dart code runs, so those must
-also be changed in `Info.plist` and `AndroidManifest.xml` (keep all three in
-sync). Unit IDs can be overridden per build without editing code:
+The native SDKs read the **app IDs** before any Dart code runs, so they are
+also set natively, for every build: `GADApplicationIdentifier` in
+`ios/Runner/Info.plist` and `com.google.android.gms.ads.APPLICATION_ID` in
+`android/app/src/main/AndroidManifest.xml` (keep them in sync with
+`admobIosAppId` / `admobAndroidAppId` in `env.dart`). Google's test unit IDs
+work with a real app ID, so the app IDs never switch per build. These IDs
+are public identifiers (they ship in the app), not secrets.
+
+Unit IDs can be overridden per build without editing code:
 
 ```sh
 flutter run \
@@ -254,20 +265,23 @@ flutter run \
 flutter run --dart-define=ADS_ENABLED=false   # no ads at all
 ```
 
-### Switching to real ads
+### Real ads: status and remaining steps
 
-1. Create an AdMob account at <https://admob.google.com> and add two apps:
-   *Habit Quest* for iOS and for Android. Each has an **app ID**
-   (`ca-app-pub-…~…`, under *App settings*).
-2. In each app create two **Banner** ad units, e.g. *Habits list* and
-   *Habit details*. Each has an **ad unit ID** (`ca-app-pub-…/…`).
-3. Put the IDs in `admobEnvs` in `lib/core/config/env.dart` (prod; keep test
-   IDs for dev, as Google asks you not to click your own live ads), and the
-   app IDs in `Info.plist` and `AndroidManifest.xml`.
-4. In AdMob, *Privacy & messaging*: create a **GDPR** consent message (and the
+Done: the AdMob apps (iOS and Android, `com.vvs.habitquest`) and their two
+**Banner** units (*Habits list*, *Habit details*) exist, and their IDs are
+wired in as above. Still to do:
+
+1. In AdMob, *Privacy & messaging*: create a **GDPR** consent message (and the
    US state regulations message if you serve the US), and optionally an
    **IDFA explainer** for iOS. Publish them.
-5. Add an `app-ads.txt` on your developer website.
+2. **After publishing to the App Store / Play Store**, put an `app-ads.txt` at
+   the root of the developer website listed on the store pages (e.g.
+   `https://<your-site>/app-ads.txt`) containing the line AdMob shows under
+   *Apps > View all apps > app-ads.txt*:
+   `google.com, pub-5156448354942178, DIRECT, f08c47fec0942fa0`.
+   Without it AdMob limits ad serving for the apps.
+3. Until AdMob has reviewed the apps, real units may return no fill; release
+   builds then simply show no banner (the slot collapses).
 
 ### Consent and privacy
 

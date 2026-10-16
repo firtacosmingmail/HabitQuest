@@ -84,11 +84,12 @@
 	<string>1004491055558-o1h2t0ncb5dsdna7l0hb1ci2rhk6aqnd.apps.googleusercontent.com</string>
 	<key>FlutterDeepLinkingEnabled</key>
 	<true/>
-	<!-- Google AdMob app ID. This is Google's TEST app ID; replace it with your
-	     own from the AdMob console and keep it in sync with
-	     lib/core/config/env.dart (see README "Advertising (AdMob)"). -->
+	<!-- Google AdMob app ID: Habit Quest's real iOS app ID, used for every
+	     build (debug builds still get test ads via the dev test unit IDs).
+	     Keep in sync with admobIosAppId in lib/core/config/env.dart
+	     (see README "Advertising (AdMob)"). -->
 	<key>GADApplicationIdentifier</key>
-	<string>ca-app-pub-3940256099942544~1458002511</string>
+	<string>ca-app-pub-5156448354942178~4999843447</string>
 	<!-- App Tracking Transparency prompt (asked after the Google consent form). -->
 	<key>NSUserTrackingUsageDescription</key>
 	<string>Habit Quest is free thanks to a few small ads. Allowing tracking lets us show ads that are more relevant to you. Your habits are never shared.</string>
