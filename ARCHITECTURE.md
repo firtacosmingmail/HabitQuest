@@ -190,6 +190,10 @@ Quotes use the box `quotes_cache` (`QuotesCache.boxName`; keys `owner`,
 root navigator (full screen). Use `context.push(AppRoutes.habitDetails(id))`.
 `/profile`, `/quotes` (`AppRoutes.quotes`) and `/quotes/saved`
 (`AppRoutes.savedQuotes`) are top-level full-screen routes.
+Home-screen widget links (`habitquest://open`, `habitquest://quotes`,
+`habitquest://widget/toggle?habitId=`) are mapped in the router's redirect
+(`lib/features/widgets_bridge/widget_links.dart`); the widget bridge
+contract is in [docs/WIDGETS.md](docs/WIDGETS.md).
 
 ## Testing
 

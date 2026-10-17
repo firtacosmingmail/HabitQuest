@@ -474,6 +474,19 @@ Edge Functions (contract in [supabase/API.md](supabase/API.md#quotes)).
   cleared when another account reads it. Past days are not cached.
 - **No ads** on the Quotes and Saved quotes screens.
 
+## Home-screen widgets
+
+The Dart widget bridge (`lib/features/widgets_bridge/`, package
+`home_widget`) writes a snapshot of today's due habits and today's quote
+to shared storage (App Group `group.com.vvs.habitquest` on iOS,
+`HomeWidgetPreferences` on Android), refreshes the widgets, and applies
+check-offs made on a widget through `HabitService`, so XP, streaks and sync
+stay correct. Widget check-offs are queued by home_widget's background
+callback and applied by the app on its next start or resume, or at once if
+it is running. It does nothing on web. The contract for the native widgets
+(keys, JSON, widget names, deep links, toggle mechanism) is in
+[docs/WIDGETS.md](docs/WIDGETS.md).
+
 ## Sign in with Google & Apple
 
 The login/register screen shows **Continue with Google** and **Sign in with
