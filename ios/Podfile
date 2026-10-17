@@ -34,6 +34,14 @@ target 'Runner' do
   target 'RunnerTests' do
     inherit! :search_paths
   end
+
+  # WidgetKit extension (Today's habits, Daily quote). It shares
+  # HabitToggleIntent.swift with Runner, which imports home_widget for the
+  # iOS 17 interactive check-off (docs/WIDGETS.md).
+  target 'HabitQuestWidgets' do
+    inherit! :search_paths
+    pod 'home_widget', :path => '.symlinks/plugins/home_widget/ios'
+  end
 end
 
 post_install do |installer|
