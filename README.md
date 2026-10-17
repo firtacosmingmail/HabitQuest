@@ -474,6 +474,49 @@ Edge Functions (contract in [supabase/API.md](supabase/API.md#quotes)).
   cleared when another account reads it. Past days are not cached.
 - **No ads** on the Quotes and Saved quotes screens.
 
+## Admin web console
+
+A Flutter web app in [`admin/`](admin/README.md) for the admins: manage the
+quotes (list, search, date filter, create/edit/reschedule, unschedule,
+delete, love counts, gaps in the coming weeks) and a stats dashboard with
+aggregated usage (sign-ups, DAU/WAU, habits, completions, XP and streak
+distributions, quote loves, most-loved quotes).
+
+**Why a separate app.** `admin/` has its own `pubspec.yaml`, so its code and
+dependencies can never end up in the iOS/Android bundle (a second entry point
+in `lib/` would still be compiled into, and shipped with, the mobile app's
+package), and the mobile app's plugins (Hive, AdMob, notifications, …) are
+not pulled into the web console. It is small and talks to the backend only
+over HTTP, so it does not need the app's code; the Supabase URL and anon key
+are copied from `lib/core/config/env.dart` (keep them in sync). The root
+`analysis_options.yaml` excludes `admin/**`, so `flutter analyze` at the root
+covers the mobile app only; analyse and test the console from inside
+`admin/`.
+
+**Access.** Same Supabase auth as the app (`auth-login`). Only admins get in:
+the service role, or a user whose email is in the `QUOTE_ADMINS` function
+secret (one check, `supabase/functions/_shared/admin.ts`, also used by
+`POST`/`PUT /quotes`). Everyone else sees "Not authorised". The console only
+ever holds the public anon key and the admin's own access token; everything
+privileged goes through the `admin-quotes` and `admin-stats` Edge Functions,
+which check the admin on the server ([API](supabase/API.md#admin)).
+
+```sh
+cd admin
+flutter pub get
+flutter run -d chrome --dart-define=ADMIN_DEMO=true   # fake data, no backend
+flutter run -d chrome                                 # live project
+flutter analyze && flutter test
+flutter build web --release                           # → admin/build/web
+```
+
+**Deploy** (not done yet; going live is a separate, confirmed step):
+`supabase db push` (migration `20261017120000_admin_functions.sql`), deploy
+`admin-quotes` and `admin-stats` with `--no-verify-jwt`, set
+`supabase secrets set QUOTE_ADMINS=<admin emails>`, then host
+`admin/build/web` on any static host (use `--base-href` for a sub-path).
+Details in [admin/README.md](admin/README.md).
+
 ## Sign in with Google & Apple
 
 The login/register screen shows **Continue with Google** and **Sign in with
