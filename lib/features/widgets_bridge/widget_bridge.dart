@@ -123,6 +123,8 @@ class WidgetBridge {
     _writeScheduled = true;
     scheduleMicrotask(() {
       _writeScheduled = false;
+      // The provider may have been disposed (rebuilt) meanwhile.
+      if (_disposed) return;
       _checkDayChange();
       unawaited(writeNow());
     });
