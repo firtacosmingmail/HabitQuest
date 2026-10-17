@@ -4,6 +4,13 @@ import type { ListQuery, ResourceStore } from "../_shared/resource.ts";
 import type { GameStateStore } from "../_shared/game_state.ts";
 import type { BatchResult, GameState, WriteResult } from "../_shared/types.ts";
 import { ApiError } from "../_shared/errors.ts";
+import {
+  dayTaken,
+  type LovedQuote,
+  type LoveStore,
+  type Quote,
+  type QuoteStore,
+} from "../_shared/quotes.ts";
 
 interface Entry<T> {
   item: T;
@@ -140,3 +147,105 @@ export const checkInBody = (over: Record<string, unknown> = {}) => ({
   deletedAt: null,
   ...over,
 });
+
+// Quotes -----------------------------------------------------------------------
+
+/** In-memory `quotes` + `quote_loves`, mirroring the SQL semantics. */
+export class MemoryQuotes {
+  readonly quotes = new Map<string, Quote>();
+  /** userId → quoteId → lovedAt */
+  readonly loves = new Map<string, Map<string, string>>();
+  clock = Date.UTC(2026, 9, 16, 12, 0, 0);
+  private seq = 0;
+
+  private tick(): string {
+    this.clock += 1000;
+    return new Date(this.clock).toISOString();
+  }
+
+  /** Adds a quote with a deterministic uuid (ids sort like the insert order). */
+  add(text: string, day: string | null, author: string | null = null): Quote {
+    const id = `00000000-0000-4000-8000-${(++this.seq).toString(16).padStart(12, "0")}`;
+    const at = this.tick();
+    const q: Quote = { id, text, author, day, createdAt: at, updatedAt: at };
+    this.quotes.set(id, q);
+    return q;
+  }
+
+  private sorted(before: string | null): Quote[] {
+    return [...this.quotes.values()]
+      .filter((q) => before === null || (q.day !== null && q.day < before))
+      .sort((a, b) => {
+        if (a.day !== b.day) {
+          if (a.day === null) return 1;
+          if (b.day === null) return -1;
+          return a.day < b.day ? -1 : 1;
+        }
+        return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+      });
+  }
+
+  private checkDay(day: string | null | undefined, self?: string) {
+    if (!day) return;
+    for (const q of this.quotes.values()) {
+      if (q.day === day && q.id !== self) throw dayTaken(day);
+    }
+  }
+
+  store(userId: string | null): QuoteStore {
+    return {
+      byDay: (day) => Promise.resolve([...this.quotes.values()].find((q) => q.day === day) ?? null),
+      count: (before) => Promise.resolve(this.sorted(before).length),
+      nth: (before, i) => Promise.resolve(this.sorted(before)[i] ?? null),
+      range: (from, to) =>
+        Promise.resolve(
+          this.sorted(null).filter((q) => q.day !== null && q.day >= from && q.day <= to)
+            .reverse(),
+        ),
+      create: (input) => {
+        this.checkDay(input.day);
+        const q = this.add(input.text, input.day, input.author);
+        return Promise.resolve(q);
+      },
+      update: (id, patch) => {
+        const q = this.quotes.get(id);
+        if (!q) return Promise.resolve(null);
+        this.checkDay(patch.day, id);
+        const next = { ...q, ...patch, updatedAt: this.tick() };
+        this.quotes.set(id, next);
+        return Promise.resolve(next);
+      },
+      lovedIds: (ids) => {
+        const mine = userId === null ? new Map() : this.loves.get(userId) ?? new Map();
+        return Promise.resolve(new Set(ids.filter((id) => mine.has(id))));
+      },
+    };
+  }
+
+  loveStore(userId: string): LoveStore {
+    const mine = () => {
+      if (!this.loves.has(userId)) this.loves.set(userId, new Map());
+      return this.loves.get(userId)!;
+    };
+    const loved = (quoteId: string): LovedQuote => ({
+      quote: this.quotes.get(quoteId)!,
+      lovedAt: mine().get(quoteId)!,
+    });
+    return {
+      list: () =>
+        Promise.resolve(
+          [...mine().keys()].map(loved)
+            .sort((a, b) => a.lovedAt < b.lovedAt ? 1 : a.lovedAt > b.lovedAt ? -1 : 0),
+        ),
+      love: (quoteId) => {
+        if (!this.quotes.has(quoteId)) return Promise.resolve(null);
+        if (!mine().has(quoteId)) mine().set(quoteId, this.tick());
+        return Promise.resolve(loved(quoteId));
+      },
+      unlove: (quoteId) => {
+        mine().delete(quoteId);
+        return Promise.resolve();
+      },
+    };
+  }
+}
