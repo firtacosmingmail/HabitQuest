@@ -487,6 +487,62 @@ it is running. It does nothing on web. The contract for the native widgets
 (keys, JSON, widget names, deep links, toggle mechanism) is in
 [docs/WIDGETS.md](docs/WIDGETS.md).
 
+### iOS widgets
+
+The WidgetKit extension is the `HabitQuestWidgets` target in
+`ios/Runner.xcodeproj` (sources in `ios/HabitQuestWidgets/`, bundle id
+`com.vvs.habitquest.widgets`, deployment target iOS 15.0 like the app). It is
+embedded in Runner and shares the App Group `group.com.vvs.habitquest`
+(`HabitQuestWidgets.entitlements` and `Runner/Runner.entitlements`). It only
+reads `hq_widget_snapshot`; it never writes to the group.
+
+| Widget (`kind`) | Sizes | Shows | Tap |
+|---|---|---|---|
+| Today's habits (`TodayHabitsWidget`) | small, medium, large | today's due habits (emoji, name, check button), done/total; "+N more" when they do not fit | check button: check-off (see below); elsewhere: `habitquest://open` |
+| Daily quote (`DailyQuoteWidget`) | small, medium; Lock Screen rectangular and inline (iOS 16+) | today's quote and attribution | `habitquest://quotes` |
+
+- **Check-off, iOS 17+:** the button runs `HabitToggleIntent`
+  (`ios/Runner/HabitToggleIntent.swift`, a member of both Runner and the
+  extension), which calls `HomeWidgetBackgroundWorker.run` with the habit's
+  `toggleUri`. home_widget runs the Dart background callback, which queues the
+  check-off and reloads the widgets, so the row updates without opening the
+  app. `AppDelegate` registers the plugins for that headless engine
+  (`HomeWidgetBackgroundWorker.setPluginRegistrantCallback`).
+- **Check-off, iOS 15–16:** the button is a `Link` to
+  `habitquest://widget/toggle?habitId=…`, which opens the app and toggles the
+  habit there. Small widgets allow only one tap target below iOS 17, so a tap
+  there opens the app.
+- **States:** `signedOut` (or no snapshot yet) and `noHabits` show an
+  "Open HabitQuest" prompt that opens the app; the quote widget shows the same
+  prompt while there is no quote.
+- **Refresh:** each timeline has an entry now and one at the next local
+  midnight (a snapshot from an earlier day is shown with every habit not
+  done); the app reloads both kinds whenever it rewrites the snapshot.
+- **Appearance:** system colours, so light and dark both work; habit colours
+  come from the snapshot.
+- **CocoaPods:** the Podfile adds a `HabitQuestWidgets` target with the
+  `home_widget` pod (needed by the shared intent). `flutter build ios` runs
+  `pod install`; run it once after pulling this change if you build from
+  Xcode. The extension's xcconfigs (`ios/HabitQuestWidgets/Config/`) include
+  the Pods and Flutter settings, so its version matches the app's.
+
+To try them: run the app on an iOS 17+ simulator, sign in, go to the Home
+Screen, long-press → Edit → Add Widget → Habit Quest, and add both widgets.
+
+**Apple Developer portal (for a device or TestFlight build; the simulator
+needs none of this):**
+
+1. Identifiers → App Groups: register `group.com.vvs.habitquest` (if it is
+   not there yet).
+2. Identifiers → App IDs: enable App Groups on `com.vvs.habitquest` and
+   assign the group (the App ID already has Sign in with Apple).
+3. Register a new App ID `com.vvs.habitquest.widgets` with the App Groups
+   capability and the same group.
+4. Provisioning: with automatic signing (team `9QMS59N2BZ`) Xcode creates the
+   profiles once both App IDs exist. With manual signing, create a
+   development and an App Store profile for `com.vvs.habitquest.widgets` too,
+   and regenerate the app's profiles after adding the App Group.
+
 ## Sign in with Google & Apple
 
 The login/register screen shows **Continue with Google** and **Sign in with
