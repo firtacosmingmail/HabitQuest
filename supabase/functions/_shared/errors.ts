@@ -15,6 +15,7 @@ export class ApiError extends Error {
 export const invalidInput = (message: string) => new ApiError(400, "invalid_input", message);
 export const unauthorized = (message = "Missing, invalid or expired token") =>
   new ApiError(401, "unauthorized", message);
+export const forbidden = (message = "Not allowed") => new ApiError(403, "forbidden", message);
 export const notFound = (message = "Not found") => new ApiError(404, "not_found", message);
 export const methodNotAllowed = (method: string) =>
   new ApiError(405, "method_not_allowed", `Method ${method} not allowed`);

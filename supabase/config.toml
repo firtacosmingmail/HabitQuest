@@ -475,3 +475,11 @@ verify_jwt = false
 
 [functions.account-delete]
 verify_jwt = false
+
+# Daily quotes: they check the caller's token in code. `quotes` uses the
+# service role key only for admin writes (POST/PUT), after the admin check.
+[functions.quotes]
+verify_jwt = false
+
+[functions.quote-loves]
+verify_jwt = false

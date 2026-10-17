@@ -303,3 +303,85 @@ export function validateRefresh(body: JsonObject): string {
   }
   return t.trim();
 }
+
+// Quotes ---------------------------------------------------------------------
+
+export const MAX_QUOTE_TEXT_LENGTH = 500;
+export const MAX_QUOTE_AUTHOR_LENGTH = 200;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function isUuid(v: unknown): v is string {
+  return typeof v === "string" && UUID.test(v);
+}
+
+/** A required uuid (query parameter or body field), lower-cased. */
+export function requireUuid(v: unknown, field: string): string {
+  if (!isUuid(v)) throw invalidInput(`${field} must be a UUID`);
+  return v.toLowerCase();
+}
+
+/** Parses a `yyyy-MM-dd` query parameter; null when absent or empty. */
+export function parseDateParam(v: string | null, field: string): string | null {
+  if (v === null || v === "") return null;
+  if (!isDate(v)) throw invalidInput(`${field} must be a date "yyyy-MM-dd"`);
+  return v;
+}
+
+export interface QuoteInput {
+  text: string;
+  author: string | null;
+  day: string | null;
+}
+
+export type QuotePatch = Partial<QuoteInput>;
+
+function quoteText(body: JsonObject): string {
+  const v = body.text;
+  if (typeof v !== "string") throw invalidInput("text must be a string");
+  const text = v.trim();
+  const len = [...text].length;
+  if (len < 1) throw invalidInput("text must not be blank");
+  if (len > MAX_QUOTE_TEXT_LENGTH) {
+    throw invalidInput(`text must be at most ${MAX_QUOTE_TEXT_LENGTH} characters`);
+  }
+  return text;
+}
+
+/** author: string (trimmed; blank → null) or null. */
+function quoteAuthor(body: JsonObject): string | null {
+  const v = body.author;
+  if (v === undefined || v === null) return null;
+  if (typeof v !== "string") throw invalidInput("author must be a string or null");
+  const author = v.trim();
+  if (author === "") return null;
+  if ([...author].length > MAX_QUOTE_AUTHOR_LENGTH) {
+    throw invalidInput(`author must be at most ${MAX_QUOTE_AUTHOR_LENGTH} characters`);
+  }
+  return author;
+}
+
+function quoteDay(body: JsonObject): string | null {
+  const v = body.day;
+  if (v === undefined || v === null) return null;
+  if (!isDate(v)) throw invalidInput('day must be a date "yyyy-MM-dd" or null');
+  return v;
+}
+
+/** POST /quotes body: {text, author?, day?}. */
+export function validateQuoteInput(body: unknown): QuoteInput {
+  if (!isPlainObject(body)) throw invalidInput("Quote must be a JSON object");
+  return { text: quoteText(body), author: quoteAuthor(body), day: quoteDay(body) };
+}
+
+/** PUT /quotes?id= body: {text?, author?, day?}, at least one field. */
+export function validateQuotePatch(body: unknown): QuotePatch {
+  if (!isPlainObject(body)) throw invalidInput("Quote must be a JSON object");
+  const patch: QuotePatch = {};
+  if (body.text !== undefined) patch.text = quoteText(body);
+  if (body.author !== undefined) patch.author = quoteAuthor(body);
+  if (body.day !== undefined) patch.day = quoteDay(body);
+  if (Object.keys(patch).length === 0) {
+    throw invalidInput("Body must contain at least one of text, author, day");
+  }
+  return patch;
+}
