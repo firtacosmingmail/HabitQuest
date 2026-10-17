@@ -483,3 +483,11 @@ verify_jwt = false
 
 [functions.quote-loves]
 verify_jwt = false
+
+# Admin console (admin/): admin-only, checked in code (service role or an
+# email in QUOTE_ADMINS); the gateway JWT check is off like the others.
+[functions.admin-quotes]
+verify_jwt = false
+
+[functions.admin-stats]
+verify_jwt = false

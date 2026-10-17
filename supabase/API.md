@@ -10,7 +10,8 @@ Base URL: `{SUPABASE_URL}/functions/v1/<name>`
 ## General rules
 
 - Every request sends the header `apikey: <anon key>`.
-- Data endpoints (`habits`, `check-ins`, `game-state`, `quotes`, `quote-loves`)
+- Data endpoints (`habits`, `check-ins`, `game-state`, `quotes`, `quote-loves`,
+  `admin-quotes`, `admin-stats`)
   and `auth-logout` also
   send `Authorization: Bearer <accessToken>`.
 - Request and response bodies are JSON (`content-type: application/json`).
@@ -392,7 +393,12 @@ POST; send `null` to clear `author` or `day`). `200` with
 Admins are the service role (`Authorization: Bearer <service role key>`) or
 signed-in users whose email is listed in the `QUOTE_ADMINS` function secret
 (comma-separated, case-insensitive). Writes use a service-role client on the
-server, after this check.
+server, after this check. The same check (`_shared/admin.ts`) guards every
+admin endpoint; see [Admin](#admin).
+
+To **unschedule** a quote (keep it, free its day), send
+`PUT /quotes?id=<uuid>` with `{ "day": null }`. To reschedule, send the new
+`day`.
 
 Errors for POST/PUT: `401 unauthorized`; `403 forbidden` (not an admin);
 `400 invalid_input` (bad body, bad or missing `id`, empty PUT body);
@@ -427,6 +433,145 @@ changes nothing and returns the original `lovedAt`.
 
 `204` (no body). Idempotent: also `204` when the quote was not loved or does
 not exist. `400 invalid_input` for a missing or malformed `quoteId`.
+
+## Admin
+
+Endpoints for the admin web console (`admin/`). All of them need
+`Authorization: Bearer <accessToken>` of an **admin**: the service role, or a
+signed-in user whose email is in the `QUOTE_ADMINS` function secret
+(comma/semicolon/whitespace separated, case-insensitive; one check in
+`_shared/admin.ts`, shared with `POST`/`PUT /quotes`). Anyone else gets
+`403 forbidden`; a missing or invalid token gets `401 unauthorized`.
+
+On the server they read with a service-role client, created only after the
+admin check, through SQL functions that only the service role may execute
+(`migrations/20261017120000_admin_functions.sql`: `admin_list_quotes`,
+`admin_stats`, both `SECURITY DEFINER`). The service-role key never leaves
+the server.
+
+### Function `admin-quotes`
+
+#### `GET /admin-quotes` — every quote, with love counts
+
+Unlike `GET /quotes`, this lists **all** quotes: past, today, scheduled for
+the future and unscheduled.
+
+Query (all optional):
+
+| Param | Meaning |
+|---|---|
+| `q` | case-insensitive substring of `text` or `author` (trimmed, ≤ 200 chars; `%` and `_` are literal) |
+| `from`, `to` | inclusive `yyyy-MM-dd` day range; either one set → scheduled quotes only |
+| `scheduled` | `all` (default), `scheduled` or `unscheduled` (not combinable with `from`/`to`) |
+| `limit` | 1–500, default 100 |
+| `offset` | ≥ 0, default 0 |
+
+Order: unscheduled quotes first, then `day` descending (furthest future
+first), then `createdAt` descending.
+
+`200`:
+
+```json
+{
+  "total": 91,
+  "limit": 100,
+  "offset": 0,
+  "items": [
+    {
+      "id": "uuid", "text": "…", "author": "…" , "day": "2027-01-13",
+      "createdAt": "2026-10-16T12:00:00.000Z", "updatedAt": "2026-10-16T12:00:00.000Z",
+      "loves": 3
+    }
+  ]
+}
+```
+
+`total` counts every match (before paging). `loves` = how many users have the
+quote saved. There is no `loved` field (the listing is not per-user).
+`400 invalid_input` for a malformed date, `from > to`, an unknown
+`scheduled`, an out-of-range `limit`/`offset` or a too long `q`.
+
+#### `DELETE /admin-quotes?id=<uuid>` — delete
+
+`204`. The quote is removed and its loves with it (`on delete cascade`).
+`404 not_found` for an unknown id, `400 invalid_input` for a malformed one.
+To keep a quote but free its day, unschedule it with
+`PUT /quotes?id=` `{ "day": null }` instead.
+
+Create, edit and reschedule stay on `POST /quotes` and `PUT /quotes?id=`.
+Days without a scheduled quote fall back to the deterministic cycling
+described under `GET /quotes?date=`. Other methods → `405`, sub-paths → `404`.
+
+### Function `admin-stats` (read-only)
+
+#### `GET /admin-stats/me` — admin check
+
+`200 { "admin": true, "email": "a@b.c", "serviceRole": false }` for an admin,
+`403 forbidden` otherwise. The console calls it right after sign-in.
+
+#### `GET /admin-stats?from=yyyy-MM-dd&to=yyyy-MM-dd` — usage aggregates
+
+`from`/`to` are optional, inclusive UTC days: `to` defaults to today (UTC),
+`from` to `to − 29` (30 days). At most 366 days; `from <= to`; otherwise
+`400 invalid_input`.
+
+Aggregates only: counts, per-day/per-week series, histograms and the
+most-loved quotes. No user id, email, display name or habit name is ever
+returned.
+
+`200`:
+
+```json
+{
+  "from": "2026-09-21", "to": "2026-10-20", "days": 30,
+  "generatedAt": "2026-10-20T10:00:00.000Z",
+  "totals": {
+    "users": 120, "usersWithGameState": 95,
+    "habits": 410, "activeHabits": 350, "completions": 9800,
+    "quotes": 90, "scheduledQuotes": 90, "quoteLoves": 230
+  },
+  "range": {
+    "signups": 14, "activeUsers": 61, "habitsCreated": 52,
+    "completions": 1900, "quoteLoves": 75, "averageDailyActiveUsers": 33.4
+  },
+  "daily": [
+    { "date": "2026-09-21", "signups": 0, "activeUsers": 31, "habitsCreated": 2,
+      "completions": 64, "quoteLoves": 3 }
+  ],
+  "weekly": [
+    { "weekStart": "2026-09-21", "days": 7, "signups": 4, "completions": 450, "activeUsers": 48 }
+  ],
+  "xpBuckets": [ { "label": "100–499", "min": 100, "max": 499, "users": 40 } ],
+  "bestStreakBuckets": [ { "label": "7–13", "min": 7, "max": 13, "users": 12 } ],
+  "levels": [ { "level": 3, "users": 20 } ],
+  "topQuotes": [ { "id": "uuid", "text": "…", "author": null, "day": "2026-10-20", "loves": 9 } ],
+  "widgets": { "recorded": false, "note": "Widget usage is not recorded: …" }
+}
+```
+
+What each figure means (and its limits):
+
+| Field | Source | Exactness |
+|---|---|---|
+| `totals.users`, `daily[].signups`, `weekly[].signups` | `auth.users.created_at` (UTC day) | exact |
+| `daily[].activeUsers` (DAU), `weekly[].activeUsers` (WAU), `range.activeUsers` | distinct users with ≥ 1 completed, non-deleted check-in **dated** that day/ISO week/range | approximation: users who open the app without checking anything off are not counted; a back-filled check-in counts on its habit day; only synced (signed-in) data exists on the server |
+| `range.averageDailyActiveUsers` | mean of `daily[].activeUsers` | derived |
+| `totals.habits`, `activeHabits` | non-deleted habits (`activeHabits`: also not archived) | exact (synced habits only) |
+| `daily[].habitsCreated` | `habits.created_at` (the client's creation time, also counts habits deleted later) | exact for synced habits |
+| `daily[].completions`, `weekly[].completions` | completed, non-deleted `check_ins` by `date` | exact (synced) |
+| `xpBuckets` | per user: sum of the numeric values of `game_state.state.checkIns` + `perfectDays` (the app's XP ledgers) | exact for users with a synced game state (`usersWithGameState`) |
+| `bestStreakBuckets` | `game_state.state.bestStreakEver` | **best** streak ever; current streaks are computed on the device and not stored |
+| `levels` | `game_state.state.maxLevelReached` | highest level reached |
+| `daily[].quoteLoves`, `totals.quoteLoves` | `quote_loves.created_at` | loves still present (an unlove deletes the row, so it is not counted) |
+| `topQuotes` | the 10 quotes with the most loves, all time | exact |
+| `widgets` | – | not recorded: nothing stores widget views or taps |
+
+Buckets — XP: `0`, `1–99`, `100–499`, `500–999`, `1000–2499`, `2500–4999`,
+`5000–9999`, `10000+`; best streak: `0`, `1–2`, `3–6`, `7–13`, `14–29`,
+`30–59`, `60–99`, `100+`. `weekly` has one entry per ISO week (Monday)
+overlapping the range; `days < 7` marks a partial edge week (its counts cover
+only the days inside the range). Other methods → `405`, other sub-paths →
+`404`.
 
 ## Status code summary
 

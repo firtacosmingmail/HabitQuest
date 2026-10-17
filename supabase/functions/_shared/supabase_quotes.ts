@@ -13,12 +13,12 @@ import {
   dayTaken,
   type LovedQuote,
   type LoveStore,
-  parseAdmins,
   type Quote,
   type QuoteCaller,
   type QuoteStore,
 } from "./quotes.ts";
 import { authenticate, bearerToken, readEnv } from "./supabase.ts";
+import { envAdmins } from "./admin.ts";
 import { toIsoMillis } from "./validation.ts";
 import type { QuoteInput, QuotePatch } from "./validation.ts";
 
@@ -35,7 +35,8 @@ function serviceKey(): string | null {
   return Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? null;
 }
 
-function serviceClient(req?: Request): SupabaseClient {
+/** Service-role client: only after the caller passed the admin check. */
+export function serviceClient(req?: Request): SupabaseClient {
   const key = serviceKey();
   if (!key) throw new ApiError(500, "internal_error", "Server is not configured");
   return createClient(readEnv(req).url, key, clientOptions);
@@ -61,9 +62,8 @@ export async function authenticateQuotes(req: Request): Promise<SupabaseQuoteCal
   return { userId: c.userId, email: c.email, serviceRole: false, client: c.client };
 }
 
-export function quoteAdmins(): string[] {
-  return parseAdmins(Deno.env.get("QUOTE_ADMINS"));
-}
+/** The admin emails (QUOTE_ADMINS); see admin.ts. */
+export const quoteAdmins = envAdmins;
 
 interface QuoteRow {
   id: string;

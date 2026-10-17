@@ -15,6 +15,7 @@ import {
   notFound,
 } from "./errors.ts";
 import { readJsonObject, subPath } from "./http.ts";
+import { type AdminCaller, requireAdmin } from "./admin.ts";
 import {
   parseDateParam,
   type QuoteInput,
@@ -74,12 +75,7 @@ export interface LoveStore {
   unlove(quoteId: string): Promise<void>;
 }
 
-export interface QuoteCaller {
-  /** null for the service role. */
-  userId: string | null;
-  email: string | null;
-  serviceRole: boolean;
-}
+export type QuoteCaller = AdminCaller;
 
 export interface QuotesDeps<C extends QuoteCaller = QuoteCaller> {
   authenticate(req: Request): Promise<C>;
@@ -122,16 +118,9 @@ export function fallbackIndex(date: string, count: number): number {
   return ((epochDay(date) % count) + count) % count;
 }
 
-/** Parses QUOTE_ADMINS: comma/whitespace separated emails, lower-cased. */
-export function parseAdmins(raw: string | undefined | null): string[] {
-  return (raw ?? "").split(/[\s,;]+/).map((s) => s.trim().toLowerCase()).filter((s) => s !== "");
-}
-
-export function isAdmin(caller: QuoteCaller, admins: string[]): boolean {
-  if (caller.serviceRole) return true;
-  const email = caller.email?.trim().toLowerCase();
-  return !!email && admins.includes(email);
-}
+// The admin check lives in admin.ts (shared with admin-quotes / admin-stats);
+// re-exported here for existing callers.
+export { isAdmin, parseAdmins } from "./admin.ts";
 
 // Quote of the day -------------------------------------------------------------
 
@@ -223,7 +212,7 @@ export async function handleQuotes<C extends QuoteCaller>(
     return json({ date, fallback: daily.fallback, quote });
   }
 
-  if (!isAdmin(caller, deps.admins())) throw forbidden("Only quote admins can change quotes");
+  requireAdmin(caller, deps.admins(), "Only quote admins can change quotes");
 
   if (method === "POST") {
     const input = validateQuoteInput(await readJsonObject(req));
