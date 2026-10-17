@@ -487,6 +487,63 @@ it is running. It does nothing on web. The contract for the native widgets
 (keys, JSON, widget names, deep links, toggle mechanism) is in
 [docs/WIDGETS.md](docs/WIDGETS.md).
 
+### Android widgets
+
+Two widgets live in `android/app/src/main/kotlin/com/vvs/habitquest/widgets/`.
+Both read only the `hq_widget_snapshot` JSON from `HomeWidgetPreferences`:
+
+| Widget | Receiver | Content | Taps |
+|---|---|---|---|
+| **Today's habits** | `TodayHabitsWidgetReceiver` | Header ("Today's habits", done/total), then a scrollable list of today's due habits: emoji, name and a checkbox in the habit's colour (done rows are struck through) | Header → `habitquest://open`. Row/checkbox → check-off in the background, the app does not open |
+| **Daily quote** | `DailyQuoteWidgetReceiver` | "Quote of the day", the quote and its attribution | Anywhere → `habitquest://quotes` |
+
+- **Why Jetpack Glance, not RemoteViews.** `home_widget` 0.10 already
+  depends on `androidx.glance:glance-appwidget:1.2.0` (as an `api`
+  dependency) and ships the Glance glue we need:
+  `HomeWidgetGlanceWidgetReceiver` (redraws on `HomeWidget.updateWidget`),
+  `HomeWidgetGlanceStateDefinition` (reads the shared prefs) and generated
+  previews. With Glance a scrollable list is a `LazyColumn`. With RemoteViews
+  it needs a `RemoteViewsService`/`RemoteViewsFactory` and fill-in
+  `PendingIntent` templates on API < 31. Glance also supports minSdk 24 and
+  gives us responsive sizes and day/night colours. The only build change is
+  the Kotlin Compose compiler plugin (`org.jetbrains.kotlin.plugin.compose`,
+  same version as Kotlin, 2.2.20) and `buildFeatures.compose = true`.
+- **Check-off.** A row tap sends the same broadcast as
+  `HomeWidgetBackgroundIntent.getBroadcast(context, Uri.parse(toggleUri))`,
+  using Glance's `actionSendBroadcast` to `HomeWidgetBackgroundReceiver`
+  (action `es.antonborri.home_widget.action.BACKGROUND`, data = the habit's
+  `toggleUri`). The Dart `widgetInteractivityCallback` runs headless. It
+  flips `done` in the snapshot, queues the toggle and calls `updateWidget`,
+  so the row redraws without the app opening. The first tap after a cold
+  start can take a second or two while the background Flutter engine starts.
+  The whole row is the touch target, which is bigger than the 24 dp box.
+- **States.** `signedOut`, a missing snapshot or an unknown state shows
+  "Sign in to see today's habits" and **Open HabitQuest**. `noHabits` shows
+  "No habits today" and **Open HabitQuest**. Both open `habitquest://open`.
+  If there is no quote, the quote widget shows **Open HabitQuest**. If the
+  snapshot's `date` is before today, every habit is shown as not done.
+- **Refresh.** The app pushes (`HomeWidget.updateWidget` with the receiver
+  names in `widget_constants.dart`). At local midnight, every `onUpdate`
+  re-arms home_widget's `HomeWidgetScheduler` for the next seven midnights
+  plus 5 s. The alarms are exact when `SCHEDULE_EXACT_ALARM` is granted,
+  inexact otherwise. `HomeWidgetScheduledUpdateReceiver` is declared in the
+  manifest and re-arms them after a reboot or an app update.
+  `updatePeriodMillis` (6 h) is only a safety net.
+- **Look and sizes.** Day and night palettes come from the app's colours
+  (`WidgetColors` in `WidgetCommon.kt` and `res/values{,-night}/widget_colors.xml`).
+  Both widgets resize freely from 110 dp, through Responsive sizes:
+  small / medium / large for the habits widget (default 3×3 cells; the
+  small size folds the emoji into the name) and small / wide / large for
+  the quote widget (default 3×2 cells; the text grows with the size).
+- **Gallery.** Each widget has a label and a description. Android 12+ shows
+  the XML `previewLayout`s (`res/layout/widget_*_preview.xml`). Older
+  launchers show the vector `previewImage`s. On Android 15+ Glance also
+  registers generated previews (`providePreview`, sample data only).
+
+To try them, run `flutter run` on a device or emulator. Long-press the home
+screen, open **Widgets**, then **Habit Quest**, and drag *Today's habits* or
+*Daily quote* onto it. Sign in and add a habit to fill the list.
+
 ## Sign in with Google & Apple
 
 The login/register screen shows **Continue with Google** and **Sign in with
