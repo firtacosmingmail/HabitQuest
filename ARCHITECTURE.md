@@ -24,6 +24,10 @@ lib/
     models/habit.dart            Habit, ReminderTime
     models/habit_schedule.dart   sealed HabitSchedule + 4 subclasses
     models/completion_log.dart   CompletionLog (immutable snapshot of all check-ins)
+    models/quote.dart            Quote, DailyQuote, QuoteHistory (quotes contract)
+    remote/quotes_api.dart       abstract QuotesApi (quotes + quote-loves functions)
+    remote/http_quotes_api.dart  HttpQuotesApi (over AuthenticatedTransport)
+    remote/fake_quotes_api.dart  FakeQuotesApi (tests)
     repositories/habit_repository.dart          abstract HabitRepository
     repositories/hive_habit_repository.dart     HiveHabitRepository (app)
     repositories/in_memory_habit_repository.dart InMemoryHabitRepository (tests)
@@ -38,6 +42,9 @@ lib/
     habit_details/   HabitDetailsScreen (/habits/:id)
     calendar/        CalendarScreen (/calendar)
     quest/           QuestScreen (/quest)
+    quotes/          QuotesScreen (/quotes), SavedQuotesScreen (/quotes/saved),
+                     widgets/QuoteOfTheDayCard (Habits tab), quotes_providers.dart,
+                     quotes_cache.dart (hive box quotes_cache)
     game/            game engine (logic) + celebration UI — see README there
     notifications/   reminder scheduling — see README there
 test/
@@ -149,18 +156,40 @@ Stream<HabitChangeEvent> habitChanges      // broadcast {type, habit, previous?,
 
 Pass `dateOnly(...)` values as family keys.
 
+### Quote providers (`lib/features/quotes/quotes_providers.dart`)
+
+| Provider | Type |
+|---|---|
+| `quotesApiProvider` (features/auth) | `Provider<QuotesApi>` — `HttpQuotesApi`; `FakeQuotesApi` in tests |
+| `quotesCacheProvider` | `Provider<QuotesCache>` — memory by default; `main.dart` overrides it with the hive box `quotes_cache` |
+| `quotesUserIdProvider` | `Provider<String?>` — signed-in user id |
+| `todayQuoteProvider` | `AsyncNotifierProvider<TodayQuoteController, DailyQuote?>` — today's (local day) quote; cache first, then server; `null` when signed out or no quotes |
+| `pastQuotesProvider` | `FutureProvider.autoDispose<List<Quote>>` — the 30 local days before today |
+| `savedQuotesProvider` | `AsyncNotifierProvider<SavedQuotesController, List<Quote>>` — loved quotes, newest first; cache first, then server |
+| `quoteLoveOverridesProvider` | `NotifierProvider<…, Map<String, bool>>` — love state set on this device |
+| `quoteLovedProvider(quote)` | `Provider<bool>` — whether a quote is loved (override, else `quote.loved`) |
+| `quoteLoveControllerProvider` | `Provider<QuoteLoveController>` — `toggle` / `setLoved`: optimistic, rolled back on error |
+
+To read today's quote elsewhere (e.g. a home-screen widget bridge):
+`ref.watch(todayQuoteProvider).value?.quote` → `text`, `author` (nullable,
+anonymous) or `attribution` (`— Author` / `— Unknown`).
+
 ## Storage
 
 `HiveHabitRepository` boxes: `habits` (`id → jsonEncode(habit)`), `completions`
 (`"<habitId>|yyyy-MM-dd" → true`). Other features should open **their own**
 boxes (e.g. `game_profile`, `notification_state`) after `Hive.initFlutter()`
 in `main.dart`. Watch streams emit the current value on listen, then on change.
+Quotes use the box `quotes_cache` (`QuotesCache.boxName`; keys `owner`,
+`today` = JSON `DailyQuote`, `loved` = JSON list of `Quote`).
 
 ## Routes
 
 `StatefulShellRoute.indexedStack` with branches `/habits`, `/calendar`,
 `/quest`. `/habits/new`, `/habits/:id`, `/habits/:id/edit` are pushed on the
 root navigator (full screen). Use `context.push(AppRoutes.habitDetails(id))`.
+`/profile`, `/quotes` (`AppRoutes.quotes`) and `/quotes/saved`
+(`AppRoutes.savedQuotes`) are top-level full-screen routes.
 
 ## Testing
 
@@ -170,3 +199,5 @@ await pumpHabitQuestApp(tester, repository: InMemoryHabitRepository(habits: [...
 await tester.pumpWidget(wrapForTest(MyWidget(), repository: repo));
 ```
 `test/flutter_test_config.dart` sets `AppTheme.useGoogleFonts = false`.
+`pumpHabitQuestApp` / `wrapForTest` take `quotesApi:` (default: a
+`FakeQuotesApi` without quotes, so the quote card stays hidden).

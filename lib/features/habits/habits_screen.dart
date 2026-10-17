@@ -13,6 +13,7 @@ import '../../domain/streaks.dart';
 import '../ads/ad_placement.dart';
 import '../ads/ad_slot.dart';
 import '../game/ui/level_chip.dart';
+import '../quotes/widgets/quote_of_the_day_card.dart';
 import '../sync/ui/sync_status_indicator.dart';
 import 'widgets/habit_card.dart';
 import 'widgets/schedule_summary.dart';
@@ -120,6 +121,7 @@ class _HabitsList extends ConsumerWidget {
           due: due.length,
           showProgress: active.isNotEmpty,
         ),
+        const QuoteOfTheDayCard(),
         if (active.isEmpty)
           const HabitsEmptyState()
         else ...[

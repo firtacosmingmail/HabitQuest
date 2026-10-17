@@ -12,6 +12,7 @@ import 'features/ads/ads_bootstrap.dart';
 import 'features/game/game_providers.dart';
 import 'features/game/game_repository.dart';
 import 'features/notifications/notifications_bootstrap.dart';
+import 'features/quotes/quotes_providers.dart';
 import 'features/sync/sync_bootstrap.dart';
 import 'features/sync/sync_providers.dart';
 
@@ -24,6 +25,10 @@ Future<void> main() async {
   final meta = SyncMeta(await HiveStringStore.open(SyncMeta.boxName));
   final repository = await HiveHabitRepository.open(recorder: queue);
   final gameRepository = await HiveGameRepository.open(recorder: queue);
+  // Today's quote and the saved quotes, for offline use.
+  final quotesCache = QuotesCache(
+    await HiveStringStore.open(QuotesCache.boxName),
+  );
 
   runApp(
     ProviderScope(
@@ -32,6 +37,7 @@ Future<void> main() async {
         gameRepositoryProvider.overrideWithValue(gameRepository),
         syncQueueProvider.overrideWithValue(queue),
         syncMetaProvider.overrideWithValue(meta),
+        quotesCacheProvider.overrideWithValue(quotesCache),
       ],
       child: const NotificationsBootstrap(
         child: SyncBootstrap(child: AdsBootstrap(child: HabitQuestApp())),

@@ -7,12 +7,14 @@ import 'package:habit_quest/core/config/backend_config.dart';
 import 'package:habit_quest/core/router/app_router.dart';
 import 'package:habit_quest/core/theme/app_theme.dart';
 import 'package:habit_quest/data/remote/fake_auth_api.dart';
+import 'package:habit_quest/data/remote/fake_quotes_api.dart';
 import 'package:habit_quest/data/remote/session.dart';
 import 'package:habit_quest/data/repositories/habit_repository.dart';
 import 'package:habit_quest/data/repositories/in_memory_habit_repository.dart';
 import 'package:habit_quest/domain/providers.dart';
 import 'package:habit_quest/features/auth/auth_providers.dart';
 import 'package:habit_quest/features/auth/session_store.dart';
+import 'package:habit_quest/features/quotes/quotes_providers.dart';
 
 /// A session that never expires during a test.
 final testSession = Session(
@@ -46,6 +48,9 @@ List<Override> signedInOverrides({Session? session, FakeAuthApi? authApi}) {
 /// Pumps the full app (router + shell + auth gate) on an in-memory
 /// repository. Starts signed in unless [signedIn] is false (then pass your
 /// own auth overrides in [overrides]).
+///
+/// [quotesApi] defaults to a `FakeQuotesApi` without quotes, so the Quote
+/// of the day card stays hidden and nothing goes to the network.
 Future<ProviderContainer> pumpHabitQuestApp(
   WidgetTester tester, {
   HabitRepository? repository,
@@ -53,10 +58,14 @@ Future<ProviderContainer> pumpHabitQuestApp(
   String initialLocation = '/habits',
   List<Override> overrides = const [],
   bool signedIn = true,
+  QuotesApi? quotesApi,
 }) async {
   final container = ProviderContainer(
     overrides: [
       ...overrides,
+      quotesApiProvider.overrideWithValue(
+        quotesApi ?? FakeQuotesApi(quotes: const []),
+      ),
       if (signedIn) ...signedInOverrides(),
       habitRepositoryProvider.overrideWithValue(
         repository ?? InMemoryHabitRepository(),
@@ -84,10 +93,14 @@ Widget wrapForTest(
   HabitRepository? repository,
   DateTime Function()? clock,
   List<Override> overrides = const [],
+  QuotesApi? quotesApi,
 }) {
   return ProviderScope(
     overrides: [
       ...overrides,
+      quotesApiProvider.overrideWithValue(
+        quotesApi ?? FakeQuotesApi(quotes: const []),
+      ),
       habitRepositoryProvider.overrideWithValue(
         repository ?? InMemoryHabitRepository(),
       ),

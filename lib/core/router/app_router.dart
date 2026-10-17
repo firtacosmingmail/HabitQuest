@@ -13,6 +13,8 @@ import '../../features/habits/habits_screen.dart';
 import '../../features/notifications/in_app_reminder.dart';
 import '../../features/profile/profile_screen.dart';
 import '../../features/quest/quest_screen.dart';
+import '../../features/quotes/quotes_screen.dart';
+import '../../features/quotes/saved_quotes_screen.dart';
 import '../widgets/message_view.dart';
 import 'app_routes.dart';
 import 'app_shell.dart';
@@ -93,6 +95,14 @@ GoRouter createRouter({
       GoRoute(
         path: AppRoutes.profile,
         builder: (_, _) => const ProfileScreen(),
+      ),
+      // Full screen (from the Habits quote card, Profile and the widgets).
+      GoRoute(
+        path: AppRoutes.quotes,
+        builder: (_, _) => const QuotesScreen(),
+        routes: [
+          GoRoute(path: 'saved', builder: (_, _) => const SavedQuotesScreen()),
+        ],
       ),
       // Never rendered: signed out the auth gate sends it to /login with the
       // outcome; signed in (or without a gate) this redirect handles it.
