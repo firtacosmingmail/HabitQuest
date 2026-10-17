@@ -38,6 +38,16 @@
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="habitquest" android:host="auth-callback"/>
             </intent-filter>
+            <!-- Home-screen widget links (docs/WIDGETS.md): habitquest://open,
+                 habitquest://quotes, habitquest://widget/toggle?habitId=... -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="habitquest" android:host="open"/>
+                <data android:scheme="habitquest" android:host="quotes"/>
+                <data android:scheme="habitquest" android:host="widget"/>
+            </intent-filter>
             <meta-data
               android:name="flutter_deeplinking_enabled"
               android:value="true"
@@ -51,6 +61,16 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
                 <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
+            </intent-filter>
+        </receiver>
+        <!-- Home-screen widgets (home_widget): runs the Dart interactive
+             callback for check-offs (HomeWidgetBackgroundIntent) without
+             opening the app. See docs/WIDGETS.md. -->
+        <receiver
+            android:name="es.antonborri.home_widget.HomeWidgetBackgroundReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="es.antonborri.home_widget.action.BACKGROUND"/>
             </intent-filter>
         </receiver>
         <!-- Google AdMob app ID: Habit Quest's real Android app ID, used for
