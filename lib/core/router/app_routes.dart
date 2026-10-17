@@ -8,6 +8,12 @@ abstract final class AppRoutes {
   static const profile = '/profile';
   static const splash = '/splash';
 
+  /// Today's quote and the past days' quotes.
+  static const quotes = '/quotes';
+
+  /// The user's loved quotes.
+  static const savedQuotes = '/quotes/saved';
+
   /// Email confirmation deep link (`habitquest://auth-callback?...`).
   static const authCallback = '/auth-callback';
 

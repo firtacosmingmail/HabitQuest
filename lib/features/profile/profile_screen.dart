@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/router/app_routes.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/remote/account_api.dart';
@@ -105,6 +107,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       onTap: () => confirmAndLogout(context, ref),
                     ),
                   ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              _SectionTitle('Inspiration'),
+              Card(
+                margin: EdgeInsets.zero,
+                child: ListTile(
+                  key: const ValueKey('profile-saved-quotes'),
+                  leading: const Text('💖', style: TextStyle(fontSize: 24)),
+                  title: const Text('Saved quotes'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => context.push(AppRoutes.savedQuotes),
                 ),
               ),
               const SizedBox(height: 28),

@@ -19,6 +19,8 @@ import '../../data/remote/habit_quest_api.dart';
 import '../../data/remote/http_account_api.dart';
 import '../../data/remote/http_auth_api.dart';
 import '../../data/remote/http_habit_quest_api.dart';
+import '../../data/remote/http_quotes_api.dart';
+import '../../data/remote/quotes_api.dart';
 import 'auth_controller.dart';
 import 'oauth/oauth_sign_in.dart';
 import 'oauth/platform_oauth_sign_in.dart';
@@ -81,4 +83,9 @@ final habitQuestApiProvider = Provider<HabitQuestApi>(
 /// Profile, password and account deletion (`FakeAccountApi` in tests).
 final accountApiProvider = Provider<AccountApi>(
   (ref) => HttpAccountApi(ref.watch(authenticatedTransportProvider)),
+);
+
+/// Quote of the day, history and saved quotes (`FakeQuotesApi` in tests).
+final quotesApiProvider = Provider<QuotesApi>(
+  (ref) => HttpQuotesApi(ref.watch(authenticatedTransportProvider)),
 );
