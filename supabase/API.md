@@ -10,7 +10,8 @@ Base URL: `{SUPABASE_URL}/functions/v1/<name>`
 ## General rules
 
 - Every request sends the header `apikey: <anon key>`.
-- Data endpoints (`habits`, `check-ins`, `game-state`) and `auth-logout` also
+- Data endpoints (`habits`, `check-ins`, `game-state`, `quotes`, `quote-loves`)
+  and `auth-logout` also
   send `Authorization: Bearer <accessToken>`.
 - Request and response bodies are JSON (`content-type: application/json`).
 - Errors: an HTTP 4xx/5xx status with body
@@ -299,15 +300,143 @@ Body: `{ "confirm": "DELETE" }` (exactly; anything else → `400 invalid_input`)
   functions; it never leaves the server.
 - `401 unauthorized`, `500 internal_error`.
 
+## Quotes
+
+A quote of the day, the history of past days, and each user's saved
+("loved") quotes. Tables: `quotes` and `quote_loves`
+(`migrations/20261016120000_quotes.sql`); 90 quotes are seeded, one per day
+from 2026-10-16 to 2027-01-13. Both functions need
+`Authorization: Bearer <accessToken>` (checked in code with `auth.getUser`;
+`401 unauthorized` otherwise).
+
+### Quote
+
+```json
+{
+  "id": "6f1c1c1e-1b7a-4f0e-9a43-3d2b9c0f5e11",
+  "text": "Well done is better than well said.",
+  "author": "Benjamin Franklin",
+  "day": "2026-11-14",
+  "createdAt": "2026-10-16T12:00:00.000Z",
+  "updatedAt": "2026-10-16T12:00:00.000Z",
+  "loved": false
+}
+```
+
+- `id`: uuid (lower case).
+- `text`: 1–500 characters, trimmed.
+- `author`: 1–200 characters, or `null` for anonymous quotes and proverbs.
+- `day`: the UTC calendar day the quote is scheduled for, or `null` when it is
+  not scheduled. At most one quote per day.
+- `loved`: whether the caller has loved (saved) this quote. Always `false`
+  for the service role.
+
+### Function `quotes`
+
+#### `GET /quotes?date=yyyy-MM-dd` — quote of the day
+
+`date` is optional; it defaults to today in UTC. The app should send its own
+local calendar day. Any date is accepted, past or future.
+
+`200`:
+
+```json
+{ "date": "2026-11-14", "fallback": false, "quote": { /* Quote */ } }
+```
+
+- When a quote is scheduled on `date`, it is returned with `fallback: false`.
+- Otherwise `fallback: true` and the quote is picked deterministically, so
+  every user gets the same quote for the same date: take the quotes with
+  `day < date` (or all quotes, unscheduled ones included, if none are older),
+  order them by `(day, id)` with `null` days last, and pick the one at index
+  `daysSince1970(date) mod count`, where `daysSince1970("1970-01-01") = 0`.
+  The pick for a date changes only when quotes are added or rescheduled.
+- `400 invalid_input`: `date` is not a real `yyyy-MM-dd` date, or is combined
+  with `from`/`to`/`past`.
+- `404 not_found`: there are no quotes at all.
+
+#### `GET /quotes?from=yyyy-MM-dd&to=yyyy-MM-dd` or `GET /quotes?past=N` — history
+
+Returns the quotes scheduled on the days of the range, **never future
+ones**.
+
+- `from`/`to`: both required, inclusive, `from <= to`, at most 366 days.
+  `to` is capped at today (UTC); if `from` is after today the list is empty.
+- `past=N` (integer 1–366): the `N` days before today (UTC), today excluded:
+  `from = today − N`, `to = today − 1`. Fetch today with `?date=`.
+
+`200`:
+
+```json
+{ "from": "2026-10-17", "to": "2026-10-19", "items": [ /* Quote, newest day first */ ] }
+```
+
+Only scheduled quotes are listed: a day without a scheduled quote has no
+entry (no fallback is computed for history). `400 invalid_input` for a
+missing, malformed or out-of-range parameter, or for mixing `past` with
+`from`/`to`.
+
+#### `POST /quotes` — create (admin only)
+
+Body: `{ "text": string, "author"?: string | null, "day"?: "yyyy-MM-dd" | null }`
+(`author` blank → `null`; strings are trimmed).
+
+`201` with `{ "quote": { /* Quote */ } }`.
+
+#### `PUT /quotes?id=<uuid>` — update (admin only)
+
+Body: any non-empty subset of `{ "text", "author", "day" }` (same rules as
+POST; send `null` to clear `author` or `day`). `200` with
+`{ "quote": { /* Quote */ } }`.
+
+Admins are the service role (`Authorization: Bearer <service role key>`) or
+signed-in users whose email is listed in the `QUOTE_ADMINS` function secret
+(comma-separated, case-insensitive). Writes use a service-role client on the
+server, after this check.
+
+Errors for POST/PUT: `401 unauthorized`; `403 forbidden` (not an admin);
+`400 invalid_input` (bad body, bad or missing `id`, empty PUT body);
+`404 not_found` (PUT: unknown id); `409 day_taken` (another quote is already
+scheduled on `day`). Other methods → `405 method_not_allowed`.
+
+### Function `quote-loves`
+
+The caller's saved quotes. A signed-in user only (the service role gets
+`403 forbidden`); a user only ever sees and changes their own loves (RLS).
+
+#### `GET /quote-loves`
+
+`200`:
+
+```json
+{ "items": [ { /* Quote, "loved": true */ "lovedAt": "2026-10-20T07:30:00.000Z" } ] }
+```
+
+Each item is a Quote (with `loved: true`) plus `lovedAt`, newest love first.
+
+#### `POST /quote-loves`
+
+Body: `{ "quoteId": "<uuid>" }`. Idempotent: loving an already loved quote
+changes nothing and returns the original `lovedAt`.
+
+`200` with the item (`Quote` + `loved: true` + `lovedAt`).
+`400 invalid_input` (missing or malformed `quoteId`, body not JSON),
+`404 not_found` (no such quote).
+
+#### `DELETE /quote-loves?quoteId=<uuid>`
+
+`204` (no body). Idempotent: also `204` when the quote was not loved or does
+not exist. `400 invalid_input` for a missing or malformed `quoteId`.
+
 ## Status code summary
 
 | Status | Codes |
 |---|---|
 | 400 | `invalid_input`, `weak_password`, `same_password`, `provider_disabled` |
 | 401 | `unauthorized`, `invalid_credentials`, `invalid_refresh_token`, `invalid_token` |
-| 403 | `email_not_confirmed`, `signup_disabled` |
+| 403 | `email_not_confirmed`, `signup_disabled`, `forbidden` |
 | 404 | `not_found` |
 | 405 | `method_not_allowed` |
-| 409 | `email_taken`, `habit_not_found`, `no_password` |
+| 409 | `email_taken`, `habit_not_found`, `no_password`, `day_taken` |
 | 429 | `rate_limited` (Supabase Auth rate limit) |
 | 500 | `internal_error` |
