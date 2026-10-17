@@ -138,9 +138,7 @@ class TodayQuoteController extends AsyncNotifier<DailyQuote?> {
 /// The scheduled quotes of the [quoteHistoryDays] local days before today,
 /// newest day first (`GET /quotes?from=&to=`, local dates so the list
 /// lines up with today's local quote). Not cached.
-final pastQuotesProvider = FutureProvider.autoDispose<List<Quote>>((
-  ref,
-) async {
+final pastQuotesProvider = FutureProvider.autoDispose<List<Quote>>((ref) async {
   final userId = ref.watch(quotesUserIdProvider);
   if (userId == null) return const [];
   final today = ref.watch(todayProvider);
@@ -225,9 +223,7 @@ class SavedQuotesController extends AsyncNotifier<List<Quote>> {
   void replace(Quote quote) {
     final current = state.value;
     if (current == null) return;
-    state = AsyncData([
-      for (final q in current) q.id == quote.id ? quote : q,
-    ]);
+    state = AsyncData([for (final q in current) q.id == quote.id ? quote : q]);
   }
 
   /// Writes the current list to the device cache.
@@ -262,8 +258,7 @@ class QuoteLoveOverrides extends Notifier<Map<String, bool>> {
     return const {};
   }
 
-  void set(String quoteId, bool loved) =>
-      state = {...state, quoteId: loved};
+  void set(String quoteId, bool loved) => state = {...state, quoteId: loved};
 }
 
 /// Whether [quote] is loved, taking local toggles into account.
@@ -300,15 +295,20 @@ class QuoteLoveController {
   Future<bool?> setLoved(Quote quote, bool loved) async {
     if (!_pending.add(quote.id)) return null;
     final overrides = ref.read(quoteLoveOverridesProvider.notifier);
-    final saved = ref.read(savedQuotesProvider.notifier);
-    final today = ref.read(todayQuoteProvider.notifier);
+    // Only touch the lists that are loaded: reading them would start a
+    // fetch.
+    final saved = ref.exists(savedQuotesProvider)
+        ? ref.read(savedQuotesProvider.notifier)
+        : null;
     final previous = ref.read(quoteLovedProvider(quote));
-    final savedBefore = ref.read(savedQuotesProvider).value ?? const [];
+    final savedBefore = saved == null
+        ? const <Quote>[]
+        : ref.read(savedQuotesProvider).value ?? const <Quote>[];
     final previousIndex = savedBefore.indexWhere((q) => q.id == quote.id);
     final previousEntry = previousIndex < 0 ? null : savedBefore[previousIndex];
 
     overrides.set(quote.id, loved);
-    saved.applyLocal(
+    saved?.applyLocal(
       quote.withLoved(
         loved,
         lovedAt: quote.lovedAt ?? ref.read(clockProvider)().toUtc(),
@@ -317,24 +317,47 @@ class QuoteLoveController {
     );
     try {
       final api = ref.read(quotesApiProvider);
+      Quote? lovedQuote;
       if (loved) {
-        saved.replace(await api.love(quote.id));
+        lovedQuote = await api.love(quote.id);
+        saved?.replace(lovedQuote);
       } else {
         await api.unlove(quote.id);
       }
-      await today.applyLoved(quote.id, loved);
-      await saved.persist();
+      if (ref.exists(todayQuoteProvider)) {
+        await ref.read(todayQuoteProvider.notifier).applyLoved(quote.id, loved);
+      }
+      if (saved != null) {
+        await saved.persist();
+      } else {
+        await _patchCachedList(quote, lovedQuote);
+      }
       return loved;
     } catch (_) {
       overrides.set(quote.id, previous);
       if (previousEntry != null) {
-        saved.applyLocal(previousEntry, true, index: previousIndex);
+        saved?.applyLocal(previousEntry, true, index: previousIndex);
       } else {
-        saved.applyLocal(quote, false);
+        saved?.applyLocal(quote, false);
       }
       rethrow;
     } finally {
       _pending.remove(quote.id);
     }
+  }
+
+  /// Keeps the cached saved list right when the Saved list is not loaded
+  /// (e.g. a love from the Habits card), so it is correct offline too.
+  Future<void> _patchCachedList(Quote quote, Quote? lovedQuote) async {
+    final user = ref.read(quotesUserIdProvider);
+    final cache = ref.read(quotesCacheProvider);
+    if (user == null || !cache.belongsTo(user)) return;
+    final list = cache.lovedQuotes;
+    if (list == null) return;
+    await cache.saveLovedQuotes([
+      ?lovedQuote,
+      for (final q in list)
+        if (q.id != quote.id) q,
+    ]);
   }
 }

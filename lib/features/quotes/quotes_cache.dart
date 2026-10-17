@@ -68,10 +68,8 @@ class QuotesCache {
     }
   }
 
-  Future<void> saveLovedQuotes(List<Quote> quotes) => _store.put(
-    _lovedKey,
-    jsonEncode([for (final q in quotes) q.toJson()]),
-  );
+  Future<void> saveLovedQuotes(List<Quote> quotes) =>
+      _store.put(_lovedKey, jsonEncode([for (final q in quotes) q.toJson()]));
 
   Future<void> clear() => _store.clear();
 }

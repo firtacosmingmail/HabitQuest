@@ -50,10 +50,6 @@ class HttpQuotesApi implements QuotesApi {
 
   @override
   Future<void> unlove(String quoteId) async {
-    await transport.send(
-      'DELETE',
-      'quote-loves',
-      query: {'quoteId': quoteId},
-    );
+    await transport.send('DELETE', 'quote-loves', query: {'quoteId': quoteId});
   }
 }

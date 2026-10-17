@@ -101,10 +101,7 @@ GoRouter createRouter({
         path: AppRoutes.quotes,
         builder: (_, _) => const QuotesScreen(),
         routes: [
-          GoRoute(
-            path: 'saved',
-            builder: (_, _) => const SavedQuotesScreen(),
-          ),
+          GoRoute(path: 'saved', builder: (_, _) => const SavedQuotesScreen()),
         ],
       ),
       // Never rendered: signed out the auth gate sends it to /login with the

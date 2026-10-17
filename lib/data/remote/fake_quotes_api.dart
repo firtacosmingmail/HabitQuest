@@ -120,9 +120,8 @@ class FakeQuotesApi implements QuotesApi {
   @override
   Future<List<Quote>> lovedQuotes() async {
     await _enter('lovedQuotes');
-    final ids =
-        _loves.keys.where(_quotes.containsKey).toList()
-          ..sort((a, b) => _loves[b]!.compareTo(_loves[a]!));
+    final ids = _loves.keys.where(_quotes.containsKey).toList()
+      ..sort((a, b) => _loves[b]!.compareTo(_loves[a]!));
     return [for (final id in ids) _withLove(_quotes[id]!)];
   }
 
@@ -152,7 +151,9 @@ class FakeQuotesApi implements QuotesApi {
         _quotes.values
             .where(
               (q) =>
-                  q.day != null && !q.day!.isBefore(from) && !q.day!.isAfter(to),
+                  q.day != null &&
+                  !q.day!.isBefore(from) &&
+                  !q.day!.isAfter(to),
             )
             .map(_withLove)
             .toList()

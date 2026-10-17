@@ -197,9 +197,7 @@ class QuoteHero extends StatelessWidget {
                     children: [
                       Text(
                         '“${quote.text}”',
-                        style: theme.textTheme.titleLarge?.copyWith(
-                          color: ink,
-                        ),
+                        style: theme.textTheme.titleLarge?.copyWith(color: ink),
                       ),
                       const SizedBox(height: 8),
                       Text(
