@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Today's habits widget (Jetpack Glance, see widgets/). updatePeriodMillis is only a
+     safety net: the app pushes updates and MidnightRefresh arms an alarm for
+     every local midnight. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/widget_habits_description"
+    android:initialLayout="@layout/glance_default_loading_layout"
+    android:minWidth="180dp"
+    android:minHeight="110dp"
+    android:minResizeWidth="110dp"
+    android:minResizeHeight="110dp"
+    android:maxResizeWidth="530dp"
+    android:maxResizeHeight="530dp"
+    android:targetCellWidth="3"
+    android:targetCellHeight="3"
+    android:previewImage="@drawable/widget_habits_preview_image"
+    android:previewLayout="@layout/widget_habits_preview"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="21600000"
+    android:widgetCategory="home_screen" />

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Static gallery preview of Daily quote for Android < 12 (previewImage). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="250dp" android:height="120dp"
+    android:viewportWidth="250" android:viewportHeight="120">
+    <path android:fillColor="@color/widget_background"
+        android:pathData="M20,0h210a20,20 0,0 1,20 20v80a20,20 0,0 1,-20 20h-210a20,20 0,0 1,-20 -20v-80a20,20 0,0 1,20 -20z"/>
+    <path android:fillColor="@color/widget_primary" android:pathData="M14,16h80v8h-80z"/>
+    <!-- opening quote mark -->
+    <path android:fillColor="@color/widget_primary" android:pathData="M14,44c0,-6 3,-10 9,-11l1,3c-3,1 -4,3 -4,5h4v9h-10z M28,44c0,-6 3,-10 9,-11l1,3c-3,1 -4,3 -4,5h4v9h-10z"/>
+    <path android:fillColor="@color/widget_on_surface" android:pathData="M46,40h180v8h-180z"/>
+    <path android:fillColor="@color/widget_on_surface" android:pathData="M14,58h150v8h-150z"/>
+    <path android:fillColor="@color/widget_secondary_text" android:pathData="M166,90h70v6h-70z"/>
+</vector>

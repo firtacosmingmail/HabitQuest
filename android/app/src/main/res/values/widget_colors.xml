@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Home-screen widget palette for the XML preview layouts (light). The
+     Glance widgets use the same values in WidgetColors (WidgetCommon.kt). -->
+<resources>
+    <color name="widget_background">#FFFFFBFF</color>
+    <color name="widget_surface">#FFF1ECFA</color>
+    <color name="widget_on_surface">#FF1C1B1F</color>
+    <color name="widget_secondary_text">#FF605D66</color>
+    <color name="widget_primary">#FF7C4DFF</color>
+</resources>

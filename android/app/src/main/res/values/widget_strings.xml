@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Today's habits widget -->
+    <string name="widget_habits_label">Today\'s habits</string>
+    <string name="widget_habits_description">Check off today\'s habits right from your home screen.</string>
+    <string name="widget_habits_title">Today\'s habits</string>
+    <string name="widget_habits_title_short">Today</string>
+    <string name="widget_habits_signed_out">Sign in to see today\'s habits.</string>
+    <string name="widget_habits_none_today">No habits today.</string>
+    <string name="widget_habit_check">Check off %1$s</string>
+    <string name="widget_habit_uncheck">Undo %1$s</string>
+    <!-- Daily quote widget -->
+    <string name="widget_quote_label">Daily quote</string>
+    <string name="widget_quote_description">A new uplifting quote every day.</string>
+    <string name="widget_quote_title">Quote of the day</string>
+    <string name="widget_quote_empty">Today\'s quote appears here.</string>
+    <!-- Shared -->
+    <string name="widget_open_app">Open HabitQuest</string>
+</resources>

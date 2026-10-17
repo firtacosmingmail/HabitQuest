@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Home-screen widget palette for the XML preview layouts (dark). -->
+<resources>
+    <color name="widget_background">#FF1D1B22</color>
+    <color name="widget_surface">#FF2B2833</color>
+    <color name="widget_on_surface">#FFE6E1E9</color>
+    <color name="widget_secondary_text">#FFB0ABB8</color>
+    <color name="widget_primary">#FFB39DFF</color>
+</resources>

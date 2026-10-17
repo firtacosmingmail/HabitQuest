@@ -73,6 +73,42 @@
                 <action android:name="es.antonborri.home_widget.action.BACKGROUND"/>
             </intent-filter>
         </receiver>
+        <!-- Home-screen widgets (Jetpack Glance, com.vvs.habitquest.widgets).
+             The class names are the ones in widget_constants.dart. -->
+        <receiver
+            android:name=".widgets.TodayHabitsWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_habits_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/today_habits_widget_info"/>
+        </receiver>
+        <receiver
+            android:name=".widgets.DailyQuoteWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_quote_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/daily_quote_widget_info"/>
+        </receiver>
+        <!-- Midnight roll-over of the widgets (HomeWidgetScheduler alarms,
+             re-armed after reboot / app update). Uses RECEIVE_BOOT_COMPLETED
+             and SCHEDULE_EXACT_ALARM declared above. -->
+        <receiver
+            android:name="es.antonborri.home_widget.HomeWidgetScheduledUpdateReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED"/>
+            </intent-filter>
+        </receiver>
         <!-- Google AdMob app ID: Habit Quest's real Android app ID, used for
              every build (debug builds still get test ads via the dev test
              unit IDs). Keep in sync with admobAndroidAppId in
