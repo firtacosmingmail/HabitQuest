@@ -15,6 +15,7 @@ import 'features/notifications/notifications_bootstrap.dart';
 import 'features/quotes/quotes_providers.dart';
 import 'features/sync/sync_bootstrap.dart';
 import 'features/sync/sync_providers.dart';
+import 'features/widgets_bridge/widget_bridge_bootstrap.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -39,8 +40,12 @@ Future<void> main() async {
         syncMetaProvider.overrideWithValue(meta),
         quotesCacheProvider.overrideWithValue(quotesCache),
       ],
-      child: const NotificationsBootstrap(
-        child: SyncBootstrap(child: AdsBootstrap(child: HabitQuestApp())),
+      // Home-screen widgets: snapshot writer + queued widget check-offs
+      // (no-op on web; see docs/WIDGETS.md).
+      child: const WidgetBridgeBootstrap(
+        child: NotificationsBootstrap(
+          child: SyncBootstrap(child: AdsBootstrap(child: HabitQuestApp())),
+        ),
       ),
     ),
   );

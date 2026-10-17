@@ -15,6 +15,8 @@ import '../../features/profile/profile_screen.dart';
 import '../../features/quest/quest_screen.dart';
 import '../../features/quotes/quotes_screen.dart';
 import '../../features/quotes/saved_quotes_screen.dart';
+import '../../features/widgets_bridge/widget_bridge.dart';
+import '../../features/widgets_bridge/widget_links.dart';
 import '../widgets/message_view.dart';
 import 'app_routes.dart';
 import 'app_shell.dart';
@@ -31,11 +33,17 @@ import 'auth_redirect.dart';
 /// mapped to `/auth-callback?...`. Signed out it lands on the login screen
 /// with the outcome; signed in, [onAuthCallback] is called (default: a
 /// snackbar on [appScaffoldMessengerKey]) and the user stays where they were.
+///
+/// Home-screen widget links (`habitquest://quotes`, `habitquest://open`,
+/// `habitquest://widget/toggle?habitId=`) map to the Quotes screen / the
+/// Habits tab; for a check-off link [onWidgetToggle] is called with the
+/// habit id.
 GoRouter createRouter({
   String initialLocation = AppRoutes.habits,
   AuthState Function()? authState,
   Listenable? refreshListenable,
   void Function(AuthCallbackResult result)? onAuthCallback,
+  void Function(String habitId)? onWidgetToggle,
 }) {
   final rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
   late final GoRouter router;
@@ -63,6 +71,12 @@ GoRouter createRouter({
     redirect: (context, state) {
       final deepLink = deepLinkLocation(state.uri);
       if (deepLink != null) return deepLink;
+      final widgetLink = widgetDeepLinkLocation(state.uri);
+      if (widgetLink != null) {
+        final habitId = toggleHabitId(state.uri);
+        if (habitId != null) onWidgetToggle?.call(habitId);
+        return widgetLink;
+      }
       if (authState == null) return null;
       return authRedirect(authState(), state.uri);
     },
@@ -193,6 +207,8 @@ GoRouter createAppRouter(Ref ref, {String initialLocation = AppRoutes.habits}) {
     initialLocation: initialLocation,
     authState: () => auth.value,
     refreshListenable: auth,
+    onWidgetToggle: (habitId) =>
+        ref.read(widgetLinkHandlerProvider).toggle(habitId),
   );
   ref.onDispose(() {
     router.dispose();
