@@ -23,6 +23,11 @@ on the device (hive_ce). There is no account and no server.
 - **Quest tab**: mascot, level, title, an animated XP bar, stats (check-ins,
   best streak, Perfect Days), an achievements grid (locked badges show a hint)
   and a "How to earn XP" card.
+- **Quotes**: a "Quote of the day" card under the Habits greeting, with a
+  ♥ to save it. Tap the card for the Quotes screen (`/quotes`): today's
+  quote and the past days' quotes, each with a ♥. **Saved quotes**
+  (`/quotes/saved`, from the Quotes screen or Profile) lists the quotes you
+  loved. Both show offline. See [Quotes](#quotes).
 - **Profile** (`/profile`, the avatar in the Quest header): your name,
   email, member-since date and sign-in method; change your password, log out
   or delete your account. See [Profile & account](#profile--account).
@@ -435,6 +440,40 @@ supabase functions deploy profile auth-change-password account-delete \
 In code, the app talks to them through `AccountApi` (`HttpAccountApi`;
 `FakeAccountApi` in tests), and `LocalDataWiper` does the local cleanup.
 
+## Quotes
+
+Code: `lib/features/quotes/`, model `lib/data/models/quote.dart`, client
+`lib/data/remote/*quotes_api.dart`. Backend: the `quotes` and `quote-loves`
+Edge Functions (contract in [supabase/API.md](supabase/API.md#quotes)).
+
+- **Quote of the day** card at the top of the Habits tab (under the
+  greeting and progress), with a heart toggle. It is fetched with
+  `GET /quotes?date=yyyy-MM-dd` for the **local** calendar day
+  (`todayProvider` + `dateKey`), so it changes at local midnight (the app
+  shell refreshes `todayProvider` on resume). When the server has a quote
+  scheduled that day it is returned; otherwise the server picks a fallback
+  deterministically, so everyone sees the same quote. No quotes at all (404)
+  or signed out: the card is hidden.
+- **Quotes screen** (`/quotes`, tap the card): today's quote and the
+  scheduled quotes of the past 30 local days (`GET /quotes?from=&to=`,
+  newest first; days without a scheduled quote are not listed), each with a
+  heart. Pull to refresh. Links to Saved quotes (♥ in the app bar and a
+  button).
+- **Saved quotes** (`/quotes/saved`, from the Quotes screen and from
+  Profile → Inspiration): the loved quotes, newest love first
+  (`GET /quote-loves`), each with a heart to unlove. Empty state via
+  `MessageView`.
+- **Love / unlove** (`POST /quote-loves {quoteId}`,
+  `DELETE /quote-loves?quoteId=`) are optimistic: the heart flips and the
+  Saved list updates at once on every screen; if the call fails both are
+  rolled back and a snackbar says so. A second tap on the same quote while
+  its call is in flight is ignored.
+- **Offline**: today's quote and the saved list are kept on the device in
+  the hive box `quotes_cache` and shown first, then refreshed from the
+  server. The box belongs to one user (loved flags are per user); it is
+  cleared when another account reads it. Past days are not cached.
+- **No ads** on the Quotes and Saved quotes screens.
+
 ## Sign in with Google & Apple
 
 The login/register screen shows **Continue with Google** and **Sign in with
@@ -707,7 +746,8 @@ lib/
                           shared widgets (MessageView for empty/error states)
   data/                   models (Habit, HabitSchedule, CompletionLog) and repositories
                           (HiveHabitRepository for the app, InMemoryHabitRepository for tests)
-    remote/               Edge Function client: DTOs, AuthApi / HabitQuestApi (HTTP + fakes)
+    remote/               Edge Function client: DTOs, AuthApi / HabitQuestApi / AccountApi /
+                          QuotesApi (HTTP + fakes)
     sync/                 SyncQueue (pending changes), SyncMeta (owner, cursors), StringStore
   domain/                 pure Dart: recurrence, streaks, HabitService, Riverpod providers
   features/
@@ -715,6 +755,8 @@ lib/
     habit_details/        details screen
     calendar/             Calendar tab
     quest/                Quest tab (with logout)
+    quotes/               Quote of the day card, Quotes + Saved quotes screens, quote
+                          providers and the quotes_cache device cache
     auth/                 login/register screen, splash, AuthController (session,
                           refresh), SessionStore (flutter_secure_storage)
     game/                 game engine (XP ledger, levels, achievements) + celebration UI
@@ -762,6 +804,14 @@ and engine, reminder planning), widget tests for every screen, and end-to-end
 flow tests in `test/flows/`. The flow tests cover: create a habit → check in →
 XP and streak update; checking in from the calendar or details shows up on the
 Habits screen and in the Quest profile; un-checking takes the XP back.
+
+Quotes are tested against `FakeQuotesApi` (deterministic fallback, history
+without future days, idempotent loves, injected failures, `pause` to observe
+optimistic updates): `test/data/remote/quotes_api_test.dart` (HTTP requests
+and parsing), `test/features/quotes/quotes_providers_test.dart` (local day,
+offline cache, owner switch, optimistic love and rollback) and
+`test/features/quotes/quotes_screens_test.dart` (card, Quotes screen, Saved
+screen, Profile link, rollback snackbar, offline, no ads).
 
 Sync is tested in `test/features/sync/` against `FakeHabitQuestApi` (which
 behaves like the server: LWW, tombstones, `since`, offline / injected
