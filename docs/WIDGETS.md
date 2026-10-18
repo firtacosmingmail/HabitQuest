@@ -104,6 +104,21 @@ not done".
 | `habitquest://quotes` | Quotes screen (Daily quote widget tap) |
 | `habitquest://widget/toggle?habitId=<id>` | Toggles today's check-in of `<id>` through `HabitService.toggleCompletion`, then shows the Habits tab. Use this as the fallback on iOS < 17. Duplicate deliveries within 3 s are ignored. |
 
+**Each link is consumed exactly once.** The app maps it to one navigation
+that keeps the Habits tab underneath (`habitquest://quotes` → `/habits/quotes`,
+i.e. Quotes stacked on Habits; `…/quotes/saved` → `/habits/quotes/saved`).
+Back from Quotes therefore returns to Habits, and a later launcher start shows
+Habits. (Bug fixed on 2026-10-18: the link used to replace the whole stack with
+`/quotes`, so on Android 12+ Back moved the still-alive activity to the
+background on Quotes, and every launcher start resumed it there until a force
+stop. iOS had the same Dart-side stack: Quotes with no way back.) On Android,
+`MainActivity` also replaces a widget link with a plain launcher intent when
+the system replays it: when the activity is re-created with saved state after
+process death, or when it is relaunched from Recents
+(`FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY`). The Dart side does not read any
+"initial launch" URI on resume (`HomeWidget.initiallyLaunchedFromHomeWidget`
+is not used). Regression test: `test/features/widgets_bridge/widget_deep_link_test.dart`.
+
 The `habitId` is URI-encoded (`Uri.encodeQueryComponent`); use the
 `toggleUri` field as given. Both platforms already register the `habitquest`
 scheme (Android intent filters for the hosts `open`, `quotes` and `widget`;

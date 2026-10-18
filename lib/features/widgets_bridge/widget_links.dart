@@ -21,6 +21,12 @@ String? toggleHabitId(Uri? uri) {
 /// sees the platform deep link with its host), or `null` if [uri] is not a
 /// widget URI. A check-off URI lands on the Habits tab (the check-off itself
 /// is done by the caller).
+///
+/// The quotes link maps to the Quotes screen stacked on the Habits tab, never
+/// to a stack holding only Quotes: the link is then consumed by this one
+/// navigation, Back returns to Habits, and a later launcher start (which on
+/// Android 12+ resumes the same activity) shows Habits rather than replaying
+/// the Quotes screen.
 String? widgetDeepLinkLocation(Uri uri) {
   if (uri.scheme != WidgetConstants.urlScheme && uri.host.isEmpty) {
     return null;
@@ -28,7 +34,9 @@ String? widgetDeepLinkLocation(Uri uri) {
   if (!_isAppScheme(uri)) return null;
   switch (uri.host) {
     case WidgetConstants.quotesHost:
-      return uri.path == '/saved' ? AppRoutes.savedQuotes : AppRoutes.quotes;
+      return uri.path == '/saved'
+          ? AppRoutes.habitsSavedQuotes
+          : AppRoutes.habitsQuotes;
     case WidgetConstants.openHost:
       return AppRoutes.habits;
     case WidgetConstants.widgetHost:

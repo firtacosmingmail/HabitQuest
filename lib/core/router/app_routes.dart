@@ -14,6 +14,15 @@ abstract final class AppRoutes {
   /// The user's loved quotes.
   static const savedQuotes = '/quotes/saved';
 
+  /// The Quotes screen stacked on the Habits tab: where a widget's quote link
+  /// lands, so that Back returns to Habits. (`/quotes` alone would replace
+  /// the whole stack: Back would then send the app to the background while it
+  /// still shows Quotes, and the next launcher start would show it again.)
+  static const habitsQuotes = '/habits/quotes';
+
+  /// [savedQuotes] stacked on [habitsQuotes] (widget link).
+  static const habitsSavedQuotes = '/habits/quotes/saved';
+
   /// Email confirmation deep link (`habitquest://auth-callback?...`).
   static const authCallback = '/auth-callback';
 

@@ -135,11 +135,24 @@ GoRouter createRouter({
                 path: AppRoutes.habits,
                 builder: (_, _) => const HabitsScreen(),
                 routes: [
-                  // 'new' must come before ':id'.
+                  // 'new' and 'quotes' must come before ':id'.
                   GoRoute(
                     path: 'new',
                     parentNavigatorKey: rootNavigatorKey,
                     builder: (_, _) => const HabitFormScreen(),
+                  ),
+                  // Widget quote link: Quotes above Habits (Back → Habits).
+                  GoRoute(
+                    path: 'quotes',
+                    parentNavigatorKey: rootNavigatorKey,
+                    builder: (_, _) => const QuotesScreen(),
+                    routes: [
+                      GoRoute(
+                        path: 'saved',
+                        parentNavigatorKey: rootNavigatorKey,
+                        builder: (_, _) => const SavedQuotesScreen(),
+                      ),
+                    ],
                   ),
                   GoRoute(
                     path: ':id',

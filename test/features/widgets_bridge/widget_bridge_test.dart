@@ -160,8 +160,11 @@ void main() {
     });
 
     test('widgetDeepLinkLocation maps widget URIs to routes', () {
+      // Quotes stacked on Habits, so Back returns to Habits (replay bug).
       expect(widgetDeepLinkLocation(Uri.parse(WidgetConstants.quotesUri)),
-          AppRoutes.quotes);
+          AppRoutes.habitsQuotes);
+      expect(widgetDeepLinkLocation(Uri.parse('habitquest://quotes/saved')),
+          AppRoutes.habitsSavedQuotes);
       expect(widgetDeepLinkLocation(Uri.parse(WidgetConstants.openUri)),
           AppRoutes.habits);
       expect(
