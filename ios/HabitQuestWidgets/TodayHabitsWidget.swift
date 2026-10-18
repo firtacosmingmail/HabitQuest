@@ -93,7 +93,7 @@ struct HabitRow: View {
         .font(compact ? .caption : .subheadline)
         .lineLimit(1)
         .strikethrough(habit.done, color: .secondary)
-        .foregroundStyle(habit.done ? .secondary : .primary)
+        .foregroundStyle(habit.done ? Color.secondary : Color.primary)
       Spacer(minLength: 2)
       CheckButton(habit: habit, allowLink: !compact)
     }

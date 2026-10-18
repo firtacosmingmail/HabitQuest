@@ -489,6 +489,13 @@ it is running. It does nothing on web. The contract for the native widgets
 
 ### iOS widgets
 
+> [!WARNING]
+> **The iOS widget extension has NOT been built or tested (no Xcode on the
+> development machine); expect to fix build issues on first Xcode build.** It
+> was merged unverified by user decision. Only `plutil -lint`, a script check
+> of `project.pbxproj` (unique IDs, no dangling references, embedding,
+> xcconfigs) and a manual read of the Swift code were done.
+
 The WidgetKit extension is the `HabitQuestWidgets` target in
 `ios/Runner.xcodeproj` (sources in `ios/HabitQuestWidgets/`, bundle id
 `com.vvs.habitquest.widgets`, deployment target iOS 15.0 like the app). It is
