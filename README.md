@@ -544,6 +544,19 @@ To try them, run `flutter run` on a device or emulator. Long-press the home
 screen, open **Widgets**, then **Habit Quest**, and drag *Today's habits* or
 *Daily quote* onto it. Sign in and add a habit to fill the list.
 
+**Verification status (2026-10-18).** `flutter build apk --debug` succeeds.
+On the API 37 `Pixel_10` emulator (x86_64, Intel Mac), both widgets appear
+in the picker with their previews and descriptions and render a sample
+snapshot (light theme), as the screenshots in
+[docs/screenshots/android-widgets/](docs/screenshots/android-widgets/) show.
+A row tap fires Glance's invisible trampoline and the broadcast to
+`HomeWidgetBackgroundReceiver` from the app's uid without opening the app,
+and the headless Flutter engine starts. The emulator, however, was too
+overloaded (system ANRs) for the debug-mode Dart callback to finish before
+Android froze the process. **The full check-off round trip (row redraws as
+done) is therefore not yet confirmed on a device.** The dark theme was not
+screenshotted either. Re-check both on a real phone or a faster emulator.
+
 ### iOS widgets
 
 > [!WARNING]
