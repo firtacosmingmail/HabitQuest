@@ -11,6 +11,7 @@ import {
   type Quote,
   type QuoteStore,
 } from "../_shared/quotes.ts";
+import type { AdminQuoteStore } from "../_shared/admin_quotes.ts";
 
 interface Entry<T> {
   item: T;
@@ -218,6 +219,42 @@ export class MemoryQuotes {
       lovedIds: (ids) => {
         const mine = userId === null ? new Map() : this.loves.get(userId) ?? new Map();
         return Promise.resolve(new Set(ids.filter((id) => mine.has(id))));
+      },
+    };
+  }
+
+  /** The admin view (admin-quotes), mirroring public.admin_list_quotes. */
+  adminStore(): AdminQuoteStore {
+    const loveCount = (id: string) => [...this.loves.values()].filter((m) => m.has(id)).length;
+    return {
+      search: (s) => {
+        const needle = s.query?.toLowerCase() ?? null;
+        const hits = [...this.quotes.values()].filter((q) =>
+          (needle === null || q.text.toLowerCase().includes(needle) ||
+            (q.author ?? "").toLowerCase().includes(needle)) &&
+          (s.from === null || (q.day !== null && q.day >= s.from)) &&
+          (s.to === null || (q.day !== null && q.day <= s.to)) &&
+          (s.scheduled !== "scheduled" || q.day !== null) &&
+          (s.scheduled !== "unscheduled" || q.day === null)
+        ).sort((a, b) => {
+          if (a.day !== b.day) {
+            if (a.day === null) return -1;
+            if (b.day === null) return 1;
+            return a.day < b.day ? 1 : -1;
+          }
+          if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? 1 : -1;
+          return a.id < b.id ? -1 : 1;
+        });
+        return Promise.resolve({
+          total: hits.length,
+          items: hits.slice(s.offset, s.offset + s.limit)
+            .map((q) => ({ ...q, loves: loveCount(q.id) })),
+        });
+      },
+      delete: (id) => {
+        const existed = this.quotes.delete(id);
+        for (const m of this.loves.values()) m.delete(id); // on delete cascade
+        return Promise.resolve(existed);
       },
     };
   }

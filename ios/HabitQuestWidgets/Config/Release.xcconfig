@@ -1,0 +1,6 @@
+// Build settings of the HabitQuestWidgets extension (release).
+// CocoaPods' settings first (pod install adds the home_widget pod to this
+// target), then Flutter's, so CFBundleShortVersionString/CFBundleVersion match
+// the app (FLUTTER_BUILD_NAME/FLUTTER_BUILD_NUMBER).
+#include? "../../Pods/Target Support Files/Pods-HabitQuestWidgets/Pods-HabitQuestWidgets.release.xcconfig"
+#include "../../Flutter/Generated.xcconfig"

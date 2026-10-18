@@ -544,6 +544,112 @@ To try them, run `flutter run` on a device or emulator. Long-press the home
 screen, open **Widgets**, then **Habit Quest**, and drag *Today's habits* or
 *Daily quote* onto it. Sign in and add a habit to fill the list.
 
+### iOS widgets
+
+> [!WARNING]
+> **The iOS widget extension has NOT been built or tested (no Xcode on the
+> development machine); expect to fix build issues on first Xcode build.** It
+> was merged unverified by user decision. Only `plutil -lint`, a script check
+> of `project.pbxproj` (unique IDs, no dangling references, embedding,
+> xcconfigs) and a manual read of the Swift code were done.
+
+The WidgetKit extension is the `HabitQuestWidgets` target in
+`ios/Runner.xcodeproj` (sources in `ios/HabitQuestWidgets/`, bundle id
+`com.vvs.habitquest.widgets`, deployment target iOS 15.0 like the app). It is
+embedded in Runner and shares the App Group `group.com.vvs.habitquest`
+(`HabitQuestWidgets.entitlements` and `Runner/Runner.entitlements`). It only
+reads `hq_widget_snapshot`; it never writes to the group.
+
+| Widget (`kind`) | Sizes | Shows | Tap |
+|---|---|---|---|
+| Today's habits (`TodayHabitsWidget`) | small, medium, large | today's due habits (emoji, name, check button), done/total; "+N more" when they do not fit | check button: check-off (see below); elsewhere: `habitquest://open` |
+| Daily quote (`DailyQuoteWidget`) | small, medium; Lock Screen rectangular and inline (iOS 16+) | today's quote and attribution | `habitquest://quotes` |
+
+- **Check-off, iOS 17+:** the button runs `HabitToggleIntent`
+  (`ios/Runner/HabitToggleIntent.swift`, a member of both Runner and the
+  extension), which calls `HomeWidgetBackgroundWorker.run` with the habit's
+  `toggleUri`. home_widget runs the Dart background callback, which queues the
+  check-off and reloads the widgets, so the row updates without opening the
+  app. `AppDelegate` registers the plugins for that headless engine
+  (`HomeWidgetBackgroundWorker.setPluginRegistrantCallback`).
+- **Check-off, iOS 15–16:** the button is a `Link` to
+  `habitquest://widget/toggle?habitId=…`, which opens the app and toggles the
+  habit there. Small widgets allow only one tap target below iOS 17, so a tap
+  there opens the app.
+- **States:** `signedOut` (or no snapshot yet) and `noHabits` show an
+  "Open HabitQuest" prompt that opens the app; the quote widget shows the same
+  prompt while there is no quote.
+- **Refresh:** each timeline has an entry now and one at the next local
+  midnight (a snapshot from an earlier day is shown with every habit not
+  done); the app reloads both kinds whenever it rewrites the snapshot.
+- **Appearance:** system colours, so light and dark both work; habit colours
+  come from the snapshot.
+- **CocoaPods:** the Podfile adds a `HabitQuestWidgets` target with the
+  `home_widget` pod (needed by the shared intent). `flutter build ios` runs
+  `pod install`; run it once after pulling this change if you build from
+  Xcode. The extension's xcconfigs (`ios/HabitQuestWidgets/Config/`) include
+  the Pods and Flutter settings, so its version matches the app's.
+
+To try them: run the app on an iOS 17+ simulator, sign in, go to the Home
+Screen, long-press → Edit → Add Widget → Habit Quest, and add both widgets.
+
+**Apple Developer portal (for a device or TestFlight build; the simulator
+needs none of this):**
+
+1. Identifiers → App Groups: register `group.com.vvs.habitquest` (if it is
+   not there yet).
+2. Identifiers → App IDs: enable App Groups on `com.vvs.habitquest` and
+   assign the group (the App ID already has Sign in with Apple).
+3. Register a new App ID `com.vvs.habitquest.widgets` with the App Groups
+   capability and the same group.
+4. Provisioning: with automatic signing (team `9QMS59N2BZ`) Xcode creates the
+   profiles once both App IDs exist. With manual signing, create a
+   development and an App Store profile for `com.vvs.habitquest.widgets` too,
+   and regenerate the app's profiles after adding the App Group.
+
+## Admin web console
+
+A Flutter web app in [`admin/`](admin/README.md) for the admins: manage the
+quotes (list, search, date filter, create/edit/reschedule, unschedule,
+delete, love counts, gaps in the coming weeks) and a stats dashboard with
+aggregated usage (sign-ups, DAU/WAU, habits, completions, XP and streak
+distributions, quote loves, most-loved quotes).
+
+**Why a separate app.** `admin/` has its own `pubspec.yaml`, so its code and
+dependencies can never end up in the iOS/Android bundle (a second entry point
+in `lib/` would still be compiled into, and shipped with, the mobile app's
+package), and the mobile app's plugins (Hive, AdMob, notifications, …) are
+not pulled into the web console. It is small and talks to the backend only
+over HTTP, so it does not need the app's code; the Supabase URL and anon key
+are copied from `lib/core/config/env.dart` (keep them in sync). The root
+`analysis_options.yaml` excludes `admin/**`, so `flutter analyze` at the root
+covers the mobile app only; analyse and test the console from inside
+`admin/`.
+
+**Access.** Same Supabase auth as the app (`auth-login`). Only admins get in:
+the service role, or a user whose email is in the `QUOTE_ADMINS` function
+secret (one check, `supabase/functions/_shared/admin.ts`, also used by
+`POST`/`PUT /quotes`). Everyone else sees "Not authorised". The console only
+ever holds the public anon key and the admin's own access token; everything
+privileged goes through the `admin-quotes` and `admin-stats` Edge Functions,
+which check the admin on the server ([API](supabase/API.md#admin)).
+
+```sh
+cd admin
+flutter pub get
+flutter run -d chrome --dart-define=ADMIN_DEMO=true   # fake data, no backend
+flutter run -d chrome                                 # live project
+flutter analyze && flutter test
+flutter build web --release                           # → admin/build/web
+```
+
+**Deploy** (not done yet; going live is a separate, confirmed step):
+`supabase db push` (migration `20261017120000_admin_functions.sql`), deploy
+`admin-quotes` and `admin-stats` with `--no-verify-jwt`, set
+`supabase secrets set QUOTE_ADMINS=<admin emails>`, then host
+`admin/build/web` on any static host (use `--base-href` for a sub-path).
+Details in [admin/README.md](admin/README.md).
+
 ## Sign in with Google & Apple
 
 The login/register screen shows **Continue with Google** and **Sign in with
