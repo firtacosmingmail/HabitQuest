@@ -12,3 +12,6 @@ GeneratedPluginRegistrant.java
 key.properties
 **/*.keystore
 **/*.jks
+# Shared debug-only key (standard debug credentials); its SHA-1 is registered
+# for Google sign-in. Never commit a release/upload key.
+!app/debug.keystore

@@ -717,6 +717,15 @@ project for the app):
      Add one Android client per certificate (debug, your upload/release key,
      and the Play App Signing key from the Play Console). The app never
      uses this client's ID directly: Google matches package + SHA-1.
+
+     **Shared debug key:** Android debug builds are signed with
+     `android/app/debug.keystore`, committed to the repo with the standard
+     debug credentials (store/key password `android`, alias
+     `androiddebugkey`). Its SHA-1
+     `AD:5E:BC:8D:E9:39:A3:4F:6E:59:AD:8F:FB:ED:FF:E0:F9:6A:FF:93` is
+     registered in the Google Cloud Android OAuth client, so Google sign-in
+     works in debug builds from any machine. It is a debug-only key: release
+     builds must use their own (upload/release) key, which is never committed.
    - **Web application**: gives the *web client ID* and a **client
      secret**. Authorized JavaScript origins: your web app's origin(s), e.g.
      `http://localhost:5000` for `flutter run -d chrome --web-port 5000`.
