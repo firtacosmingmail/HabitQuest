@@ -1,0 +1,21 @@
+name: habitquest_admin
+description: "HabitQuest admin web console (web only; never shipped in the mobile app)."
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.10.9
+
+# Deliberately tiny: no AdMob, Hive, home_widget or other mobile-only packages.
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.6.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
