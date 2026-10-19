@@ -119,6 +119,12 @@ process death, or when it is relaunched from Recents
 "initial launch" URI on resume (`HomeWidget.initiallyLaunchedFromHomeWidget`
 is not used). Regression test: `test/features/widgets_bridge/widget_deep_link_test.dart`.
 
+> **Not yet verified on a device.** This fix was merged on the strength of
+> `flutter analyze`, `flutter test` and `flutter build apk --debug` only; the
+> phone was not connected. To check it: tap the Daily quote widget (Quotes
+> opens), press Back, then start the app from the launcher icon; it must open
+> on Habits.
+
 The `habitId` is URI-encoded (`Uri.encodeQueryComponent`); use the
 `toggleUri` field as given. Both platforms already register the `habitquest`
 scheme (Android intent filters for the hosts `open`, `quotes` and `widget`;
