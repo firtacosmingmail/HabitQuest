@@ -6,6 +6,7 @@ import 'core/theme/app_theme.dart';
 import 'features/game/game_providers.dart';
 import 'features/game/ui/game_celebrations.dart';
 import 'features/notifications/in_app_reminder.dart';
+import 'features/quotes/quotes_providers.dart';
 
 /// Root widget. Expects a [ProviderScope] above it that overrides
 /// `habitRepositoryProvider`.
@@ -16,6 +17,11 @@ class HabitQuestApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // Start the game engine at launch so it hears every check-in.
     ref.watch(gameEngineProvider);
+    // Keep the signed-in user id eagerly up to date: a sign-in can land
+    // directly on a screen that reads it (the public quote's heart returns
+    // to Quotes), which must not recompute it, and invalidate the quote
+    // providers, in the middle of its own build.
+    ref.listen(quotesUserIdProvider, (_, _) {});
     return MaterialApp.router(
       title: 'Habit Quest',
       debugShowCheckedModeBanner: false,

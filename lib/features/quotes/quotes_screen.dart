@@ -33,7 +33,9 @@ class _QuotesScreenState extends ConsumerState<QuotesScreen> {
     if (!mounted || ref.read(quotesUserIdProvider) == null) return;
     final quote = ref.read(pendingQuoteLoveProvider.notifier).take();
     if (quote == null) return;
-    final messenger = ScaffoldMessenger.maybeOf(context);
+    // Drop the "Sign in to save this quote." note if it is still up.
+    final messenger = ScaffoldMessenger.maybeOf(context)
+      ?..removeCurrentSnackBar();
     try {
       if (!ref.read(quoteLovedProvider(quote))) {
         await ref.read(quoteLoveControllerProvider).setLoved(quote, true);
