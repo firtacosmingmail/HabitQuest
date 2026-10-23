@@ -4,7 +4,10 @@ import 'app_routes.dart';
 
 /// The go_router auth gate:
 /// - while the session loads, everything goes to the splash;
-/// - signed out, everything goes to `/login`;
+/// - signed out, everything goes to `/login`, except the public quote
+///   screen ([AppRoutes.publicQuote], the only route allowed signed out):
+///   the Quotes screen locations (`/quotes`, `/habits/quotes`, e.g. the
+///   Daily quote widget's link) go there instead of to `/login`;
 /// - signed in, `/login` and the splash go to `/habits` (or to the page the
 ///   user originally asked for, kept in a `from` query parameter).
 ///
@@ -25,25 +28,44 @@ String? authRedirect(AuthState auth, Uri uri) {
 
   return switch (auth) {
     AuthUnknown() => onSplash ? null : _withFrom(AppRoutes.splash, wanted),
-    SignedOut() => _signedOut(onLogin, wanted),
-    SignedIn() => onGate ? safeReturnLocation(wanted) : null,
+    SignedOut() => _signedOut(path, onLogin, wanted),
+    SignedIn() =>
+      onGate || path == AppRoutes.publicQuote
+          ? safeReturnLocation(wanted)
+          : null,
   };
 }
 
-String? _signedOut(bool onLogin, String? wanted) {
+/// Locations that show today's quote; signed out they open
+/// [AppRoutes.publicQuote].
+const _quoteLocations = {
+  AppRoutes.publicQuote,
+  AppRoutes.quotes,
+  AppRoutes.habitsQuotes,
+};
+
+String? _signedOut(String path, bool onLogin, String? wanted) {
   final target = wanted == null ? null : Uri.tryParse(wanted);
   if (target != null && target.path == AppRoutes.authCallback) {
     return loginWithCallback(target);
   }
-  return onLogin ? null : _withFrom(AppRoutes.login, wanted);
+  if (onLogin) return null;
+  if (path == AppRoutes.publicQuote) return null;
+  if (target != null && _quoteLocations.contains(target.path)) {
+    return AppRoutes.publicQuote;
+  }
+  return _withFrom(AppRoutes.login, wanted);
 }
 
 /// [from] if it is an in-app location outside the auth gate, else `/habits`.
+/// The public quote screen maps to its signed-in counterpart, the Quotes
+/// screen above Habits.
 String safeReturnLocation(String? from) {
   if (from == null || !from.startsWith('/') || from.startsWith('//')) {
     return AppRoutes.habits;
   }
   final path = Uri.tryParse(from)?.path ?? '';
+  if (path == AppRoutes.publicQuote) return AppRoutes.habitsQuotes;
   if (path.isEmpty ||
       path == '/' ||
       path == AppRoutes.login ||

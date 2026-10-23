@@ -13,6 +13,7 @@ import '../../features/habits/habits_screen.dart';
 import '../../features/notifications/in_app_reminder.dart';
 import '../../features/profile/profile_screen.dart';
 import '../../features/quest/quest_screen.dart';
+import '../../features/quotes/public_quote_screen.dart';
 import '../../features/quotes/quotes_screen.dart';
 import '../../features/quotes/saved_quotes_screen.dart';
 import '../../features/widgets_bridge/widget_bridge.dart';
@@ -36,7 +37,8 @@ import 'auth_redirect.dart';
 ///
 /// Home-screen widget links (`habitquest://quotes`, `habitquest://open`,
 /// `habitquest://widget/toggle?habitId=`) map to the Quotes screen / the
-/// Habits tab; for a check-off link [onWidgetToggle] is called with the
+/// Habits tab (signed out, the auth gate sends the quotes link on to the
+/// public quote screen); for a check-off link [onWidgetToggle] is called with the
 /// habit id.
 GoRouter createRouter({
   String initialLocation = AppRoutes.habits,
@@ -117,6 +119,12 @@ GoRouter createRouter({
         routes: [
           GoRoute(path: 'saved', builder: (_, _) => const SavedQuotesScreen()),
         ],
+      ),
+      // Signed out only (the auth gate's single exception): today's quote,
+      // e.g. from the Daily quote widget. Back goes to the login screen.
+      GoRoute(
+        path: AppRoutes.publicQuote,
+        builder: (_, _) => const PublicQuoteScreen(),
       ),
       // Never rendered: signed out the auth gate sends it to /login with the
       // outcome; signed in (or without a gate) this redirect handles it.

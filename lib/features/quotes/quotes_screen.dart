@@ -12,8 +12,47 @@ import 'widgets/quote_widgets.dart';
 /// Quotes screen (`/quotes`): today's quote and the quotes of the past
 /// [quoteHistoryDays] days, each with a heart toggle; links to the saved
 /// quotes. No ads here.
-class QuotesScreen extends ConsumerWidget {
+///
+/// After a sign-in started from the heart of the public quote screen, it
+/// completes that love ([pendingQuoteLoveProvider]).
+class QuotesScreen extends ConsumerStatefulWidget {
   const QuotesScreen({super.key});
+
+  @override
+  ConsumerState<QuotesScreen> createState() => _QuotesScreenState();
+}
+
+class _QuotesScreenState extends ConsumerState<QuotesScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _completePendingLove());
+  }
+
+  Future<void> _completePendingLove() async {
+    if (!mounted || ref.read(quotesUserIdProvider) == null) return;
+    final quote = ref.read(pendingQuoteLoveProvider.notifier).take();
+    if (quote == null) return;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    try {
+      if (!ref.read(quoteLovedProvider(quote))) {
+        await ref.read(quoteLoveControllerProvider).setLoved(quote, true);
+      }
+      messenger?.showSnackBar(
+        const SnackBar(
+          key: ValueKey('pending-love-done'),
+          content: Text('Saved to your quotes.'),
+        ),
+      );
+    } catch (_) {
+      messenger?.showSnackBar(
+        const SnackBar(
+          key: ValueKey('quote-love-error'),
+          content: Text('Could not save the quote. Please try again.'),
+        ),
+      );
+    }
+  }
 
   Future<void> _refresh(WidgetRef ref) async {
     ref.invalidate(pastQuotesProvider);
@@ -24,7 +63,7 @@ class QuotesScreen extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final today = ref.watch(todayQuoteProvider);
     final past = ref.watch(pastQuotesProvider);
     final daily = today.value;

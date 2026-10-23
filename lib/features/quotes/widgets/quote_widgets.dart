@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../core/router/app_routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/remote/api_exception.dart';
@@ -46,12 +48,32 @@ class QuoteLoveButton extends ConsumerWidget {
 
 /// Toggles the love of [quote] (see [QuoteLoveController]); shows a
 /// snackbar if it failed and was rolled back.
+///
+/// Signed out (public quote screen): remembers [quote]
+/// ([pendingQuoteLoveProvider]) and opens the login screen, which returns
+/// to the Quotes screen after signing in; that screen completes the love.
 Future<void> toggleQuoteLove(
   BuildContext context,
   WidgetRef ref,
   Quote quote,
 ) async {
   final messenger = ScaffoldMessenger.maybeOf(context);
+  if (ref.read(quotesUserIdProvider) == null) {
+    ref.read(pendingQuoteLoveProvider.notifier).set(quote);
+    messenger?.showSnackBar(
+      const SnackBar(
+        key: ValueKey('quote-love-sign-in'),
+        content: Text('Sign in to save this quote.'),
+      ),
+    );
+    context.go(
+      Uri(
+        path: AppRoutes.login,
+        queryParameters: {'from': AppRoutes.habitsQuotes},
+      ).toString(),
+    );
+    return;
+  }
   try {
     await ref.read(quoteLoveControllerProvider).toggle(quote);
   } catch (e) {

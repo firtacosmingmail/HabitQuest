@@ -285,6 +285,30 @@ class QuoteLoveOverrides extends Notifier<Map<String, bool>> {
   void set(String quoteId, bool loved) => state = {...state, quoteId: loved};
 }
 
+/// A quote the user tried to love while signed out: the heart sent them to
+/// the login screen, and the Quotes screen they land on after signing in
+/// completes the love ([PendingQuoteLove.take]). In memory only; survives
+/// the sign-in (not tied to the user).
+final pendingQuoteLoveProvider = NotifierProvider<PendingQuoteLove, Quote?>(
+  PendingQuoteLove.new,
+);
+
+class PendingQuoteLove extends Notifier<Quote?> {
+  @override
+  Quote? build() => null;
+
+  void set(Quote quote) => state = quote;
+
+  void clear() => state = null;
+
+  /// Returns the pending quote and clears it.
+  Quote? take() {
+    final quote = state;
+    state = null;
+    return quote;
+  }
+}
+
 /// Whether [quote] is loved, taking local toggles into account.
 final quoteLovedProvider = Provider.autoDispose.family<bool, Quote>(
   (ref, quote) =>

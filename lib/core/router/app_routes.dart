@@ -11,6 +11,11 @@ abstract final class AppRoutes {
   /// Today's quote and the past days' quotes.
   static const quotes = '/quotes';
 
+  /// Today's quote for signed-out users (the Daily quote widget's link
+  /// while signed out). The only route the auth gate allows signed out;
+  /// signed in it redirects to [habitsQuotes].
+  static const publicQuote = '/quote';
+
   /// The user's loved quotes.
   static const savedQuotes = '/quotes/saved';
 
