@@ -59,16 +59,10 @@ Map<String, dynamic> _dailyJson(String date, String text) => {
 /// A signed-in snapshot of [date]: `a` (done) and `b` due, plus the
 /// precomputed coming days (`a` is daily, `w` only on Fridays: 2026-10-23
 /// is a Friday).
-String snapshotOf({
-  String date = yesterday,
-  String? quoteDay = yesterday,
-}) {
+String snapshotOf({String date = yesterday, String? quoteDay = yesterday}) {
   final a = habit(id: 'a');
   final b = habit(id: 'b');
-  final w = habit(
-    id: 'w',
-    schedule: WeekdaysSchedule({DateTime.friday}),
-  );
+  final w = habit(id: 'w', schedule: WeekdaysSchedule({DateTime.friday}));
   final day = parseDateKey(date);
   return buildWidgetSnapshot(
     signedIn: true,
@@ -92,9 +86,7 @@ void main() {
 
   setUp(() {
     store = MemoryWidgetStore({WidgetConstants.snapshotKey: snapshotOf()});
-    sessions = InMemorySessionStore(
-      sessionExpiringAt(DateTime.utc(2100)),
-    );
+    sessions = InMemorySessionStore(sessionExpiringAt(DateTime.utc(2100)));
     requests = [];
     answer = (r) async => _json(_dailyJson(todayKey, 'New quote'));
   });
@@ -123,42 +115,46 @@ void main() {
       );
 
   group('day rollover', () {
-    test('rolls the habits over from local data and fetches today\'s quote',
-        () async {
-      final outcome = await run();
+    test(
+      'rolls the habits over from local data and fetches today\'s quote',
+      () async {
+        final outcome = await run();
 
-      expect(outcome, WidgetRefreshOutcome.updated);
-      final s = stored();
-      expect(s.date, todayKey);
-      expect(s.state, WidgetSnapshotState.ok);
-      // Today's precomputed due habits (Friday: a and w), none done.
-      expect(s.habits.map((h) => h.id), ['a', 'w']);
-      expect(s.habits.every((h) => !h.done), isTrue);
-      expect(s.upcoming.first.date, '2026-10-24');
-      expect(s.upcoming.every((u) => u.date.compareTo(todayKey) > 0), isTrue);
-      expect(s.quote!.text, 'New quote');
-      expect(s.quote!.day, todayKey);
-      expect(store.refreshCount, greaterThanOrEqualTo(1));
+        expect(outcome, WidgetRefreshOutcome.updated);
+        final s = stored();
+        expect(s.date, todayKey);
+        expect(s.state, WidgetSnapshotState.ok);
+        // Today's precomputed due habits (Friday: a and w), none done.
+        expect(s.habits.map((h) => h.id), ['a', 'w']);
+        expect(s.habits.every((h) => !h.done), isTrue);
+        expect(s.upcoming.first.date, '2026-10-24');
+        expect(s.upcoming.every((u) => u.date.compareTo(todayKey) > 0), isTrue);
+        expect(s.quote!.text, 'New quote');
+        expect(s.quote!.day, todayKey);
+        expect(store.refreshCount, greaterThanOrEqualTo(1));
 
-      final r = requests.single;
-      expect(r.url.path, '/functions/v1/quotes');
-      expect(r.url.queryParameters, {'date': todayKey});
-      expect(r.headers['authorization'], 'Bearer access-1');
-    });
+        final r = requests.single;
+        expect(r.url.path, '/functions/v1/quotes');
+        expect(r.url.queryParameters, {'date': todayKey});
+        expect(r.headers['authorization'], 'Bearer access-1');
+      },
+    );
 
-    test('nothing to do when the snapshot already has today\'s quote',
-        () async {
-      store.data[WidgetConstants.snapshotKey] = snapshotOf(
-        date: todayKey,
-        quoteDay: todayKey,
-      );
-      final before = store.data[WidgetConstants.snapshotKey];
+    test(
+      'nothing to do when the snapshot already has today\'s quote',
+      () async {
+        store.data[WidgetConstants.snapshotKey] = snapshotOf(
+          date: todayKey,
+          quoteDay: todayKey,
+        );
+        final before = store.data[WidgetConstants.snapshotKey];
 
-      expect(await run(), WidgetRefreshOutcome.upToDate);
-      expect(requests, isEmpty);
-      expect(store.refreshCount, 0);
-      expect(store.data[WidgetConstants.snapshotKey], before);
-    });
+        expect(await run(), WidgetRefreshOutcome.upToDate);
+        expect(requests, isEmpty);
+        expect(store.refreshCount, 0);
+        expect(store.data[WidgetConstants.snapshotKey], before);
+      },
+    );
 
     test('a snapshot without a quote day (older app) is refreshed', () async {
       store.data[WidgetConstants.snapshotKey] = snapshotOf(
@@ -183,19 +179,21 @@ void main() {
   });
 
   group('offline / server errors', () {
-    test('offline: habits roll over, yesterday\'s quote stays, retry later',
-        () async {
-      answer = (_) async => throw http.ClientException('no network');
+    test(
+      'offline: habits roll over, yesterday\'s quote stays, retry later',
+      () async {
+        answer = (_) async => throw http.ClientException('no network');
 
-      expect(await run(), WidgetRefreshOutcome.retryLater);
-      final s = stored();
-      expect(s.date, todayKey);
-      expect(s.habits.map((h) => h.id), ['a', 'w']);
-      expect(s.quote!.text, 'Old quote');
-      expect(s.quote!.day, yesterday);
-      // The session is kept.
-      expect(sessions.session, isNotNull);
-    });
+        expect(await run(), WidgetRefreshOutcome.retryLater);
+        final s = stored();
+        expect(s.date, todayKey);
+        expect(s.habits.map((h) => h.id), ['a', 'w']);
+        expect(s.quote!.text, 'Old quote');
+        expect(s.quote!.day, yesterday);
+        // The session is kept.
+        expect(sessions.session, isNotNull);
+      },
+    );
 
     test('a server error leaves the snapshot untouched', () async {
       store.data[WidgetConstants.snapshotKey] = snapshotOf(date: todayKey);
@@ -209,8 +207,7 @@ void main() {
       expect(store.refreshCount, 0);
     });
 
-    test('an unreadable session store changes nothing (no sign-out)',
-        () async {
+    test('an unreadable session store changes nothing (no sign-out)', () async {
       final before = store.data[WidgetConstants.snapshotKey];
       expect(
         await run(sessionStore: _ThrowingSessionStore()),
@@ -230,22 +227,75 @@ void main() {
   });
 
   group('signed out', () {
-    test('no stored session: the "Open HabitQuest" state, no request',
-        () async {
+    test(
+      'no stored session: anonymous fetch, quote in the signed-out state',
+      () async {
+        sessions.session = null;
+
+        expect(await run(), WidgetRefreshOutcome.signedOut);
+        final s = stored();
+        expect(s.state, WidgetSnapshotState.signedOut);
+        expect(s.date, todayKey);
+        expect(s.habits, isEmpty);
+        expect(s.quote!.text, 'New quote');
+        expect(s.quote!.day, todayKey);
+        final r = requests.single;
+        expect(r.url.queryParameters['date'], todayKey);
+        expect(r.headers.containsKey('authorization'), isFalse);
+        expect(r.headers['apikey'], 'anon-key');
+
+        // Running again: today's quote is there, no request, no rewrite.
+        final count = store.refreshCount;
+        expect(await run(), WidgetRefreshOutcome.signedOut);
+        expect(requests, hasLength(1));
+        expect(store.refreshCount, count);
+      },
+    );
+
+    test('signed out, the server refuses the anonymous read (401): '
+        'yesterday\'s quote stays, no retry storm', () async {
       sessions.session = null;
+      answer = (r) async => _json({
+        'error': {'code': 'unauthorized', 'message': 'no'},
+      }, 401);
 
       expect(await run(), WidgetRefreshOutcome.signedOut);
       final s = stored();
       expect(s.state, WidgetSnapshotState.signedOut);
-      expect(s.habits, isEmpty);
-      expect(s.quote, isNull);
-      expect(requests, isEmpty);
-
-      // Running again does not rewrite or refresh.
-      final count = store.refreshCount;
-      expect(await run(), WidgetRefreshOutcome.signedOut);
-      expect(store.refreshCount, count);
+      expect(s.date, todayKey);
+      expect(s.quote!.text, 'Old quote');
+      expect(requests.single.headers.containsKey('authorization'), isFalse);
     });
+
+    test('signed out and offline: the old quote stays, retry later', () async {
+      sessions.session = null;
+      answer = (r) async => throw http.ClientException('offline');
+
+      expect(await run(), WidgetRefreshOutcome.retryLater);
+      expect(stored().quote!.text, 'Old quote');
+      expect(stored().state, WidgetSnapshotState.signedOut);
+    });
+
+    test(
+      'signed-out midnight roll-over fetches the new day anonymously',
+      () async {
+        sessions.session = null;
+        store.data[WidgetConstants.snapshotKey] = buildWidgetSnapshot(
+          signedIn: false,
+          today: parseDateKey(yesterday),
+          dueToday: const [],
+          log: const CompletionLog.empty(),
+          quote: const Quote(id: 'q-old', text: 'Old quote'),
+          quoteDay: parseDateKey(yesterday),
+          now: now,
+        ).encode();
+
+        expect(await run(), WidgetRefreshOutcome.signedOut);
+        expect(stored().date, todayKey);
+        expect(stored().quote!.text, 'New quote');
+        expect(stored().quote!.day, todayKey);
+      },
+    );
 
     test('a signed-out snapshot is left to the app', () async {
       store.data[WidgetConstants.snapshotKey] = buildWidgetSnapshot(
@@ -317,26 +367,33 @@ void main() {
       expect(await run(), WidgetRefreshOutcome.signedOut);
       expect(sessions.session, isNull);
       expect(stored().state, WidgetSnapshotState.signedOut);
-    });
-
-    test('a refresh that fails offline keeps the session and the quote',
-        () async {
-      sessions.session = sessionExpiringAt(DateTime.utc(2026, 10, 22));
-      answer = (_) async => throw http.ClientException('no network');
-
-      expect(await run(), WidgetRefreshOutcome.retryLater);
-      expect(sessions.session!.refreshToken, 'refresh-1');
+      // The anonymous read was refused too (401): the old quote stays.
       expect(stored().quote!.text, 'Old quote');
-      expect(stored().state, WidgetSnapshotState.ok);
+      expect(requests.last.headers.containsKey('authorization'), isFalse);
     });
+
+    test(
+      'a refresh that fails offline keeps the session and the quote',
+      () async {
+        sessions.session = sessionExpiringAt(DateTime.utc(2026, 10, 22));
+        answer = (_) async => throw http.ClientException('no network');
+
+        expect(await run(), WidgetRefreshOutcome.retryLater);
+        expect(sessions.session!.refreshToken, 'refresh-1');
+        expect(stored().quote!.text, 'Old quote');
+        expect(stored().state, WidgetSnapshotState.ok);
+      },
+    );
   });
 
   test('the refresh URI is recognised and is not a check-off', () {
     final uri = Uri.parse(WidgetConstants.refreshUri);
     expect(isWidgetRefreshUri(uri), isTrue);
     expect(toggleHabitId(uri), isNull);
-    expect(isWidgetRefreshUri(Uri.parse(WidgetConstants.toggleUri('a'))),
-        isFalse);
+    expect(
+      isWidgetRefreshUri(Uri.parse(WidgetConstants.toggleUri('a'))),
+      isFalse,
+    );
     expect(isWidgetRefreshUri(Uri.parse(WidgetConstants.quotesUri)), isFalse);
     expect(isWidgetRefreshUri(null), isFalse);
   });

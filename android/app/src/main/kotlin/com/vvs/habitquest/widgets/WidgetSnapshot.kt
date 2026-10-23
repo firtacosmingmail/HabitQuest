@@ -101,6 +101,9 @@ data class WidgetSnapshot(
                         habits = parseHabits(root.optJSONArray("habits"), forceNotDone = stale)
                     }
                 }
+                // Read in every state: signed out, the app and the background
+                // refresh write the public quote of the day, so the Daily quote
+                // widget shows it without a session.
                 val quote = root.optJSONObject("quote")?.let { q ->
                     val text = q.optStringOrNull("text") ?: return@let null
                     val author = q.optStringOrNull("author")

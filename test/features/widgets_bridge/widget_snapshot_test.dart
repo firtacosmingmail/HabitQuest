@@ -52,6 +52,29 @@ void main() {
       expect(s.quote, isNull);
     });
 
+    test('signedOut with a quote: the quote is kept (Daily quote widget)', () {
+      final s = buildWidgetSnapshot(
+        signedIn: false,
+        today: today,
+        dueToday: [habit()],
+        log: const CompletionLog.empty(),
+        quote: const Quote(id: 'q', text: 'Keep going.', author: 'Ada'),
+        quoteDay: today,
+        now: now,
+      );
+      expect(s.state, WidgetSnapshotState.signedOut);
+      expect(s.habits, isEmpty);
+      final decoded = WidgetSnapshot.tryDecode(s.encode())!;
+      expect(decoded.state, WidgetSnapshotState.signedOut);
+      expect(decoded.quote!.text, 'Keep going.');
+      expect(decoded.quote!.author, 'Ada');
+      expect(decoded.quote!.day, dateKey(today));
+      // Rolling over keeps the quote (its day says it is yesterday's).
+      final rolled = decoded.rolledOverTo(dateKey(today.add(const Duration(days: 1))));
+      expect(rolled.state, WidgetSnapshotState.signedOut);
+      expect(rolled.quote!.text, 'Keep going.');
+    });
+
     test('noHabits: signed in, nothing due today', () {
       final s = buildWidgetSnapshot(
         signedIn: true,

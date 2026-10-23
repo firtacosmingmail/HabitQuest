@@ -35,7 +35,12 @@ import es.antonborri.home_widget.HomeWidgetGlanceState
 import es.antonborri.home_widget.HomeWidgetGlanceStateDefinition
 import es.antonborri.home_widget.HomeWidgetGlanceWidgetReceiver
 
-/** "Daily quote": today's quote and author; a tap opens the Quotes screen. */
+/**
+ * "Daily quote": today's quote and author, signed in or not (the snapshot
+ * carries the public quote while signed out). A tap opens `habitquest://quotes`;
+ * the app routes it to the Quotes screen when signed in, or to the public quote
+ * screen (`/quote`) when signed out.
+ */
 class DailyQuoteWidget : GlanceAppWidget() {
 
     override val stateDefinition = HomeWidgetGlanceStateDefinition()

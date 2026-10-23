@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:habit_quest/core/router/app_routes.dart';
 import 'package:habit_quest/data/remote/fake_auth_api.dart';
+import 'package:habit_quest/core/utils/dates.dart';
 import 'package:habit_quest/data/remote/fake_quotes_api.dart';
 import 'package:habit_quest/data/repositories/in_memory_habit_repository.dart';
 import 'package:habit_quest/domain/providers.dart';
@@ -112,12 +113,18 @@ void main() {
     expect(stored().habits.last.done, isTrue);
   });
 
-  test('signed out: writes the "Open HabitQuest" state', () async {
+  test('signed out: "Open HabitQuest" for habits, but the quote of the day',
+      () async {
     final c = container(signedIn: false);
     await started(c);
+    await c.read(todayQuoteProvider.future);
+    await settle();
     final s = stored();
     expect(s.state, WidgetSnapshotState.signedOut);
     expect(s.habits, isEmpty);
+    final quote = c.read(todayQuoteProvider).value!;
+    expect(s.quote!.text, quote.quote.text);
+    expect(s.quote!.day, dateKey(quote.date));
   });
 
   test('no habits: writes the noHabits state', () async {

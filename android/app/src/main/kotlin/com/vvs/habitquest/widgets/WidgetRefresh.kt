@@ -29,9 +29,11 @@ import java.util.concurrent.TimeUnit
  * Daily roll-over of the widgets while the app is not running (docs/WIDGETS.md,
  * "Daily roll-over without the app").
  *
- * The widgets only render the snapshot the Dart side writes, and only Dart can
- * fetch the quote of the day (`GET /quotes` needs the user's bearer token and
- * token refresh). So this schedules WorkManager work that wakes the Dart side
+ * The widgets only render the snapshot the Dart side writes, and only Dart
+ * fetches the quote of the day (with the user's bearer token and token refresh
+ * when signed in; with no `Authorization` header at all when signed out, so
+ * the Daily quote widget rolls over without a session too). So this schedules
+ * WorkManager work that wakes the Dart side
  * through home_widget's background callback with `habitquest://widget/refresh`;
  * Dart (`widget_background_refresh.dart`) reuses the app's auth + quotes code,
  * rewrites the snapshot and refreshes both widgets. No HTTP or auth in Kotlin.

@@ -189,7 +189,8 @@ class WidgetBridge {
       today: _ref.read(todayProvider),
       dueToday: due.value ?? const [],
       log: _ref.read(completionsProvider).value ?? const CompletionLog.empty(),
-      quote: signedIn ? daily?.quote : null,
+      // Signed out too: the Daily quote widget shows the public quote.
+      quote: daily?.quote,
       quoteDay: daily?.date,
       allHabits: _ref.read(habitsProvider).value,
       now: _now(),

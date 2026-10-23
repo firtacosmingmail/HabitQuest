@@ -13,6 +13,14 @@
 /// Riverpod providers, in a short-lived [ProviderContainer]. It never opens
 /// the hive boxes (not multi-isolate safe): the habits roll over from the
 /// days the app precomputed into the snapshot (`upcoming`).
+///
+/// Signed out (no stored session, or the refresh token was rejected), the
+/// quote is fetched **anonymously** (`GET /quotes` without an
+/// `Authorization` header, "Signed-out reads" in `supabase/API.md`) through
+/// the same `HttpQuotesApi` and `ApiTransport`, and written into the
+/// `signedOut` snapshot: the Daily quote widget keeps showing the quote of
+/// the day, Today's habits shows "Open HabitQuest". When that read fails
+/// (offline, or a backend that still answers 401), the last quote stays.
 library;
 
 import 'dart:developer' as developer;
@@ -23,6 +31,8 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import '../../core/utils/dates.dart';
 import '../../data/models/completion_log.dart';
 import '../../data/remote/api_exception.dart';
+import '../../data/remote/authenticated_transport.dart';
+import '../../data/remote/http_quotes_api.dart';
 import '../../data/remote/session.dart';
 import '../auth/auth_providers.dart';
 import '../auth/session_store.dart';
@@ -39,7 +49,10 @@ enum WidgetRefreshOutcome {
   updated,
 
   /// The user is signed out (no stored session, or the refresh token was
-  /// rejected): the snapshot shows the "Open HabitQuest" state.
+  /// rejected): the snapshot is in the `signedOut` state (habits: "Open
+  /// HabitQuest") with the anonymously fetched quote of the day, or the
+  /// last one when the server refused the anonymous read (401) or has no
+  /// quotes. Offline returns [retryLater] instead.
   signedOut,
 
   /// The quote could not be fetched (offline, server error, unreadable
@@ -55,7 +68,8 @@ enum WidgetRefreshOutcome {
 ///   `quotesApiProvider` with the stored session from [sessions]; an
 ///   expired access token is refreshed first and the new session stored.
 /// * Signed out (no session, or the refresh token is rejected): the
-///   `signedOut` state is written.
+///   `signedOut` state is written with today's quote, fetched without a
+///   token when the stored one is not today's (old quote kept on failure).
 /// * Any failure leaves the stored snapshot as it is (yesterday's quote
 ///   stays) and returns [WidgetRefreshOutcome.retryLater]. Never throws.
 ///
@@ -70,8 +84,7 @@ Future<WidgetRefreshOutcome> refreshWidgetSnapshotInBackground({
   try {
     return await _refresh(store, sessions, now, overrides);
   } on Object catch (e) {
-    developer.log('Background widget refresh failed: $e',
-        name: 'WidgetBridge');
+    developer.log('Background widget refresh failed: $e', name: 'WidgetBridge');
     return WidgetRefreshOutcome.retryLater;
   }
 }
@@ -88,11 +101,10 @@ Future<WidgetRefreshOutcome> _refresh(
     session = await sessions.read();
   } on Object catch (e) {
     // Keystore hiccup: do not take it for a sign-out.
-    developer.log('Session unreadable in background: $e',
-        name: 'WidgetBridge');
+    developer.log('Session unreadable in background: $e', name: 'WidgetBridge');
     return WidgetRefreshOutcome.retryLater;
   }
-  if (session == null) return _writeSignedOut(store, now);
+  if (session == null) return _refreshSignedOut(store, now, overrides);
 
   // 1. Local roll-over first, so the habits are right even offline.
   final stored = await _readSnapshot(store);
@@ -108,7 +120,9 @@ Future<WidgetRefreshOutcome> _refresh(
     await _write(store, current);
   }
   if (current.quote?.day == todayKey) {
-    return rolled ? WidgetRefreshOutcome.updated : WidgetRefreshOutcome.upToDate;
+    return rolled
+        ? WidgetRefreshOutcome.updated
+        : WidgetRefreshOutcome.upToDate;
   }
 
   // 2. Today's quote, through the app's auth + quotes stack.
@@ -116,7 +130,8 @@ Future<WidgetRefreshOutcome> _refresh(
     overrides: [
       sessionStoreProvider.overrideWithValue(sessions),
       authControllerProvider.overrideWith(
-        () => AuthController(preloadedSession: session, proactiveRefresh: false),
+        () =>
+            AuthController(preloadedSession: session, proactiveRefresh: false),
       ),
       ...overrides,
     ],
@@ -144,7 +159,7 @@ Future<WidgetRefreshOutcome> _refresh(
     if (container.read(authControllerProvider) is SignedOut) {
       // The refresh token was rejected; AuthController cleared the stored
       // session exactly as the app would.
-      return _writeSignedOut(store, now);
+      return _refreshSignedOut(store, now, overrides);
     }
     if (e.status == 404) {
       // No quotes on the server at all: keep what is shown.
@@ -167,19 +182,59 @@ Future<void> _write(WidgetStore store, WidgetSnapshot snapshot) async {
   await store.refreshWidgets();
 }
 
-/// The same "Open HabitQuest" snapshot the app writes when signed out.
-Future<WidgetRefreshOutcome> _writeSignedOut(
+/// Signed out: the same `signedOut` snapshot the app writes, with today's
+/// quote. The stored quote is kept when it is today's, or when the
+/// anonymous read fails (it is better than none).
+Future<WidgetRefreshOutcome> _refreshSignedOut(
   WidgetStore store,
   DateTime now,
+  List<Override> overrides,
 ) async {
+  final todayKey = dateKey(now);
   final stored = await _readSnapshot(store);
+  var quote = stored?.quote;
+  var outcome = WidgetRefreshOutcome.signedOut;
+  if (quote?.day != todayKey) {
+    final container = ProviderContainer(overrides: overrides);
+    try {
+      final api = HttpQuotesApi(
+        AuthenticatedTransport(
+          transport: container.read(apiTransportProvider),
+          tokens: const _NoSession(),
+        ),
+      );
+      final daily = await api.quoteOfDay(parseDateKey(todayKey));
+      quote = WidgetQuote.fromQuote(daily.quote, day: daily.date);
+    } on ApiException catch (e) {
+      // 401 (the public read is not live yet) or 404 (no quotes): nothing
+      // to retry soon. Offline / server errors: retry later.
+      if (e.status != 401 && e.status != 404) {
+        developer.log('Anonymous quote fetch failed: $e', name: 'WidgetBridge');
+        outcome = WidgetRefreshOutcome.retryLater;
+      }
+    } finally {
+      container.dispose();
+    }
+  }
   final next = buildWidgetSnapshot(
     signedIn: false,
     today: now,
     dueToday: const [],
     log: const CompletionLog.empty(),
     now: now,
-  );
+  ).copyWith(quote: quote);
   if (stored == null || !stored.sameContentAs(next)) await _write(store, next);
-  return WidgetRefreshOutcome.signedOut;
+  return outcome;
+}
+
+/// No session: [AuthenticatedTransport] then sends `allowAnonymous`
+/// requests without a token.
+class _NoSession implements AccessTokenProvider {
+  const _NoSession();
+
+  @override
+  Future<String?> accessToken() async => null;
+
+  @override
+  Future<String?> refreshAfterUnauthorized(String rejectedToken) async => null;
 }
