@@ -13,7 +13,9 @@ Base URL: `{SUPABASE_URL}/functions/v1/<name>`
 - Data endpoints (`habits`, `check-ins`, `game-state`, `quotes`, `quote-loves`,
   `admin-quotes`, `admin-stats`)
   and `auth-logout` also
-  send `Authorization: Bearer <accessToken>`.
+  send `Authorization: Bearer <accessToken>`. Exception: `GET /quotes` also
+  works signed out, with no `Authorization` header at all (see
+  [Signed-out reads](#signed-out-reads-no-authorization-header)).
 - Request and response bodies are JSON (`content-type: application/json`).
 - Errors: an HTTP 4xx/5xx status with body
 
@@ -306,9 +308,40 @@ Body: `{ "confirm": "DELETE" }` (exactly; anything else → `400 invalid_input`)
 A quote of the day, the history of past days, and each user's saved
 ("loved") quotes. Tables: `quotes` and `quote_loves`
 (`migrations/20261016120000_quotes.sql`); 90 quotes are seeded, one per day
-from 2026-10-16 to 2027-01-13. Both functions need
-`Authorization: Bearer <accessToken>` (checked in code with `auth.getUser`;
-`401 unauthorized` otherwise).
+from 2026-10-16 to 2027-01-13. `quote-loves` and the `quotes` writes
+(POST/PUT) need `Authorization: Bearer <accessToken>` (checked in code with
+`auth.getUser`; `401 unauthorized` otherwise). `GET /quotes` (today and
+history) also works **signed out**, see below.
+
+### Signed-out reads (no `Authorization` header)
+
+`GET /quotes` (both `?date=` and the history forms) answers callers that send
+**no `Authorization` header at all**, so the app's public quote screen and the
+home-screen widget can show the quote of the day without a session:
+
+| Request | Result |
+|---|---|
+| GET, no `Authorization` header | `200`, same body shape as signed in, `loved: false` on every quote |
+| GET, `Authorization: Bearer <valid token>` | unchanged: real `loved` for that user |
+| GET, `Authorization` header present but the token is invalid, expired, malformed or empty | `401 unauthorized` (never downgraded to anonymous), so clients refresh the session and retry, or drop the header if they are signed out |
+| POST / PUT without a token | `401 unauthorized`; with a non-admin token `403 forbidden` (unchanged) |
+| `quote-loves`, any method, without a token | `401 unauthorized` (unchanged) |
+
+Signed-out rules:
+
+- **No future quotes.** History is capped at today (UTC) as for everyone.
+  `?date=` is accepted up to **tomorrow (UTC)**, so clients ahead of UTC (up
+  to UTC+14) can ask for their local day; a later date →
+  `400 invalid_input`. The fallback is the same deterministic pick as signed
+  in; in the one case where it would pick a quote scheduled after tomorrow
+  (no quote is older than `date`, so it cycles over all quotes) a signed-out
+  caller gets `404 not_found` instead.
+- Successful signed-out responses carry `Cache-Control: public, max-age=300`
+  (signed-in ones do not). All `GET /quotes` responses carry
+  `Vary: Authorization`. CORS and the error format are as everywhere else.
+- Server side, signed-out reads use the function's service-role client (the
+  `quotes` table is readable only by signed-in users through RLS); the
+  handler applies the rules above. Nothing is written.
 
 ### Quote
 
@@ -330,14 +363,15 @@ from 2026-10-16 to 2027-01-13. Both functions need
 - `day`: the UTC calendar day the quote is scheduled for, or `null` when it is
   not scheduled. At most one quote per day.
 - `loved`: whether the caller has loved (saved) this quote. Always `false`
-  for the service role.
+  for the service role and for signed-out callers.
 
 ### Function `quotes`
 
 #### `GET /quotes?date=yyyy-MM-dd` — quote of the day
 
 `date` is optional; it defaults to today in UTC. The app should send its own
-local calendar day. Any date is accepted, past or future.
+local calendar day. Signed in, any date is accepted, past or future; signed
+out, up to tomorrow (UTC), see [Signed-out reads](#signed-out-reads-no-authorization-header).
 
 `200`:
 
@@ -354,7 +388,10 @@ local calendar day. Any date is accepted, past or future.
   The pick for a date changes only when quotes are added or rescheduled.
 - `400 invalid_input`: `date` is not a real `yyyy-MM-dd` date, or is combined
   with `from`/`to`/`past`.
-- `404 not_found`: there are no quotes at all.
+- `404 not_found`: there are no quotes at all (signed out: also when the
+  only possible pick is a future quote).
+- `401 unauthorized`: an `Authorization` header was sent with an invalid or
+  expired token (omit the header to read signed out).
 
 #### `GET /quotes?from=yyyy-MM-dd&to=yyyy-MM-dd` or `GET /quotes?past=N` — history
 
@@ -375,7 +412,8 @@ ones**.
 Only scheduled quotes are listed: a day without a scheduled quote has no
 entry (no fallback is computed for history). `400 invalid_input` for a
 missing, malformed or out-of-range parameter, or for mixing `past` with
-`from`/`to`.
+`from`/`to`. Works signed out too (`loved: false`), with the same range
+rules.
 
 #### `POST /quotes` — create (admin only)
 
@@ -400,15 +438,17 @@ To **unschedule** a quote (keep it, free its day), send
 `PUT /quotes?id=<uuid>` with `{ "day": null }`. To reschedule, send the new
 `day`.
 
-Errors for POST/PUT: `401 unauthorized`; `403 forbidden` (not an admin);
+Errors for POST/PUT: `401 unauthorized` (no token, or an invalid one: POST
+and PUT never run signed out); `403 forbidden` (not an admin);
 `400 invalid_input` (bad body, bad or missing `id`, empty PUT body);
 `404 not_found` (PUT: unknown id); `409 day_taken` (another quote is already
 scheduled on `day`). Other methods → `405 method_not_allowed`.
 
 ### Function `quote-loves`
 
-The caller's saved quotes. A signed-in user only (the service role gets
-`403 forbidden`); a user only ever sees and changes their own loves (RLS).
+The caller's saved quotes. A signed-in user only, for every method (GET,
+POST, DELETE): without a token, or with an invalid one, `401 unauthorized`;
+the service role gets `403 forbidden`; a user only ever sees and changes their own loves (RLS).
 
 #### `GET /quote-loves`
 
