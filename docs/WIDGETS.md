@@ -210,6 +210,12 @@ unreadable session, unchanged snapshot on failure) and
 
 ## Signed out: the Daily quote widget still shows the quote
 
+> **Not yet verified on a device, and needs the backend deployed.** Merged on
+> the strength of `flutter analyze`, `flutter test` and `flutter build apk
+> --debug` only. Until the public-read `quotes` function (a8ff71e) is deployed
+> to the live project, signed-out users only see a quote already cached on the
+> phone.
+
 Since 2026-10-23 the quote of the day is public: `GET /quotes` (today and
 history) answers callers with **no `Authorization` header** (`loved: false`;
 see "Signed-out reads" in `supabase/API.md`). The anon key is sent as
