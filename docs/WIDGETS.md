@@ -67,7 +67,7 @@ key. Check-offs go through the interactive callback (see below).
 | `habits` | Today's due habits in app order (empty unless `ok`). Archived and deleted habits are never included. |
 | `habits[].color` | ARGB as an unsigned 32-bit integer (`0xAARRGGBB`), so read it as a 64-bit integer. `colorHex` is the same colour as `#RRGGBB`. |
 | `habits[].toggleUri` | The check-off URI for that habit (see below). |
-| `quote` | Today's quote, or `null` when there is none (not loaded yet, offline with no cache, or signed out). `author` is `null` for anonymous quotes; `attribution` is ready to display ("— Unknown" when anonymous). `day` is the local day it is the quote of (`null` in snapshots written before 2026-10-23); when it is before today the quote is yesterday's and the background refresh fetches a new one. Widgets keep showing it meanwhile. |
+| `quote` | Today's quote, or `null` when there is none (not loaded yet, offline with no cache). **Also written when `state` is `signedOut`**: the quote of the day is public (`GET /quotes` without an `Authorization` header), so the Daily quote widget shows it without a session; only Today's habits shows "Open HabitQuest". `author` is `null` for anonymous quotes; `attribution` is ready to display ("— Unknown" when anonymous). `day` is the local day it is the quote of (`null` in snapshots written before 2026-10-23); when it is before today the quote is yesterday's and the background refresh fetches a new one. Widgets keep showing it meanwhile. |
 | `upcoming` | The due habits (same shape as `habits`, `done: false`) of the next 7 days after `date`, precomputed by the app from local data (habits, schedules, the completion log). When `date` is before today, a widget shows the entry for today if there is one (Android: `WidgetSnapshot.kt`), so Today's habits rolls over at midnight even before anything rewrote the snapshot. Empty when signed out. "N times per week" habits are computed with the check-ins known when the snapshot was written. |
 
 When no snapshot exists yet (the app has never run), treat it as `signedOut`.
@@ -163,10 +163,10 @@ quote, with no new Flutter dependency:
 | Online, signed in | Today's habits (not done) and today's quote; both widgets refreshed. |
 | Snapshot already today's, with today's quote | Nothing written, **no network call** (the common periodic run). |
 | Offline / server error | Habits roll over; yesterday's quote stays; retried (catch-up / backoff / next periodic run). The snapshot is never wiped. |
-| No stored session | The `signedOut` ("Open HabitQuest") snapshot. |
-| Refresh token rejected | `AuthController` clears the session as the app would; `signedOut` snapshot. |
+| No stored session | The `signedOut` snapshot (Today's habits: "Open HabitQuest") **with today's quote**, fetched anonymously (no `Authorization` header) when the stored quote is not today's. 401 (public read not live yet) or 404: the old quote stays, outcome `signedOut`. Offline / 5xx: the old quote stays, `retryLater`. |
+| Refresh token rejected | `AuthController` clears the session as the app would; then as "No stored session". |
 | Session storage unreadable | Nothing changes; retried later. |
-| No snapshot yet / snapshot says signed out | Left to the app (nothing to roll over). |
+| Stored session, but no snapshot yet / snapshot says signed out | Left to the app (it has not caught up with the sign-in). |
 | No quotes on the server (404) | The old quote is kept. |
 
 **Token rotation across isolates.** If the background refresh rotates the
@@ -208,6 +208,58 @@ roll-over, offline, server error, signed out, token refresh, rejected refresh,
 unreadable session, unchanged snapshot on failure) and
 `widget_bridge_test.dart` (app-alive path).
 
+## Signed out: the Daily quote widget still shows the quote
+
+Since 2026-10-23 the quote of the day is public: `GET /quotes` (today and
+history) answers callers with **no `Authorization` header** (`loved: false`;
+see "Signed-out reads" in `supabase/API.md`). The anon key is sent as
+`apikey` only, never as a bearer token (that gets 401).
+
+- **App:** `AuthenticatedTransport.send(..., allowAnonymous: true)` (used by
+  `HttpQuotesApi` for the `GET /quotes` reads) sends no token when signed
+  out, or retries once without one when a rejected token cannot be
+  refreshed. `todayQuoteProvider` then loads the quote signed out too,
+  caches it in the `quotes_cache` box under an anonymous owner, and falls
+  back to the last cached quote on 401/offline. The bridge writes it into
+  the `signedOut` snapshot. `quote-loves` still needs a session.
+- **Background refresh:** see the table above (anonymous fetch, old quote
+  kept on failure). The midnight roll-over works in both states.
+- **Android widget:** `WidgetSnapshot.kt` reads `quote` in every state, so
+  the Daily quote widget shows it; Today's habits keeps "Open HabitQuest".
+- **Tap while signed out:** `habitquest://quotes` → `/habits/quotes` →
+  the auth gate sends it to `/quote`, the **public quote screen**, the only
+  route allowed signed out. Back (system or app bar) goes to `/login`. The
+  heart remembers the quote and opens `/login?from=/habits/quotes`; after
+  signing in the Quotes screen opens and completes the love. Signed in, the
+  same link opens the Quotes screen above Habits as before (and `/quote`
+  redirects there). Links are still consumed once (see Deep links).
+- **Not deployed yet?** If the live `quotes` function still answers 401 to
+  anonymous reads, the app and the widget keep the last cached quote (or
+  show "Today's quote appears here." / an error with Retry on the public
+  screen). Nothing crashes, and the background refresh does not retry in a
+  loop (401 → `signedOut`, not `retryLater`).
+
+### What the iOS widget would need for signed-out quotes (not done)
+
+The Dart side already writes the quote into the `signedOut` snapshot on iOS
+too (same bridge), so the iOS Daily quote widget shows it when the app has
+run signed out. Not done here (ios/ not edited, and it cannot be built on
+this Mac):
+
+1. Rendering: by reading the code, `WidgetSnapshot.swift` already keeps
+   `quote` for the `signedOut` state and `DailyQuoteWidget.swift` only shows
+   its "Open HabitQuest" prompt when there is no quote, so no change should
+   be needed; confirm on a device. Optionally reword that prompt's
+   signed-out message ("Sign in to get a quote every day."), which now only
+   shows before the first quote was fetched.
+2. The tap URL is unchanged (`habitquest://quotes`); the Dart router handles
+   signed-out vs signed-in, so nothing to change there.
+3. Without the app running, the iOS quote still does not roll over at
+   midnight (see below); signed out, option 3 below gets simpler: the
+   extension could call `GET /quotes?date=` itself with only the `apikey`
+   header (no session, no keychain sharing), and fall back to the stored
+   quote on any error.
+
 ## iOS: same problem, not fixed yet
 
 The WidgetKit timeline (`ios/HabitQuestWidgets/WidgetSnapshot.swift`) has one
@@ -239,7 +291,7 @@ built on this Mac):
 | URI | Effect when it opens the app |
 |---|---|
 | `habitquest://open` | Habits tab (header taps, "Open HabitQuest" state) |
-| `habitquest://quotes` | Quotes screen (Daily quote widget tap) |
+| `habitquest://quotes` | Quotes screen (Daily quote widget tap); signed out, the public quote screen `/quote` |
 | `habitquest://widget/toggle?habitId=<id>` | Toggles today's check-in of `<id>` through `HabitService.toggleCompletion`, then shows the Habits tab. Use this as the fallback on iOS < 17. Duplicate deliveries within 3 s are ignored. |
 
 **Each link is consumed exactly once.** The app maps it to one navigation

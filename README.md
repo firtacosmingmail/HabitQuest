@@ -452,8 +452,14 @@ Edge Functions (contract in [supabase/API.md](supabase/API.md#quotes)).
   (`todayProvider` + `dateKey`), so it changes at local midnight (the app
   shell refreshes `todayProvider` on resume). When the server has a quote
   scheduled that day it is returned; otherwise the server picks a fallback
-  deterministically, so everyone sees the same quote. No quotes at all (404)
-  or signed out: the card is hidden.
+  deterministically, so everyone sees the same quote. No quotes at all (404):
+  the card is hidden.
+- **Signed out** (e.g. after tapping the Daily quote widget): the public
+  quote screen `/quote`, the only route the auth gate allows signed out,
+  shows today's quote (`GET /quotes` with no `Authorization` header,
+  cached on the device). Back goes to the login screen. The heart sends the
+  user to login and, after signing in, back to the Quotes screen with the
+  quote saved. Details: [docs/WIDGETS.md](docs/WIDGETS.md#signed-out-the-daily-quote-widget-still-shows-the-quote).
 - **Quotes screen** (`/quotes`, tap the card): today's quote and the
   scheduled quotes of the past 30 local days (`GET /quotes?from=&to=`,
   newest first; days without a scheduled quote are not listed), each with a
@@ -495,7 +501,7 @@ Both read only the `hq_widget_snapshot` JSON from `HomeWidgetPreferences`:
 | Widget | Receiver | Content | Taps |
 |---|---|---|---|
 | **Today's habits** | `TodayHabitsWidgetReceiver` | Header ("Today's habits", done/total), then a scrollable list of today's due habits: emoji, name and a checkbox in the habit's colour (done rows are struck through) | Header → `habitquest://open`. Row/checkbox → check-off in the background, the app does not open |
-| **Daily quote** | `DailyQuoteWidgetReceiver` | "Quote of the day", the quote and its attribution | Anywhere → `habitquest://quotes` |
+| **Daily quote** | `DailyQuoteWidgetReceiver` | "Quote of the day", the quote and its attribution, **signed in or not** | Anywhere → `habitquest://quotes` (signed out: the public quote screen) |
 
 - **Why Jetpack Glance, not RemoteViews.** `home_widget` 0.10 already
   depends on `androidx.glance:glance-appwidget:1.2.0` (as an `api`
