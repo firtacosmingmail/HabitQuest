@@ -4,7 +4,9 @@
  * Data access always goes through a client created with the anon key plus
  * the caller's JWT, so row-level security applies. The service role key is
  * used only by account-delete's auth.admin.deleteUser (supabase_account.ts)
- * and by the admin-only quote writes (supabase_quotes.ts).
+ * by the admin-only quote writes (supabase_quotes.ts), and by the signed-out
+ * (no Authorization header) quote reads of the `quotes` GET, whose handler
+ * filters out future quotes (supabase_quotes.ts, quotes.ts).
  */
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { ApiError, mapDbError, unauthorized } from "./errors.ts";

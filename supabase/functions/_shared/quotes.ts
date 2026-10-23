@@ -83,6 +83,12 @@ export interface QuotesDeps<C extends QuoteCaller = QuoteCaller> {
   /** Lower-cased admin emails (QUOTE_ADMINS). */
   admins(): string[];
   now?(): Date;
+  /**
+   * The caller for a GET sent WITHOUT an Authorization header (signed-out
+   * reads). Its userId is null and it is not an admin, so `loved` is false.
+   * Omitted = every request must authenticate.
+   */
+  anonymous?(req: Request): C;
 }
 
 export interface LovesDeps<C extends QuoteCaller = QuoteCaller> {
@@ -91,6 +97,14 @@ export interface LovesDeps<C extends QuoteCaller = QuoteCaller> {
 }
 
 export const MAX_HISTORY_DAYS = 366;
+/**
+ * Signed-out callers may ask ?date= up to this many days after today (UTC):
+ * 1, so that clients ahead of UTC (up to UTC+14) can ask for their local day.
+ */
+export const ANON_MAX_DAYS_AHEAD = 1;
+/** Cache-Control of successful anonymous GETs (the response has no `loved`). */
+export const ANON_CACHE_CONTROL = "public, max-age=300";
+
 export const DAY_MS = 86_400_000;
 
 export const dayTaken = (day: string) =>
@@ -192,24 +206,44 @@ export async function handleQuotes<C extends QuoteCaller>(
   const method = req.method.toUpperCase();
   if (!["GET", "POST", "PUT"].includes(method)) throw methodNotAllowed(method);
 
-  const caller = await deps.authenticate(req);
+  // Anonymous ONLY when no Authorization header is sent at all: a present but
+  // invalid/expired token still fails with 401 so that clients refresh it.
+  const anonymous = method === "GET" && deps.anonymous !== undefined &&
+    !req.headers.has("authorization");
+  const caller = anonymous ? deps.anonymous!(req) : await deps.authenticate(req);
   const store = deps.store(caller);
   const params = url.searchParams;
   const today = utcToday(deps.now?.() ?? new Date());
+  const respond = (body: unknown) => {
+    const res = json(body);
+    res.headers.set("vary", "Authorization");
+    if (anonymous) res.headers.set("cache-control", ANON_CACHE_CONTROL);
+    return res;
+  };
 
   if (method === "GET") {
     const isHistory = params.has("from") || params.has("to") || params.has("past");
     if (isHistory) {
       if (params.has("date")) throw invalidInput("Use either date or a history range, not both");
+      // Capped at today for everyone, so it never includes future days.
       const { from, to } = historyRange(params, today);
       const items = from <= to ? await store.range(from, to) : [];
-      return json({ from, to, items: await withLoved(store, items) });
+      return respond({ from, to, items: await withLoved(store, items) });
     }
     const date = parseDateParam(params.get("date"), "date") ?? today;
+    const latest = fromEpochDay(epochDay(today) + ANON_MAX_DAYS_AHEAD);
+    if (anonymous && date > latest) {
+      throw invalidInput(`Signed-out callers can ask for dates up to ${latest}`);
+    }
     const daily = await quoteForDate(store, date);
-    if (!daily) throw notFound("There are no quotes yet");
+    // The fallback picks among older quotes, but when none is older it uses
+    // all of them, which could be a quote scheduled later: never show that
+    // to a signed-out caller.
+    if (!daily || (anonymous && daily.quote.day !== null && daily.quote.day > latest)) {
+      throw notFound("There are no quotes yet");
+    }
     const [quote] = await withLoved(store, [daily.quote]);
-    return json({ date, fallback: daily.fallback, quote });
+    return respond({ date, fallback: daily.fallback, quote });
   }
 
   requireAdmin(caller, deps.admins(), "Only quote admins can change quotes");

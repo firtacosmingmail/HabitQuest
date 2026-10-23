@@ -2,7 +2,10 @@
  * Real implementations of the quote interfaces (see quotes.ts).
  *
  * Reads go through the caller's client (anon key + their JWT, so RLS
- * applies). Writes to `quotes` use a service-role client, created only after
+ * applies). Signed-out GETs (no Authorization header) read through the
+ * service-role client instead (anonymousQuotesCaller): RLS lets only signed-in
+ * users read `quotes`, so the handler (quotes.ts) is what keeps future quotes
+ * out of anonymous responses; it never loves anything (userId null). Writes to `quotes` use a service-role client, created only after
  * the handler has checked that the caller is an admin. The service role key
  * comes from the function environment (SUPABASE_SERVICE_ROLE_KEY), stays
  * server-side and is never logged or returned.
@@ -60,6 +63,16 @@ export async function authenticateQuotes(req: Request): Promise<SupabaseQuoteCal
   }
   const c = await authenticate(req);
   return { userId: c.userId, email: c.email, serviceRole: false, client: c.client };
+}
+
+/**
+ * The caller of a GET without an Authorization header: not a user, not an
+ * admin (serviceRole false, so POST/PUT can never be reached with it), but
+ * reading through the server-side service-role client. Only used by
+ * handleQuotes for GET; see quotes.ts for the future-date guards.
+ */
+export function anonymousQuotesCaller(req: Request): SupabaseQuoteCaller {
+  return { userId: null, email: null, serviceRole: false, client: serviceClient(req) };
 }
 
 /** The admin emails (QUOTE_ADMINS); see admin.ts. */

@@ -23,6 +23,8 @@ const callers: Record<string, QuoteCaller> = {
   service: { userId: null, email: null, serviceRole: true },
 };
 
+const anon: QuoteCaller = { userId: null, email: null, serviceRole: false };
+
 const as = (who: string) => ({ authorization: `Bearer ${who}` });
 
 function fakeAuth(r: Request): Promise<QuoteCaller> {
@@ -41,6 +43,7 @@ function setup() {
       store: (c) => db.store(c.userId),
       admins: () => parseAdmins("admin@example.com, other@example.com"),
       now: () => NOW,
+      anonymous: () => anon,
     })
   );
   const loves = withHttp((r) =>
@@ -168,10 +171,9 @@ Deno.test("GET defaults to today (UTC) and includes loved", async () => {
   assertEquals((await body(res)).fallback, true);
 });
 
-Deno.test("GET requires a token and a valid date", async () => {
+Deno.test("GET requires a valid date", async () => {
   const { db, quotes } = setup();
   seedDays(db, "2026-10-16", 3);
-  assertEquals((await quotes(req("GET", "quotes"))).status, 401);
   for (const q of ["2026-13-01", "2026-02-30", "20261020", "x"]) {
     const res = await quotes(req("GET", `quotes?date=${q}`, undefined, as("alice")));
     assertEquals(res.status, 400, q);
@@ -381,4 +383,154 @@ Deno.test("loves: errors", async () => {
   assertEquals(res.status, 403);
   res = await loves(req("PUT", "quote-loves", undefined, as("alice")));
   assertEquals(res.status, 405);
+});
+
+// Signed-out (no Authorization header) reads -----------------------------------
+
+Deno.test("anonymous GET today: same shape, loved false, cacheable", async () => {
+  const { db, quotes, loves } = setup();
+  const qs = seedDays(db, "2026-10-16", 10);
+  await loves(req("POST", "quote-loves", { quoteId: qs[4].id }, as("alice")));
+  for (const path of ["quotes", "quotes?date=2026-10-20"]) {
+    const res = await quotes(req("GET", path));
+    assertEquals(res.status, 200, path);
+    assertEquals(res.headers.get("cache-control"), "public, max-age=300");
+    assertEquals(res.headers.get("access-control-allow-origin"), "*");
+    assertEquals(await body(res), {
+      date: "2026-10-20",
+      fallback: false,
+      quote: { ...qs[4], loved: false },
+    });
+  }
+  // A past day works too.
+  const b = await body(await quotes(req("GET", "quotes?date=2026-10-17")));
+  assertEquals(b.quote.id, qs[1].id);
+});
+
+Deno.test("anonymous GET today: the same deterministic fallback as signed in", async () => {
+  const { db, quotes } = setup();
+  seedDays(db, "2026-10-01", 7); // last scheduled day 2026-10-07 < today
+  const res = await quotes(req("GET", "quotes"));
+  assertEquals(res.status, 200);
+  const b = await body(res);
+  assertEquals(b.fallback, true);
+  assertEquals(b.quote.loved, false);
+  const signedIn = await body(await quotes(req("GET", "quotes", undefined, as("alice"))));
+  assertEquals(b, signedIn);
+  assertEquals(b.quote.text, `Quote ${fallbackIndex("2026-10-20", 7)}`);
+});
+
+Deno.test("anonymous GET never reveals a future quote", async () => {
+  const { db, quotes } = setup();
+  const qs = seedDays(db, "2026-10-16", 10); // up to 2026-10-25
+  // Tomorrow (UTC) is allowed, for clients ahead of UTC.
+  let res = await quotes(req("GET", "quotes?date=2026-10-21"));
+  assertEquals(res.status, 200);
+  assertEquals((await body(res)).quote.id, qs[5].id);
+  // Later days are rejected.
+  res = await quotes(req("GET", "quotes?date=2026-10-22"));
+  assertEquals(res.status, 400);
+  assertEquals((await body(res)).error.code, "invalid_input");
+  // Signed in is unchanged.
+  res = await quotes(req("GET", "quotes?date=2026-10-22", undefined, as("alice")));
+  assertEquals(res.status, 200);
+
+  // Before any quote, the fallback would cycle over ALL quotes, future ones
+  // included: anonymous callers get 404 rather than a future quote.
+  const only = setup();
+  only.db.add("Future", "2026-12-01");
+  res = await only.quotes(req("GET", "quotes?date=2026-10-20"));
+  assertEquals(res.status, 404);
+  assertEquals((await body(res)).error.code, "not_found");
+  res = await only.quotes(req("GET", "quotes?date=2026-10-20", undefined, as("alice")));
+  assertEquals((await body(res)).quote.text, "Future");
+});
+
+Deno.test("anonymous history: past days only, loved false", async () => {
+  const { db, quotes, loves } = setup();
+  const qs = seedDays(db, "2026-10-10", 20); // up to 2026-10-29
+  await loves(req("POST", "quote-loves", { quoteId: qs[8].id }, as("alice")));
+  const res = await quotes(req("GET", "quotes?from=2026-10-15&to=2026-10-30"));
+  assertEquals(res.status, 200);
+  assertEquals(res.headers.get("cache-control"), "public, max-age=300");
+  let b = await body(res);
+  assertEquals(b.from, "2026-10-15");
+  assertEquals(b.to, "2026-10-20");
+  assertEquals(b.items.map((q: { day: string }) => q.day), [
+    "2026-10-20",
+    "2026-10-19",
+    "2026-10-18",
+    "2026-10-17",
+    "2026-10-16",
+    "2026-10-15",
+  ]);
+  assert(b.items.every((q: { loved: boolean }) => q.loved === false));
+
+  b = await body(await quotes(req("GET", "quotes?past=3")));
+  assertEquals(b.from, "2026-10-17");
+  assertEquals(b.to, "2026-10-19");
+  assertEquals(b.items.length, 3);
+  assert(b.items.every((q: { day: string }) => q.day < "2026-10-20"));
+
+  b = await body(await quotes(req("GET", "quotes?from=2026-10-21&to=2026-10-29")));
+  assertEquals(b.items, []);
+});
+
+Deno.test("a present but invalid or expired token gets 401, not anonymous", async () => {
+  const { db, quotes } = setup();
+  seedDays(db, "2026-10-16", 10);
+  for (const h of ["Bearer expired", "Bearer", "Basic abc", ""]) {
+    const res = await quotes(req("GET", "quotes", undefined, { authorization: h }));
+    assertEquals(res.status, 401, h);
+    assertEquals((await body(res)).error.code, "unauthorized");
+  }
+  const res = await quotes(req("GET", "quotes?past=3", undefined, as("expired")));
+  assertEquals(res.status, 401);
+});
+
+Deno.test("a valid token gets the real loved, not cached publicly", async () => {
+  const { db, quotes, loves } = setup();
+  const qs = seedDays(db, "2026-10-16", 10);
+  await loves(req("POST", "quote-loves", { quoteId: qs[4].id }, as("alice")));
+  const res = await quotes(req("GET", "quotes", undefined, as("alice")));
+  assertEquals(res.headers.get("cache-control"), null);
+  assertEquals((await body(res)).quote.loved, true);
+  const h = await body(await quotes(req("GET", "quotes?past=2", undefined, as("alice"))));
+  assertEquals(h.items.map((q: { loved: boolean }) => q.loved), [false, false]);
+  const t = await body(
+    await quotes(req("GET", "quotes?from=2026-10-20&to=2026-10-20", undefined, as("alice"))),
+  );
+  assertEquals(t.items[0].loved, true);
+});
+
+Deno.test("anonymous POST and PUT get 401; non-admins still 403", async () => {
+  const { db, quotes } = setup();
+  const [q] = seedDays(db, "2026-10-16", 1);
+  let res = await quotes(req("POST", "quotes", { text: "Hi", day: "2026-11-01" }));
+  assertEquals(res.status, 401);
+  assertEquals((await body(res)).error.code, "unauthorized");
+  res = await quotes(req("PUT", `quotes?id=${q.id}`, { text: "Hi" }));
+  assertEquals(res.status, 401);
+  res = await quotes(req("POST", "quotes", { text: "Hi" }, as("bob")));
+  assertEquals(res.status, 403);
+  res = await quotes(req("PUT", `quotes?id=${q.id}`, { text: "Hi" }, as("bob")));
+  assertEquals(res.status, 403);
+  assertEquals(db.quotes.size, 1);
+  assertEquals(db.quotes.get(q.id)!.text, "Quote 0");
+});
+
+Deno.test("quote-loves without a token gets 401 for every method", async () => {
+  const { db, loves } = setup();
+  const [q] = seedDays(db, "2026-10-16", 1);
+  for (
+    const r of [
+      req("GET", "quote-loves"),
+      req("POST", "quote-loves", { quoteId: q.id }),
+      req("DELETE", `quote-loves?quoteId=${q.id}`),
+    ]
+  ) {
+    const res = await loves(r);
+    assertEquals(res.status, 401, r.method);
+    assertEquals((await body(res)).error.code, "unauthorized");
+  }
 });
