@@ -4,6 +4,9 @@ import 'json_utils.dart';
 import 'quotes_api.dart';
 
 /// [QuotesApi] over HTTP (Edge Functions `quotes` and `quote-loves`).
+///
+/// The `GET /quotes` reads also work signed out (no `Authorization`
+/// header, `loved: false`); `quote-loves` always needs a session.
 class HttpQuotesApi implements QuotesApi {
   final AuthenticatedTransport transport;
 
@@ -15,12 +18,18 @@ class HttpQuotesApi implements QuotesApi {
       'GET',
       'quotes',
       query: {'date': dateKey(date)},
+      allowAnonymous: true,
     ),
   );
 
   @override
   Future<QuoteHistory> pastQuotes(int days) async => QuoteHistory.fromJson(
-    await transport.sendForObject('GET', 'quotes', query: {'past': '$days'}),
+    await transport.sendForObject(
+      'GET',
+      'quotes',
+      query: {'past': '$days'},
+      allowAnonymous: true,
+    ),
   );
 
   @override
@@ -30,6 +39,7 @@ class HttpQuotesApi implements QuotesApi {
           'GET',
           'quotes',
           query: {'from': dateKey(from), 'to': dateKey(to)},
+          allowAnonymous: true,
         ),
       );
 

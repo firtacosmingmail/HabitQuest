@@ -249,4 +249,113 @@ void main() {
       );
     });
   });
+
+  group('signed out (no session)', () {
+    late List<http.Request> requests;
+    late http.Response Function(http.Request) answer;
+    late _SwitchTokens tokens;
+    late HttpQuotesApi api;
+
+    setUp(() {
+      requests = [];
+      answer = (_) =>
+          _json({'date': '2026-11-14', 'fallback': false, 'quote': _quoteJson});
+      tokens = _SwitchTokens();
+      api = HttpQuotesApi(
+        AuthenticatedTransport(
+          transport: ApiTransport(
+            client: MockClient((r) async {
+              requests.add(r);
+              return answer(r);
+            }),
+            config: _config,
+          ),
+          tokens: tokens,
+        ),
+      );
+    });
+
+    test('GET /quotes omits Authorization but sends the apikey', () async {
+      final daily = await api.quoteOfDay(DateTime(2026, 11, 14));
+      expect(daily.quote.loved, isFalse);
+      answer = (_) => _json({
+        'from': '2026-11-01',
+        'to': '2026-11-07',
+        'items': [_quoteJson],
+      });
+      await api.pastQuotes(7);
+      await api.quotesBetween(DateTime(2026, 11, 1), DateTime(2026, 11, 7));
+      expect(requests, hasLength(3));
+      for (final r in requests) {
+        expect(
+          r.headers.keys.map((k) => k.toLowerCase()),
+          isNot(contains('authorization')),
+        );
+        expect(r.headers['apikey'], 'anon-key');
+      }
+    });
+
+    test('signed in, GET /quotes still sends the bearer token', () async {
+      tokens.token = 'access-1';
+      await api.quoteOfDay(DateTime(2026, 11, 14));
+      expect(requests.single.headers['authorization'], 'Bearer access-1');
+    });
+
+    test(
+      'rejected token that cannot be refreshed: one anonymous retry',
+      () async {
+        tokens.token = 'expired';
+        answer = (r) => r.headers.containsKey('authorization')
+            ? _json({
+                'error': {'code': 'unauthorized', 'message': 'x'},
+              }, 401)
+            : _json({
+                'date': '2026-11-14',
+                'fallback': false,
+                'quote': _quoteJson,
+              });
+        final daily = await api.quoteOfDay(DateTime(2026, 11, 14));
+        expect(daily.quote.text, _quoteJson['text']);
+        expect(requests, hasLength(2));
+        expect(requests.last.headers.containsKey('authorization'), isFalse);
+      },
+    );
+
+    test('quote-loves still needs a session (no request sent)', () async {
+      await expectLater(
+        api.lovedQuotes(),
+        throwsA(isA<ApiException>().having((e) => e.status, 'status', 401)),
+      );
+      await expectLater(api.love('q1'), throwsA(isA<ApiException>()));
+      await expectLater(api.unlove('q1'), throwsA(isA<ApiException>()));
+      expect(requests, isEmpty);
+    });
+
+    test(
+      'a 401 from a not-yet-public backend surfaces as ApiException',
+      () async {
+        answer = (_) => _json({
+          'error': {'code': 'unauthorized', 'message': 'x'},
+        }, 401);
+        await expectLater(
+          api.quoteOfDay(DateTime(2026, 11, 14)),
+          throwsA(isA<ApiException>().having((e) => e.status, 'status', 401)),
+        );
+        expect(requests, hasLength(1));
+      },
+    );
+  });
+}
+
+class _SwitchTokens implements AccessTokenProvider {
+  String? token;
+
+  @override
+  Future<String?> accessToken() async => token;
+
+  @override
+  Future<String?> refreshAfterUnauthorized(String rejectedToken) async {
+    token = null;
+    return null;
+  }
 }

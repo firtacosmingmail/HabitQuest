@@ -2,7 +2,8 @@ import '../models/quote.dart';
 
 export '../models/quote.dart';
 
-/// The `quotes` and `quote-loves` Edge Functions for the signed-in user
+/// The `quotes` (also signed out: `loved` is then `false`) and
+/// `quote-loves` (signed in only) Edge Functions
 /// (contract: "Quotes" in `supabase/API.md`). Every method throws
 /// [ApiException] on failure (`isNetwork` when offline).
 abstract interface class QuotesApi {

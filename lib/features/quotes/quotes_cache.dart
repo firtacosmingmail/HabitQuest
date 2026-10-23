@@ -12,6 +12,10 @@ import '../../data/sync/string_store.dart';
 class QuotesCache {
   static const boxName = 'quotes_cache';
 
+  /// Owner of the cache while signed out (public quote of the day only).
+  /// Not a valid user id, so a sign-in clears it like any user change.
+  static const anonymousOwner = '~signed-out';
+
   static const _ownerKey = 'owner';
   static const _todayKey = 'today';
   static const _lovedKey = 'loved';

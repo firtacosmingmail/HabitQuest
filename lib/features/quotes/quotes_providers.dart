@@ -54,7 +54,10 @@ final quotesUserIdProvider = Provider<String?>(
 // Quote of the day -----------------------------------------------------------
 
 /// Today's quote for the local calendar day ([todayProvider]); `null` when
-/// signed out or when the server has no quotes at all (404).
+/// the server has no quotes at all (404). Signed out it is read without a
+/// token (`loved` always `false`) and cached under
+/// [QuotesCache.anonymousOwner]; if that read fails (offline, or a backend
+/// that still answers 401) the last cached quote is shown instead.
 ///
 /// Shows the cached copy for today right away (offline too) and refreshes
 /// it from the server in the background. Rebuilds when the day changes.
@@ -67,28 +70,43 @@ final todayQuoteProvider =
 class TodayQuoteController extends AsyncNotifier<DailyQuote?> {
   @override
   Future<DailyQuote?> build() async {
-    final userId = ref.watch(quotesUserIdProvider);
-    if (userId == null) return null;
+    final owner = _owner(ref.watch(quotesUserIdProvider));
     final day = ref.watch(todayProvider);
     final cache = ref.read(quotesCacheProvider);
-    final cached = cache.belongsTo(userId) ? cache.dailyQuoteFor(day) : null;
+    final cached = cache.belongsTo(owner) ? cache.dailyQuoteFor(day) : null;
     if (cached != null) {
-      unawaited(_refreshQuietly(userId, day));
+      unawaited(_refreshQuietly(owner, day));
       return cached;
     }
-    return _fetch(userId, day);
+    if (owner == QuotesCache.anonymousOwner) {
+      // Signed out: the public read may be refused (401 before the backend
+      // allowed it) or offline. Fall back to the last cached quote of any
+      // day (it may be the previous user's one) rather than an error.
+      try {
+        return await _fetch(owner, day);
+      } on ApiException {
+        final last = cache.dailyQuote;
+        if (last != null) return last.withQuote(last.quote.withLoved(false));
+        rethrow;
+      }
+    }
+    return _fetch(owner, day);
   }
 
   /// Reloads from the server; keeps the current quote if that fails.
   Future<void> refresh() async {
-    final userId = ref.read(quotesUserIdProvider);
-    if (userId == null) return;
+    final owner = _owner(ref.read(quotesUserIdProvider));
     final day = ref.read(todayProvider);
-    if (!state.hasValue || state.value == null) {
-      state = const AsyncLoading();
-      state = await AsyncValue.guard(() => _fetch(userId, day));
+    final current = state.value;
+    if (current == null || dateKey(current.date) != dateKey(day)) {
+      if (current == null) state = const AsyncLoading();
+      final next = await AsyncValue.guard(() => _fetch(owner, day));
+      if (!ref.mounted) return;
+      // Keep an older quote rather than replacing it with an error.
+      if (next.hasError && current != null) return;
+      state = next;
     } else {
-      await _refreshQuietly(userId, day);
+      await _refreshQuietly(owner, day);
     }
   }
 
@@ -102,10 +120,13 @@ class TodayQuoteController extends AsyncNotifier<DailyQuote?> {
     await _save(updated);
   }
 
-  Future<DailyQuote?> _fetch(String userId, DateTime day) async {
+  Future<DailyQuote?> _fetch(String owner, DateTime day) async {
     try {
-      final quote = await ref.read(quotesApiProvider).quoteOfDay(day);
-      await _save(quote, userId: userId);
+      var quote = await ref.read(quotesApiProvider).quoteOfDay(day);
+      if (owner == QuotesCache.anonymousOwner) {
+        quote = quote.withQuote(quote.quote.withLoved(false));
+      }
+      await _save(quote, owner: owner);
       return quote;
     } on ApiException catch (e) {
       if (e.status == 404) return null;
@@ -113,10 +134,10 @@ class TodayQuoteController extends AsyncNotifier<DailyQuote?> {
     }
   }
 
-  Future<void> _refreshQuietly(String userId, DateTime day) async {
+  Future<void> _refreshQuietly(String owner, DateTime day) async {
     try {
-      final quote = await _fetch(userId, day);
-      if (ref.mounted && ref.read(quotesUserIdProvider) == userId) {
+      final quote = await _fetch(owner, day);
+      if (ref.mounted && _owner(ref.read(quotesUserIdProvider)) == owner) {
         state = AsyncData(quote);
       }
     } catch (_) {
@@ -124,14 +145,17 @@ class TodayQuoteController extends AsyncNotifier<DailyQuote?> {
     }
   }
 
-  Future<void> _save(DailyQuote? quote, {String? userId}) async {
-    final user = userId ?? ref.read(quotesUserIdProvider);
-    if (quote == null || user == null) return;
+  Future<void> _save(DailyQuote? quote, {String? owner}) async {
+    final user = owner ?? _owner(ref.read(quotesUserIdProvider));
+    if (quote == null) return;
     final cache = ref.read(quotesCacheProvider);
     await cache.claim(user);
     await cache.saveDailyQuote(quote);
   }
 }
+
+/// The cache owner for [userId] ([QuotesCache.anonymousOwner] signed out).
+String _owner(String? userId) => userId ?? QuotesCache.anonymousOwner;
 
 // Past days ------------------------------------------------------------------
 
