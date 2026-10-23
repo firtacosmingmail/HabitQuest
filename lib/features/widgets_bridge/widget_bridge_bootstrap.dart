@@ -32,7 +32,10 @@ class _WidgetBridgeBootstrapState extends ConsumerState<WidgetBridgeBootstrap> {
     final bridge = ref.read(widgetBridgeProvider);
     if (bridge == null) return;
     unawaited(initPlatformWidgets().then((_) => bridge.start()));
-    _stopSignals = listenForWidgetSignals(() => bridge.applyQueue());
+    _stopSignals = listenForWidgetSignals(
+      () => bridge.applyQueue(),
+      onRefresh: () => unawaited(bridge.refreshFromBackground()),
+    );
     _lifecycle = AppLifecycleListener(onResume: bridge.onResume);
   }
 

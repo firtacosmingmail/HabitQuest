@@ -148,10 +148,13 @@ class DailyQuoteWidgetReceiver : HomeWidgetGlanceWidgetReceiver<DailyQuoteWidget
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
         super.onUpdate(context, appWidgetManager, appWidgetIds)
         MidnightRefresh.schedule(context, javaClass.name)
+        // Background roll-over + today's quote (WorkManager → Dart).
+        WidgetRefresh.schedule(context)
     }
 
     override fun onDisabled(context: Context) {
         super.onDisabled(context)
         MidnightRefresh.cancel(context, javaClass.name)
+        WidgetRefresh.cancelIfNoWidgets(context)
     }
 }

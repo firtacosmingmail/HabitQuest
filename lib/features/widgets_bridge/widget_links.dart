@@ -17,6 +17,14 @@ String? toggleHabitId(Uri? uri) {
   return (id == null || id.isEmpty) ? null : id;
 }
 
+/// Whether [uri] is the background daily refresh
+/// (`habitquest://widget/refresh`, sent by Android's `WidgetRefreshWorker`).
+bool isWidgetRefreshUri(Uri? uri) =>
+    uri != null &&
+    _isAppScheme(uri) &&
+    uri.host == WidgetConstants.widgetHost &&
+    uri.path == WidgetConstants.refreshPath;
+
 /// The in-app location for a widget URI that opened the app (go_router
 /// sees the platform deep link with its host), or `null` if [uri] is not a
 /// widget URI. A check-off URI lands on the Habits tab (the check-off itself

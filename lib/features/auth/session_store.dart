@@ -19,10 +19,15 @@ abstract interface class SessionStore {
 /// encrypted value in localStorage via WebCrypto (which needs a secure
 /// context: https or localhost).
 class SecureSessionStore implements SessionStore {
-  SecureSessionStore([FlutterSecureStorage? storage])
+  /// [clearUnreadable] false (background widget refresh): a read that fails
+  /// is rethrown instead of being treated as "signed out" and wiping the
+  /// stored session, since a keystore hiccup in a headless isolate must not
+  /// sign the user out.
+  SecureSessionStore([FlutterSecureStorage? storage, this.clearUnreadable = true])
     : _storage = storage ?? const FlutterSecureStorage();
 
   final FlutterSecureStorage _storage;
+  final bool clearUnreadable;
 
   static const key = 'habit_quest.session.v1';
 
@@ -33,6 +38,7 @@ class SecureSessionStore implements SessionStore {
       if (raw == null) return null;
       return Session.fromJson(jsonDecode(raw) as Map<String, dynamic>);
     } catch (_) {
+      if (!clearUnreadable) rethrow;
       // Corrupt value, lost web encryption key, keychain error...: treat as
       // signed out and drop the unusable value.
       await clear();

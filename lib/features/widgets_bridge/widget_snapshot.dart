@@ -4,6 +4,7 @@ import '../../core/utils/dates.dart';
 import '../../data/models/completion_log.dart';
 import '../../data/models/habit.dart';
 import '../../data/models/quote.dart';
+import '../../domain/recurrence.dart';
 import 'widget_constants.dart';
 
 /// What the home-screen widgets show (schema: `docs/WIDGETS.md`).
@@ -90,10 +91,18 @@ class WidgetQuote {
   /// `null` for anonymous quotes.
   final String? author;
 
-  const WidgetQuote({required this.text, this.author});
+  /// The local day (`yyyy-MM-dd`) this is the quote of, or `null` when
+  /// unknown (snapshots written before 2026-10-23). The background refresh
+  /// fetches a new quote when it is not today.
+  final String? day;
 
-  factory WidgetQuote.fromQuote(Quote quote) =>
-      WidgetQuote(text: quote.text, author: quote.author);
+  const WidgetQuote({required this.text, this.author, this.day});
+
+  factory WidgetQuote.fromQuote(Quote quote, {DateTime? day}) => WidgetQuote(
+        text: quote.text,
+        author: quote.author,
+        day: day == null ? null : dateKey(day),
+      );
 
   /// "— Author" or "— Unknown" (same as `Quote.attribution`).
   String get attribution => '— ${author ?? 'Unknown'}';
@@ -102,19 +111,51 @@ class WidgetQuote {
         'text': text,
         'author': author,
         'attribution': attribution,
+        'day': day,
       };
 
   factory WidgetQuote.fromJson(Map<String, dynamic> json) => WidgetQuote(
         text: json['text'] as String,
         author: json['author'] as String?,
+        day: json['day'] as String?,
       );
 
   @override
   bool operator ==(Object other) =>
-      other is WidgetQuote && other.text == text && other.author == author;
+      other is WidgetQuote &&
+      other.text == text &&
+      other.author == author &&
+      other.day == day;
 
   @override
-  int get hashCode => Object.hash(text, author);
+  int get hashCode => Object.hash(text, author, day);
+}
+
+/// The habits due on a coming day, precomputed by the app from local data
+/// so that the snapshot can roll over at midnight without the app (see
+/// [WidgetSnapshot.rolledOverTo]).
+class WidgetUpcomingDay {
+  /// `yyyy-MM-dd` (local day).
+  final String date;
+
+  /// Due habits of [date], in app order, all not done.
+  final List<WidgetHabit> habits;
+
+  const WidgetUpcomingDay({required this.date, required this.habits});
+
+  Map<String, dynamic> toJson() => {
+        'date': date,
+        'habits': [for (final h in habits) h.toJson()],
+      };
+
+  factory WidgetUpcomingDay.fromJson(Map<String, dynamic> json) =>
+      WidgetUpcomingDay(
+        date: json['date'] as String,
+        habits: [
+          for (final h in (json['habits'] as List? ?? const []))
+            WidgetHabit.fromJson(Map<String, dynamic>.from(h as Map)),
+        ],
+      );
 }
 
 /// The whole widget payload, stored as one JSON string under
@@ -133,6 +174,10 @@ class WidgetSnapshot {
   final List<WidgetHabit> habits;
   final WidgetQuote? quote;
 
+  /// The due habits of the next [upcomingDayCount] days (after [date]),
+  /// oldest first; empty when signed out.
+  final List<WidgetUpcomingDay> upcoming;
+
   const WidgetSnapshot({
     this.version = WidgetConstants.snapshotSchemaVersion,
     required this.date,
@@ -140,23 +185,63 @@ class WidgetSnapshot {
     required this.state,
     this.habits = const [],
     this.quote,
+    this.upcoming = const [],
   });
+
+  /// How many coming days the app precomputes (covers a phone left alone
+  /// for a week, e.g. in Doze, with the app never opened).
+  static const upcomingDayCount = 7;
 
   int get doneCount => habits.where((h) => h.done).length;
 
   WidgetSnapshot copyWith({
     String? date,
     DateTime? generatedAt,
+    WidgetSnapshotState? state,
     List<WidgetHabit>? habits,
+    WidgetQuote? quote,
+    bool clearQuote = false,
+    List<WidgetUpcomingDay>? upcoming,
   }) =>
       WidgetSnapshot(
         version: version,
         date: date ?? this.date,
         generatedAt: generatedAt ?? this.generatedAt,
-        state: state,
+        state: state ?? this.state,
         habits: habits ?? this.habits,
-        quote: quote,
+        quote: clearQuote ? null : (quote ?? this.quote),
+        upcoming: upcoming ?? this.upcoming,
       );
+
+  /// This snapshot moved to the local day [todayKey] (`yyyy-MM-dd`) from
+  /// local data only: the habits become that day's precomputed [upcoming]
+  /// entry (all not done), or, past the precomputed window, the old list
+  /// with every habit not done. The state follows (`ok` / `noHabits`;
+  /// `signedOut` stays). The quote is kept: its `day` says whether it is
+  /// still yesterday's. Returns `this` when [date] is not before [todayKey].
+  WidgetSnapshot rolledOverTo(String todayKey) {
+    // ISO dates compare correctly as strings.
+    if (date.compareTo(todayKey) >= 0) return this;
+    final later = [
+      for (final u in upcoming)
+        if (u.date.compareTo(todayKey) > 0) u,
+    ];
+    if (state == WidgetSnapshotState.signedOut) {
+      return copyWith(date: todayKey, habits: const [], upcoming: const []);
+    }
+    final entry = upcoming.where((u) => u.date == todayKey).firstOrNull;
+    final habits = entry != null
+        ? [for (final h in entry.habits) h.copyWith(done: false)]
+        : [for (final h in this.habits) h.copyWith(done: false)];
+    return copyWith(
+      date: todayKey,
+      state: habits.isEmpty
+          ? WidgetSnapshotState.noHabits
+          : WidgetSnapshotState.ok,
+      habits: habits,
+      upcoming: later,
+    );
+  }
 
   Map<String, dynamic> toJson() => {
         'version': version,
@@ -167,6 +252,7 @@ class WidgetSnapshot {
         'doneCount': doneCount,
         'totalCount': habits.length,
         'quote': quote?.toJson(),
+        'upcoming': [for (final u in upcoming) u.toJson()],
       };
 
   String encode() => jsonEncode(toJson());
@@ -186,6 +272,10 @@ class WidgetSnapshot {
             : WidgetQuote.fromJson(
                 Map<String, dynamic>.from(json['quote'] as Map),
               ),
+        upcoming: [
+          for (final u in (json['upcoming'] as List? ?? const []))
+            WidgetUpcomingDay.fromJson(Map<String, dynamic>.from(u as Map)),
+        ],
       );
 
   /// Parses [raw]; `null` if it is missing or unreadable.
@@ -201,19 +291,10 @@ class WidgetSnapshot {
   }
 
   /// The same content ignoring [generatedAt] (to skip needless refreshes).
-  bool sameContentAs(WidgetSnapshot other) {
-    if (version != other.version ||
-        date != other.date ||
-        state != other.state ||
-        quote != other.quote ||
-        habits.length != other.habits.length) {
-      return false;
-    }
-    for (var i = 0; i < habits.length; i++) {
-      if (habits[i] != other.habits[i]) return false;
-    }
-    return true;
-  }
+  bool sameContentAs(WidgetSnapshot other) =>
+      _contentKey() == other._contentKey();
+
+  String _contentKey() => jsonEncode(toJson()..remove('generatedAt'));
 }
 
 /// Pure snapshot builder.
@@ -221,16 +302,24 @@ class WidgetSnapshot {
 /// * [signedIn] false → `signedOut` (no habits; the quote is kept if given).
 /// * [dueToday] empty → `noHabits`.
 /// * Otherwise `ok`, with `done` read from [log] for [today].
+///
+/// [quoteDay] is the day [quote] belongs to. When signed in and
+/// [allHabits] is given, the due habits of the next
+/// [WidgetSnapshot.upcomingDayCount] days are precomputed from it and [log]
+/// (`upcoming`), so the snapshot can roll over without the app.
 WidgetSnapshot buildWidgetSnapshot({
   required bool signedIn,
   required DateTime today,
   required List<Habit> dueToday,
   required CompletionLog log,
   Quote? quote,
+  DateTime? quoteDay,
+  Iterable<Habit>? allHabits,
   required DateTime now,
 }) {
   final day = dateOnly(today);
-  final widgetQuote = quote == null ? null : WidgetQuote.fromQuote(quote);
+  final widgetQuote =
+      quote == null ? null : WidgetQuote.fromQuote(quote, day: quoteDay);
   if (!signedIn) {
     return WidgetSnapshot(
       date: dateKey(day),
@@ -239,22 +328,36 @@ WidgetSnapshot buildWidgetSnapshot({
       quote: widgetQuote,
     );
   }
-  final habits = [
-    for (final h in dueToday)
-      if (!h.archived && !h.isDeleted)
-        WidgetHabit(
-          id: h.id,
-          name: h.name,
-          emoji: h.emoji,
-          color: h.colorValue,
-          done: log.isCompleted(h.id, day),
-        ),
-  ];
+  List<WidgetHabit> widgetHabits(Iterable<Habit> due, DateTime on) => [
+        for (final h in due)
+          if (!h.archived && !h.isDeleted)
+            WidgetHabit(
+              id: h.id,
+              name: h.name,
+              emoji: h.emoji,
+              color: h.colorValue,
+              done: log.isCompleted(h.id, on),
+            ),
+      ];
+  final habits = widgetHabits(dueToday, day);
+  final all = allHabits;
   return WidgetSnapshot(
     date: dateKey(day),
     generatedAt: now.toUtc(),
     state: habits.isEmpty ? WidgetSnapshotState.noHabits : WidgetSnapshotState.ok,
     habits: habits,
     quote: widgetQuote,
+    upcoming: all == null
+        ? const []
+        : [
+            for (var i = 1; i <= WidgetSnapshot.upcomingDayCount; i++)
+              WidgetUpcomingDay(
+                date: dateKey(addDays(day, i)),
+                habits: widgetHabits(
+                  dueHabitsOn(all, addDays(day, i), log),
+                  addDays(day, i),
+                ),
+              ),
+          ],
   );
 }

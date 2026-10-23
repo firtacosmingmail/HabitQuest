@@ -9,6 +9,7 @@ import 'package:habit_quest/data/repositories/in_memory_habit_repository.dart';
 import 'package:habit_quest/domain/providers.dart';
 import 'package:habit_quest/features/auth/auth_providers.dart';
 import 'package:habit_quest/features/auth/session_store.dart';
+import 'package:habit_quest/features/quotes/quotes_providers.dart';
 import 'package:habit_quest/features/widgets_bridge/widget_bridge.dart';
 import 'package:habit_quest/features/widgets_bridge/widget_constants.dart';
 import 'package:habit_quest/features/widgets_bridge/widget_links.dart';
@@ -137,6 +138,39 @@ void main() {
     await bridge.writeNow();
     expect(stored().date, '2026-10-18');
     expect(stored().habits.first.done, isFalse);
+  });
+
+  test('the snapshot carries the quote day and the coming days', () async {
+    final c = container();
+    c.listen(todayQuoteProvider, (_, _) {});
+    final bridge = await started(c);
+    await c.read(todayQuoteProvider.future);
+    await settle();
+    await bridge.writeNow();
+    final s = stored();
+    expect(s.quote, isNotNull);
+    expect(s.quote!.day, '2026-10-17');
+    expect(s.upcoming.first.date, '2026-10-18');
+    expect(s.upcoming.first.habits.map((h) => h.id), ['a', 'b']);
+  });
+
+  test('a background refresh while the app is alive (timer missed in '
+      'sleep) rolls over and loads the new day\'s quote', () async {
+    final c = container();
+    c.listen(todayQuoteProvider, (_, _) {});
+    final bridge = await started(c);
+    await c.read(todayQuoteProvider.future);
+    await settle();
+    await bridge.writeNow();
+    expect(stored().quote!.day, '2026-10-17');
+
+    // The device slept through midnight: no onMidnight() call.
+    now = DateTime(2026, 10, 18, 3);
+    await bridge.refreshFromBackground();
+    await settle();
+    await bridge.writeNow();
+    expect(stored().date, '2026-10-18');
+    expect(stored().quote!.day, '2026-10-18');
   });
 
   test('a toggle link that opened the app checks the habit once', () async {

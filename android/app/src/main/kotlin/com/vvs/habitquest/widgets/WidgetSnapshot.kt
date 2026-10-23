@@ -1,6 +1,7 @@
 package com.vvs.habitquest.widgets
 
 import android.content.SharedPreferences
+import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -70,39 +71,34 @@ data class WidgetSnapshot(
 
         /**
          * Parses [json]. A missing or broken snapshot, or an unknown state, is
-         * [SIGNED_OUT]. If the snapshot's `date` is before [today] (the app has
-         * not run since midnight), every habit is shown as not done.
+         * [SIGNED_OUT]. If the snapshot's `date` is before [today] (nothing has
+         * rewritten it since midnight), today's precomputed `upcoming` habits
+         * are shown, or else every habit as not done.
          */
         fun parse(json: String?, today: String = todayKey()): WidgetSnapshot {
             if (json.isNullOrBlank()) return SIGNED_OUT
             return try {
                 val root = JSONObject(json)
                 val rawState = root.optString("state", WidgetContract.STATE_SIGNED_OUT)
-                val state = when (rawState) {
+                var state = when (rawState) {
                     WidgetContract.STATE_OK, WidgetContract.STATE_NO_HABITS -> rawState
                     else -> WidgetContract.STATE_SIGNED_OUT
                 }
                 val date = root.optStringOrNull("date")
                 // ISO dates compare correctly as strings.
                 val stale = date != null && date < today
-                val habits = mutableListOf<WidgetHabit>()
-                if (state == WidgetContract.STATE_OK) {
-                    val array = root.optJSONArray("habits")
-                    if (array != null) {
-                        for (i in 0 until array.length()) {
-                            val h = array.optJSONObject(i) ?: continue
-                            val id = h.optStringOrNull("id") ?: continue
-                            habits += WidgetHabit(
-                                id = id,
-                                name = h.optString("name", ""),
-                                emoji = h.optStringOrNull("emoji") ?: "✅",
-                                // Unsigned 32-bit in JSON: read as Long, keep the low 32 bits.
-                                color = h.optLong("color", 0xFF7C4DFFL).toInt(),
-                                done = !stale && h.optBoolean("done", false),
-                                toggleUri = h.optStringOrNull("toggleUri")
-                                    ?: (WidgetContract.TOGGLE_URI_PREFIX + android.net.Uri.encode(id)),
-                            )
-                        }
+                var habits = emptyList<WidgetHabit>()
+                if (state != WidgetContract.STATE_SIGNED_OUT) {
+                    // After midnight, before the app or the background refresh
+                    // rewrote the snapshot: use the due habits the app
+                    // precomputed for today ("upcoming"), all not done.
+                    val upcomingToday = if (stale) upcomingFor(root, today) else null
+                    if (upcomingToday != null) {
+                        habits = parseHabits(upcomingToday, forceNotDone = true)
+                        state = if (habits.isEmpty()) WidgetContract.STATE_NO_HABITS
+                        else WidgetContract.STATE_OK
+                    } else if (state == WidgetContract.STATE_OK) {
+                        habits = parseHabits(root.optJSONArray("habits"), forceNotDone = stale)
                     }
                 }
                 val quote = root.optJSONObject("quote")?.let { q ->
@@ -119,6 +115,38 @@ data class WidgetSnapshot(
             } catch (e: Exception) {
                 SIGNED_OUT
             }
+        }
+
+        /** The `habits` of the `upcoming` entry for [day], or `null`. */
+        private fun upcomingFor(root: JSONObject, day: String): JSONArray? {
+            val upcoming = root.optJSONArray("upcoming") ?: return null
+            for (i in 0 until upcoming.length()) {
+                val entry = upcoming.optJSONObject(i) ?: continue
+                if (entry.optStringOrNull("date") == day) {
+                    return entry.optJSONArray("habits") ?: JSONArray()
+                }
+            }
+            return null
+        }
+
+        private fun parseHabits(array: JSONArray?, forceNotDone: Boolean): List<WidgetHabit> {
+            if (array == null) return emptyList()
+            val habits = mutableListOf<WidgetHabit>()
+            for (i in 0 until array.length()) {
+                val h = array.optJSONObject(i) ?: continue
+                val id = h.optStringOrNull("id") ?: continue
+                habits += WidgetHabit(
+                    id = id,
+                    name = h.optString("name", ""),
+                    emoji = h.optStringOrNull("emoji") ?: "✅",
+                    // Unsigned 32-bit in JSON: read as Long, keep the low 32 bits.
+                    color = h.optLong("color", 0xFF7C4DFFL).toInt(),
+                    done = !forceNotDone && h.optBoolean("done", false),
+                    toggleUri = h.optStringOrNull("toggleUri")
+                        ?: (WidgetContract.TOGGLE_URI_PREFIX + android.net.Uri.encode(id)),
+                )
+            }
+            return habits
         }
 
         private fun JSONObject.optStringOrNull(key: String): String? =

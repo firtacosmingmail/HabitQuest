@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:habit_quest/core/utils/dates.dart';
 import 'package:habit_quest/data/models/completion_log.dart';
 import 'package:habit_quest/data/models/quote.dart';
 import 'package:habit_quest/features/widgets_bridge/widget_constants.dart';
@@ -109,6 +110,8 @@ void main() {
         'h 1': [today],
       }),
       quote: quote,
+      quoteDay: today,
+      allHabits: [habit(id: 'h 1')],
       now: now,
     );
     final json = jsonDecode(s.encode()) as Map<String, dynamic>;
@@ -121,6 +124,7 @@ void main() {
       'doneCount',
       'totalCount',
       'quote',
+      'upcoming',
     ]);
     expect(json['state'], 'ok');
     expect(json['generatedAt'], now.toUtc().toIso8601String());
@@ -141,7 +145,14 @@ void main() {
       'text': 'Keep going.',
       'author': 'Ada',
       'attribution': '— Ada',
+      'day': dateKey(today),
     });
+    // The next days' due habits, precomputed for the roll-over.
+    final upcoming = json['upcoming'] as List;
+    expect(upcoming, hasLength(WidgetSnapshot.upcomingDayCount));
+    expect(upcoming.first['date'], dateKey(today.add(const Duration(days: 1))));
+    expect(upcoming.first['habits'][0]['id'], 'h 1');
+    expect(upcoming.first['habits'][0]['done'], isFalse);
     expect(Uri.parse(json['habits'][0]['toggleUri'] as String)
         .queryParameters['habitId'], 'h 1');
 

@@ -216,6 +216,32 @@ void main() {
       });
     });
 
+    test('a rejected refresh adopts a newer stored session (rotated by '
+        'the widget background refresh) instead of signing out', () {
+      fakeAsync((async) {
+        DateTime now() => t0.add(async.elapsed);
+        final api = FakeAuthApi(now: now);
+        final saved = api.issueSession('hero@example.com');
+        final store = InMemorySessionStore(saved);
+        final c = makeContainer(api: api, store: store, clock: now);
+        async.flushMicrotasks();
+        // Another isolate refreshed and stored a new session; the token
+        // this controller holds is now dead.
+        final rotated = sessionExpiringAt(
+          now().add(const Duration(hours: 2)),
+          n: 'rotated',
+        );
+        store.session = rotated;
+        api.revokeAll();
+        async.elapse(const Duration(hours: 1));
+        final s = c.read(authControllerProvider);
+        expect(s, isA<SignedIn>());
+        expect((s as SignedIn).session, rotated);
+        expect(store.session, rotated);
+        c.dispose();
+      });
+    });
+
     test('offline refresh keeps the session and retries after 30s', () {
       fakeAsync((async) {
         DateTime now() => t0.add(async.elapsed);

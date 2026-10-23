@@ -7,4 +7,8 @@ WidgetStore? createPlatformWidgetStore() => null;
 Future<void> initPlatformWidgets() async {}
 
 /// Web: no background isolate to hear from. Returns a disposer.
-void Function() listenForWidgetSignals(void Function() onSignal) => () {};
+void Function() listenForWidgetSignals(
+  void Function() onSignal, {
+  void Function()? onRefresh,
+}) =>
+    () {};

@@ -60,4 +60,9 @@ dependencies {
     // `api` dependency; it is declared here too so the app does not depend on
     // the plugin's transitive graph. Keep it in step with home_widget's version.
     implementation("androidx.glance:glance-appwidget:1.2.0")
+    // Background daily refresh of the widgets (widgets/WidgetRefresh.kt).
+    // Not a new library in the APK: home_widget 0.10 already ships it (as an
+    // `implementation` dependency, so it is not on our compile classpath) for
+    // its background callback. Keep it at home_widget's version.
+    implementation("androidx.work:work-runtime-ktx:2.11.2")
 }

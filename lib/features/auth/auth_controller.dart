@@ -257,9 +257,29 @@ class AuthController extends Notifier<AuthState>
       return fresh;
     } on ApiException catch (e) {
       if (_isTransient(e)) rethrow;
+      // The home-screen widget's background refresh (another isolate) may
+      // have rotated the refresh token and stored the new session: adopt
+      // it instead of signing out.
+      final stored = await _storedSessionOrNull();
+      if (ref.mounted &&
+          stored != null &&
+          stored.refreshToken != before.refreshToken &&
+          session?.refreshToken == before.refreshToken) {
+        state = SignedIn(stored);
+        _schedule(stored);
+        return stored;
+      }
       if (ref.mounted && session?.refreshToken == before.refreshToken) {
         await _signOutLocally();
       }
+      return null;
+    }
+  }
+
+  Future<Session?> _storedSessionOrNull() async {
+    try {
+      return await _store.read();
+    } catch (_) {
       return null;
     }
   }

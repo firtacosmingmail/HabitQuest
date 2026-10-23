@@ -17,6 +17,7 @@ Native code must use exactly these values. The package is
 | Container | App Group **`group.com.vvs.habitquest`** (`UserDefaults(suiteName:)`) | SharedPreferences file **`HomeWidgetPreferences`** (`HomeWidgetPlugin.getData(context)`) |
 | Snapshot key | `hq_widget_snapshot` (String, JSON) | `hq_widget_snapshot` (String, JSON) |
 | Toggle queue key | `hq_widget_toggle_queue` (internal, see below) | same |
+| Refresh status key | – | `hq_widget_refresh_status` (internal: Dart reports a background refresh's outcome to `WidgetRefreshWorker`) |
 
 Runner already has the App Group entitlement
 (`ios/Runner/Runner.entitlements`). The widget extension needs the same group.
@@ -48,8 +49,12 @@ key. Check-offs go through the interactive callback (see below).
   "quote": {
     "text": "Keep going.",
     "author": "Ada",
-    "attribution": "— Ada"
-  }
+    "attribution": "— Ada",
+    "day": "2026-10-17"
+  },
+  "upcoming": [
+    { "date": "2026-10-18", "habits": [ { "id": "6f1c…", "name": "Walk", "…": "…", "done": false } ] }
+  ]
 }
 ```
 
@@ -62,7 +67,8 @@ key. Check-offs go through the interactive callback (see below).
 | `habits` | Today's due habits in app order (empty unless `ok`). Archived and deleted habits are never included. |
 | `habits[].color` | ARGB as an unsigned 32-bit integer (`0xAARRGGBB`), so read it as a 64-bit integer. `colorHex` is the same colour as `#RRGGBB`. |
 | `habits[].toggleUri` | The check-off URI for that habit (see below). |
-| `quote` | Today's quote, or `null` when there is none (not loaded yet, offline with no cache, or signed out). `author` is `null` for anonymous quotes; `attribution` is ready to display ("— Unknown" when anonymous). |
+| `quote` | Today's quote, or `null` when there is none (not loaded yet, offline with no cache, or signed out). `author` is `null` for anonymous quotes; `attribution` is ready to display ("— Unknown" when anonymous). `day` is the local day it is the quote of (`null` in snapshots written before 2026-10-23); when it is before today the quote is yesterday's and the background refresh fetches a new one. Widgets keep showing it meanwhile. |
+| `upcoming` | The due habits (same shape as `habits`, `done: false`) of the next 7 days after `date`, precomputed by the app from local data (habits, schedules, the completion log). When `date` is before today, a widget shows the entry for today if there is one (Android: `WidgetSnapshot.kt`), so Today's habits rolls over at midnight even before anything rewrote the snapshot. Empty when signed out. "N times per week" habits are computed with the check-ins known when the snapshot was written. |
 
 When no snapshot exists yet (the app has never run), treat it as `signedOut`.
 
@@ -93,8 +99,136 @@ cases:
 
 Unchanged content is not rewritten. The widgets should still roll over at
 midnight on their own: an Android update period or alarm, or an iOS timeline
-entry at the next midnight. They do this by treating an older `date` as "all
-not done".
+entry at the next midnight. They do this by using today's `upcoming` entry
+(or, without one, treating an older `date` as "all not done"). On Android a
+background job also rewrites the snapshot with today's quote; see the next
+section.
+
+## Daily roll-over without the app (Android)
+
+**Bug (reported 2026-10-23, Galaxy S24 Ultra):** the Daily quote widget kept
+yesterday's quote until the app was opened and closed. **Root cause:** the
+midnight alarm (`MidnightRefresh`, home_widget's `HomeWidgetScheduler`) and
+`updatePeriodMillis` only made the Glance widgets *re-render the stored
+snapshot*. Nothing rewrote that snapshot until the app ran: only the running
+app fetched the quote (`GET /quotes` needs the user's bearer token, see
+`supabase/API.md`), and its in-app midnight `Timer` does not run when the app
+is not running, nor while the phone sleeps (Dart timers stop during deep
+sleep). The habits widget had the same issue in a milder form: it showed
+yesterday's list, unchecked, instead of today's due habits.
+
+**Fix:** a background refresh that rolls the snapshot over and fetches today's
+quote, with no new Flutter dependency:
+
+1. **Scheduling, native (`widgets/WidgetRefresh.kt`).** Jetpack WorkManager
+   (`androidx.work`, already in the APK: home_widget 0.10 runs its background
+   callback on it) runs `WidgetRefreshWorker`:
+   - a one-off **a minute after every local midnight** (unique name per night,
+     no constraint, so the habits roll over offline too; each run arms the
+     next night);
+   - a **periodic safety net every 4 h**, network-constrained (with
+     exponential backoff from 15 min), which also catches up after a reboot,
+     Doze or a missed midnight;
+   - after an offline midnight run, a network-constrained **catch-up** that
+     runs as soon as there is a connection.
+
+   The work is armed from the widget receivers' `onUpdate` (KEEP policy, so
+   repeated calls are cheap) and cancelled when the last widget is removed:
+   no widget, no background work.
+2. **The worker wakes Dart** through home_widget's background callback with
+   `habitquest://widget/refresh?id=<uuid>` (`HomeWidgetBackgroundWorker`, the
+   same headless engine as widget check-offs). It waits up to 30 s for Dart to
+   write `{"id", "outcome"}` under `hq_widget_refresh_status`, which keeps the
+   process alive during the fetch and lets WorkManager retry: `retryLater`
+   makes the periodic and catch-up runs retry with backoff.
+3. **Dart does the work (`widget_background_refresh.dart`)**, reusing the app's
+   code (no HTTP or auth in Kotlin):
+   - If the app is alive in the same process (its `IsolateNameServer` port
+     answers within 3 s), the app does it itself
+     (`WidgetBridge.refreshFromBackground`: day roll-over, today's quote,
+     snapshot write), because its isolate owns the session and the Hive boxes.
+   - Otherwise the session is read from secure storage (a failing read is
+     *not* treated as a sign-out). Habits roll over locally from `upcoming`
+     (`WidgetSnapshot.rolledOverTo`) and are written at once. If `quote.day`
+     is not today, the quote is fetched through the app's own
+     `quotesApiProvider` → `AuthenticatedTransport` → `AuthController` in a
+     short-lived `ProviderContainer`. An expired access token is refreshed
+     first (and the new session stored), and a 401 is refreshed and retried
+     once, exactly as in the app. The snapshot is re-read just before the
+     quote is written, so a widget check-off made meanwhile is kept.
+   - Hive is never opened in the background.
+
+| Situation | Result |
+|---|---|
+| Online, signed in | Today's habits (not done) and today's quote; both widgets refreshed. |
+| Snapshot already today's, with today's quote | Nothing written, **no network call** (the common periodic run). |
+| Offline / server error | Habits roll over; yesterday's quote stays; retried (catch-up / backoff / next periodic run). The snapshot is never wiped. |
+| No stored session | The `signedOut` ("Open HabitQuest") snapshot. |
+| Refresh token rejected | `AuthController` clears the session as the app would; `signedOut` snapshot. |
+| Session storage unreadable | Nothing changes; retried later. |
+| No snapshot yet / snapshot says signed out | Left to the app (nothing to roll over). |
+| No quotes on the server (404) | The old quote is kept. |
+
+**Token rotation across isolates.** If the background refresh rotates the
+refresh token while the app process is starting, the app may still hold the
+old token. When its refresh is then rejected, `AuthController` first re-reads
+the stored session and adopts a newer one instead of signing out
+(`auth_controller_test.dart`).
+
+**Battery.** At most one run per night plus one every 4 h, and only while a
+widget exists. Typical runs read SharedPreferences and exit without network.
+No exact alarms or wake locks are added (the existing midnight re-render
+alarm is unchanged), and WorkManager batches the runs into Doze maintenance
+windows.
+
+**Deep links are unaffected.** The refresh URI only ever goes to the
+background receiver and never opens `MainActivity`. The "consumed once"
+handling of widget links (3987db2) is unchanged.
+
+**Check it on a device (debug build):**
+
+```sh
+adb -s <serial> shell run-as com.vvs.habitquest \
+  cat shared_prefs/HomeWidgetPreferences.xml        # see hq_widget_snapshot
+# Make the snapshot stale: copy the file out, change "date" and quote "day"
+# to yesterday (and the quote text), push it back with run-as, then
+# force-stop the app so the edited prefs are re-read.
+adb -s <serial> shell am force-stop com.vvs.habitquest
+adb -s <serial> shell dumpsys jobscheduler | grep -B2 -A10 com.vvs.habitquest  # find the WorkManager job id
+adb -s <serial> shell cmd jobscheduler run -f com.vvs.habitquest <job id>
+adb -s <serial> logcat -s HabitQuestWidgets WidgetBridge   # "Widget refresh (periodic): updated"
+```
+
+Tests: `test/features/widgets_bridge/widget_background_refresh_test.dart` (day
+roll-over, offline, server error, signed out, token refresh, rejected refresh,
+unreadable session, unchanged snapshot on failure) and
+`widget_bridge_test.dart` (app-alive path).
+
+## iOS: same problem, not fixed yet
+
+The WidgetKit timeline (`ios/HabitQuestWidgets/WidgetSnapshot.swift`) has one
+entry now and one at the next local midnight, both built from the *same*
+stored snapshot. So the iOS Daily quote widget also shows yesterday's quote
+until the app runs. iOS gives no reliable way to run Dart on a schedule:
+`BGAppRefreshTask` runs when the system decides, and not at all after a
+force-quit. What iOS would need (not done here: the iOS project cannot be
+built on this Mac):
+
+1. **Habits:** in `WidgetContent.from`, use the snapshot's `upcoming` entry
+   for the entry's day when `date` is older (the Dart side already writes
+   it), as `WidgetSnapshot.kt` does.
+2. **Quote, offline-proof:** have the app also write the next few days'
+   quotes. `GET /quotes?date=` accepts future dates, so this is a Dart-only
+   change, e.g. an `upcomingQuotes: [{day, text, author}]` field. The timeline
+   would then show the right quote in its midnight entry with no network.
+   This also helps Android when the phone is offline at midnight. It was not
+   done here because a quote edited or rescheduled later by an admin would
+   only be picked up on the next fetch.
+3. **Or fetch in the extension:** `getTimeline` may make a network request,
+   but it needs the session. That means sharing it through a keychain access
+   group (Runner and the extension) and re-implementing `auth-refresh` in
+   Swift, i.e. duplicated auth logic. Option 2 is preferred.
+
 
 ## Deep links
 
@@ -188,6 +322,8 @@ conditional import) and on desktop (`widgetStoreProvider` is `null`).
 | `widget_bridge.dart` | Riverpod wiring: listeners, writes, midnight timer, link handler. |
 | `widget_bridge_bootstrap.dart` | Starts the bridge in `main.dart`, handles resume and the background signal. |
 | `widget_links.dart` | Parses widget URIs and maps them to routes (used by `app_router.dart`). |
+| `widget_background_refresh.dart` | The daily background refresh: local roll-over + today's quote through the app's auth/quotes stack. |
+| `android/.../widgets/WidgetRefresh.kt` | WorkManager scheduling (midnight, periodic, catch-up) and the worker that wakes Dart. |
 | `platform_widget_bridge*.dart` | The home_widget calls (io) and the web stub. |
 
 Tests are in `test/features/widgets_bridge/`.

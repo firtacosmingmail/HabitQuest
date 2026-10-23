@@ -94,6 +94,31 @@ class WidgetBridge {
     await applyQueue();
   }
 
+  /// The background refresh task ran while the app is alive (it delegates
+  /// to the app, which owns the session and the boxes): roll the day over,
+  /// make sure today's quote is loaded, and rewrite the snapshot. Timers
+  /// do not tick while the device sleeps, so this also covers a midnight
+  /// timer that fired late. Never throws.
+  Future<void> refreshFromBackground() async {
+    if (!_started || _disposed) return;
+    _checkDayChange();
+    _armMidnight();
+    try {
+      final today = _ref.read(todayProvider);
+      final daily = await _ref
+          .read(todayQuoteProvider.future)
+          .timeout(const Duration(seconds: 30));
+      if (_disposed) return;
+      if (daily == null || dateKey(daily.date) != dateKey(today)) {
+        await _ref.read(todayQuoteProvider.notifier).refresh();
+      }
+    } on Object catch (e) {
+      developer.log('Quote refresh failed: $e', name: 'WidgetBridge');
+    }
+    if (_disposed) return;
+    await writeNow();
+  }
+
   /// Applies the check-offs queued by the widgets' background callback,
   /// then rewrites the snapshot (forced: the widget may show an optimistic
   /// flip). Concurrent calls share one run. Returns the check-ins changed.
@@ -158,13 +183,15 @@ class WidgetBridge {
     final signedIn = auth is SignedIn;
     final due = _ref.read(dueTodayProvider);
     if (signedIn && !due.hasValue) return null;
-    final quote = _ref.read(todayQuoteProvider).value?.quote;
+    final daily = _ref.read(todayQuoteProvider).value;
     return buildWidgetSnapshot(
       signedIn: signedIn,
       today: _ref.read(todayProvider),
       dueToday: due.value ?? const [],
       log: _ref.read(completionsProvider).value ?? const CompletionLog.empty(),
-      quote: signedIn ? quote : null,
+      quote: signedIn ? daily?.quote : null,
+      quoteDay: daily?.date,
+      allHabits: _ref.read(habitsProvider).value,
       now: _now(),
     );
   }

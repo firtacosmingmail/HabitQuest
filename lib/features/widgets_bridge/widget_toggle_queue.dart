@@ -99,7 +99,7 @@ String _randomId() {
 /// Flips the habit's `done` in the stored snapshot, queues that wanted
 /// state and refreshes the widgets. If the snapshot is from an earlier day
 /// (the app has not run since midnight), it is rolled over to today first
-/// with every habit not done. Returns the queued toggle, or `null` when
+/// ([WidgetSnapshot.rolledOverTo]: today's precomputed habits, not done). Returns the queued toggle, or `null` when
 /// there is nothing to toggle (no snapshot, not `ok`, unknown habit).
 Future<PendingToggle?> recordWidgetToggle(
   WidgetStore store,
@@ -114,12 +114,7 @@ Future<PendingToggle?> recordWidgetToggle(
     return null;
   }
   final todayKey = dateKey(now);
-  if (snapshot.date != todayKey) {
-    snapshot = snapshot.copyWith(
-      date: todayKey,
-      habits: [for (final h in snapshot.habits) h.copyWith(done: false)],
-    );
-  }
+  snapshot = snapshot.rolledOverTo(todayKey);
   final index = snapshot.habits.indexWhere((h) => h.id == habitId);
   if (index < 0) return null;
   final done = !snapshot.habits[index].done;
