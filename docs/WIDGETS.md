@@ -185,6 +185,10 @@ windows.
 background receiver and never opens `MainActivity`. The "consumed once"
 handling of widget links (3987db2) is unchanged.
 
+> **Not yet verified on a device.** The daily roll-over fix was merged on the
+> strength of `flutter analyze`, `flutter test` and `flutter build apk --debug`
+> only; the phone was not connected. Use the steps below to check it.
+
 **Check it on a device (debug build):**
 
 ```sh
