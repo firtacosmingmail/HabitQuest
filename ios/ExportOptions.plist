@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  App Store Connect export options for Habit Quest (team 9QMS59N2BZ).
+  Used by: flutter build ipa --release --export-options-plist=ios/ExportOptions.plist
+  The release workflow replaces the two __..._PROFILE_NAME__ placeholders with
+  the Names of the App Store provisioning profiles it installs from secrets:
+    com.vvs.habitquest          Runner (app; Sign in with Apple + App Group)
+    com.vvs.habitquest.widgets  HabitQuestWidgets (WidgetKit extension; App Group)
+-->
+<plist version="1.0">
+<dict>
+	<key>method</key>
+	<string>app-store-connect</string>
+	<key>destination</key>
+	<string>export</string>
+	<key>teamID</key>
+	<string>9QMS59N2BZ</string>
+	<key>signingStyle</key>
+	<string>manual</string>
+	<key>signingCertificate</key>
+	<string>Apple Distribution</string>
+	<key>provisioningProfiles</key>
+	<dict>
+		<key>com.vvs.habitquest</key>
+		<string>__RUNNER_PROFILE_NAME__</string>
+		<key>com.vvs.habitquest.widgets</key>
+		<string>__WIDGETS_PROFILE_NAME__</string>
+	</dict>
+	<key>uploadSymbols</key>
+	<true/>
+	<key>manageAppVersionAndBuildNumber</key>
+	<false/>
+</dict>
+</plist>
