@@ -41,7 +41,22 @@ android {
         multiDexEnabled = true
     }
 
+    signingConfigs {
+        // Shared debug key committed to the repo (standard debug credentials) so
+        // every machine produces the SHA-1 registered for Google sign-in.
+        // Debug-only: never use this for a store release.
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("debug")
+        }
         release {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
