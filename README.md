@@ -1025,6 +1025,172 @@ directions, tombstones, offline → online, error isolation, cursors, the
 double-XP scenarios, account switching, the controller's triggers / backoff,
 and a widget test for the sync indicator.
 
+## Release CI
+
+[`.github/workflows/release.yml`](.github/workflows/release.yml) publishes a
+release to **Google Play (alpha track)** and **TestFlight** when a
+`release/VX.Y.Z` branch is created. It follows the same approach, action
+versions and secret names as the gratibum release workflow (certificate and
+profiles from secrets, no fastlane).
+
+### Cutting a release
+
+```sh
+git checkout main && git pull
+git checkout -b release/V1.2.3
+git push github release/V1.2.3
+```
+
+`release/v1.2.3` (lowercase `v`) works too. Anything else (`release/1.2.3`,
+`release/V1.2`, `release/V1.2.3-rc1`, leading zeros) fails the first job with
+a clear error.
+
+The workflow runs when the branch is **created**. Later pushes to the branch
+do not run it. To publish again from an existing release branch (after
+pushing a fix), open *Actions → Release → Run workflow*, pick the release
+branch and run it: it sets a new build number and publishes again.
+
+### What happens next
+
+| Job | Runner | What it does |
+|---|---|---|
+| **Set version** | ubuntu-latest | Runs [`.github/scripts/bump_version.sh`](.github/scripts/bump_version.sh): reads `X.Y.Z` from the branch name and rewrites `version:` in `pubspec.yaml` to `X.Y.Z+BUILD`, where `BUILD = max(current build + 1, github.run_number)`, so it always goes up. Commits `chore(release): set version to X.Y.Z+BUILD` as `github-actions[bot]` on the release branch and pushes it. The push uses `GITHUB_TOKEN`, which never triggers workflows, and the job also skips bot and version commits, so it doesn't loop. |
+| **Open PR into main** | ubuntu-latest | `gh pr create` from the release branch into `main`, unless a PR for that branch is already open. |
+| **Analyze and test** | ubuntu-latest | `flutter pub get`, `flutter analyze`, `flutter test`. Both builds wait for this job and don't run if it fails. |
+| **Android → Play alpha** | ubuntu-latest | Java 17, Flutter 3.38.10. Writes the upload keystore and `android/key.properties` from secrets, then runs `flutter build appbundle --release` with `ANDROID_REQUIRE_RELEASE_SIGNING=true` (no debug-key fallback in CI). Checks that the bundle is not debug-signed, keeps it as a run artifact, and uploads it with `r0adkll/upload-google-play` to the **alpha** (closed testing) track of `com.vvs.habitquest`. |
+| **iOS → TestFlight** | macos-26, Xcode 26.6 | Imports the distribution `.p12` into a temporary keychain. Installs the two App Store profiles, after checking each one's bundle ID, that it's an App Store profile, and its entitlements (app: Sign in with Apple + App Group; widget: App Group). Switches the `Runner` and `HabitQuestWidgets` Release configurations to manual signing with [`ios/scripts/ci_manual_signing.sh`](ios/scripts/ci_manual_signing.sh) (on the CI checkout only, never committed), fills the profile names into [`ios/ExportOptions.plist`](ios/ExportOptions.plist), and runs `flutter build ipa --release`. Uploads the IPA to TestFlight with `xcrun altool` and the App Store Connect API key. The keychain, profiles and key are always deleted at the end. |
+
+Both platforms get the same version: `X.Y.Z` becomes Android `versionName` and
+iOS `CFBundleShortVersionString` (the widget extension too). `BUILD` becomes
+Android `versionCode` and iOS `CFBundleVersion`. The signed AAB and IPA are
+also kept as run artifacts for 14 days.
+
+Test the branch-name parsing and version bump locally (it works on temporary
+copies of `pubspec.yaml`):
+
+```sh
+.github/scripts/test_bump_version.sh
+```
+
+### Release signing locally (Android)
+
+`android/app/build.gradle.kts` signs **release** builds with the Play upload
+key, read from `android/key.properties`:
+
+```properties
+storeFile=/absolute/path/to/upload-keystore.jks   # relative paths are relative to android/app/
+storePassword=...
+keyAlias=upload
+keyPassword=...
+```
+
+It can also come from the `ANDROID_KEYSTORE_PATH`, `ANDROID_KEYSTORE_PASSWORD`,
+`ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD` environment variables. With
+neither, release builds fall back to the shared debug key, so a plain `flutter
+build apk --release` still works (but can't be uploaded to Play). **Debug**
+builds always use `android/app/debug.keystore`. `key.properties`, `*.jks`,
+`*.keystore` (except `app/debug.keystore`), `*.p12`, `*.p8`,
+`*.mobileprovision` and `client_secret_*.json` are gitignored.
+
+### Secrets
+
+Add them under *GitHub → Settings → Secrets and variables → Actions →
+Repository secrets* of `firtacosmingmail/HabitQuest`, or with `gh secret set
+NAME` (it prompts for the value; `gh secret set NAME < file` reads a file).
+Never commit any of these files.
+
+| Secret | What it is | How to get it |
+|---|---|---|
+| `ANDROID_KEYSTORE_BASE64` | The Play **upload** keystore (`.jks`), base64 | Generate it once: `keytool -genkeypair -v -keystore upload-keystore.jks -alias upload -keyalg RSA -keysize 2048 -validity 10000` (keep the file and passwords in a password manager; losing it means asking Google for an upload key reset). Then `base64 -i upload-keystore.jks \| gh secret set ANDROID_KEYSTORE_BASE64` |
+| `ANDROID_KEYSTORE_PASSWORD` | The keystore (store) password | The one you chose in `keytool`. `gh secret set ANDROID_KEYSTORE_PASSWORD` |
+| `ANDROID_KEY_ALIAS` | Alias of the key in the keystore | `upload` in the command above. `keytool -list -keystore upload-keystore.jks` shows it |
+| `ANDROID_KEY_PASSWORD` | The key password | Same as the store password unless you set a different one |
+| `PLAY_SERVICE_ACCOUNT_JSON` | JSON key of a Google Cloud service account with release access in Play Console, as **plain JSON (not base64)** | 1. Google Cloud Console → IAM & Admin → Service accounts: create one (any project) and add a JSON key. 2. Enable the *Google Play Android Developer API* in that project. 3. Play Console → *Users and permissions* → invite the service account's email, with access to Habit Quest and at least *Release to testing tracks* (plus *View app information*). 4. `gh secret set PLAY_SERVICE_ACCOUNT_JSON < service-account.json` |
+| `IOS_DIST_CERT_P12_BASE64` | The **Apple Distribution** certificate plus private key of team `9QMS59N2BZ`, exported as `.p12`, base64 | Keychain Access → *My Certificates* → right-click "Apple Distribution: …" → Export → `.p12` with a password. (No certificate yet: Xcode → Settings → Accounts → Manage Certificates → + → Apple Distribution.) Then `base64 -i dist.p12 \| gh secret set IOS_DIST_CERT_P12_BASE64` |
+| `IOS_DIST_CERT_PASSWORD` | The password you set when exporting the `.p12` | `gh secret set IOS_DIST_CERT_PASSWORD` |
+| `IOS_PROVISIONING_PROFILE_BASE64` | **App Store** provisioning profile for the app, `com.vvs.habitquest`, with that certificate, base64 | developer.apple.com → Certificates, IDs & Profiles → Profiles → + → *App Store Connect* → App ID `com.vvs.habitquest` → the distribution certificate → name it (e.g. *Habit Quest App Store*). The App ID must have **Sign in with Apple** and **App Groups** (`group.com.vvs.habitquest`) enabled *before* you create the profile. `base64 -i Habit_Quest_App_Store.mobileprovision \| gh secret set IOS_PROVISIONING_PROFILE_BASE64` |
+| `IOS_WIDGETS_PROVISIONING_PROFILE_BASE64` | **App Store** provisioning profile for the WidgetKit extension, `com.vvs.habitquest.widgets`, base64 | Same steps with App ID `com.vvs.habitquest.widgets` (it needs **App Groups** with `group.com.vvs.habitquest`). `base64 -i Habit_Quest_Widgets_App_Store.mobileprovision \| gh secret set IOS_WIDGETS_PROVISIONING_PROFILE_BASE64` |
+| `ASC_KEY_ID` | App Store Connect API key ID (10 characters) | App Store Connect → *Users and Access* → *Integrations* → *App Store Connect API* → *Team Keys* → generate a key with the **App Manager** (or Admin) role. Copy its Key ID |
+| `ASC_ISSUER_ID` | The Issuer ID (a UUID) shown at the top of that page | Copy it from the page |
+| `ASC_PRIVATE_KEY_P8_BASE64` | The downloaded `AuthKey_<KEYID>.p8`, base64. Apple lets you download it **only once** | `base64 -i AuthKey_ABC123DEFG.p8 \| gh secret set ASC_PRIVATE_KEY_P8_BASE64` |
+
+The workflow reads each profile's name and UUID itself, and fails with a
+clear error if a secret is missing, a profile is for the wrong bundle ID, is
+not an App Store profile, or lacks an entitlement. Profiles expire after a
+year and become invalid when their certificate is revoked; then regenerate
+them and update the secrets. If you add a capability to either target later,
+regenerate that profile too.
+
+Optional repository **variable** (*Variables* tab, not a secret):
+
+| Variable | Default | Use |
+|---|---|---|
+| `PLAY_RELEASE_STATUS` | `completed` | Set it to `draft` while the app is still a draft in Play Console (Play rejects `completed` releases for draft apps). Remove it once the app has been reviewed and published to a track. |
+
+### One-time setup before the first release
+
+**GitHub**
+
+1. *Settings → Actions → General → Workflow permissions*: tick **Allow GitHub
+   Actions to create and approve pull requests** (the PR job needs it).
+2. Branch protection or rulesets must let `github-actions[bot]` push to
+   `release/*` branches (the version commit).
+3. Add all the secrets above.
+
+**Google Play**
+
+1. Create the app in Play Console with package name `com.vvs.habitquest`,
+   and finish the required *App content* forms (privacy policy, ads: yes, data
+   safety, content rating, target audience).
+2. Keep **Play App Signing** enabled (the default for new apps), with the
+   upload key from `ANDROID_KEYSTORE_BASE64` as the **upload key**. Google
+   then holds the app signing key.
+3. **The first upload must be manual**: the Play API can't upload to an app
+   that has never had a build. Build a signed bundle locally (with
+   `android/key.properties` pointing at the upload keystore) using `flutter
+   build appbundle --release`, or download the `android-aab-…` artifact from
+   a release run. Upload it in Play Console → *Testing → Closed testing →
+   Alpha* (create the release there). Set `PLAY_RELEASE_STATUS=draft` until
+   the app has passed review.
+4. In the alpha track, add testers (an email list or Google Group).
+5. Add the service account to Play Console (see `PLAY_SERVICE_ACCOUNT_JSON`).
+6. **Google sign-in**: in Google Cloud → *Credentials*, add Android OAuth
+   clients (package `com.vvs.habitquest`) for the **SHA-1 of the upload key**
+   (`keytool -list -v -keystore upload-keystore.jks -alias upload`) **and the
+   SHA-1 of the Play app signing key** (Play Console → *Test and release →
+   App integrity → App signing*). Builds installed from Play are signed with
+   the app signing key, so without that client Google sign-in fails in
+   store builds. See [Sign in with Google & Apple](#sign-in-with-google--apple).
+
+**Apple**
+
+1. In developer.apple.com, make sure the App IDs `com.vvs.habitquest` (Sign
+   in with Apple + App Groups) and `com.vvs.habitquest.widgets` (App Groups),
+   and the App Group `group.com.vvs.habitquest`, exist. Xcode's automatic
+   signing usually created them already.
+2. Create an Apple Distribution certificate if the team has none, and the two
+   App Store profiles (see the secrets table).
+3. Create the app in App Store Connect (*Apps → + → New App*, bundle ID
+   `com.vvs.habitquest`, SKU of your choice). TestFlight uploads fail until
+   the app record exists.
+4. Create the App Store Connect API key (see `ASC_*` above).
+5. In TestFlight, add internal testers. Each build also needs the export
+   compliance answer: answer it in App Store Connect per build, or add
+   `ITSAppUsesNonExemptEncryption` to `ios/Runner/Info.plist` once you have
+   decided the correct value for the app.
+
+### When something fails
+
+- **Set version fails on the branch name**: delete the branch and push one
+  named `release/VX.Y.Z`.
+- **Analyze/test fails**: fix it on the release branch, push, then run the
+  workflow manually on that branch.
+- **One store upload failed** (e.g. a missing secret): fix the cause, then
+  *Re-run failed jobs* (same commit and build number), or run the workflow
+  manually on the branch (new build number).
+- **Play: "APK specifies a version code that has already been used"**: run
+  the workflow manually to get a higher build number.
+
 ## Backend (Supabase)
 
 The backend lives in [`supabase/`](supabase/) and targets the Supabase project

@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -5,6 +7,82 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+// ---------------------------------------------------------------------------
+// Release signing (Google Play upload key)
+//
+// Read from, in this order:
+//   1. android/key.properties (gitignored):
+//        storeFile=<path to the .jks; relative paths are relative to android/app/>
+//        storePassword=<keystore password>
+//        keyAlias=<key alias>
+//        keyPassword=<key password>
+//   2. Environment variables (CI can set these instead of writing the file):
+//        ANDROID_KEYSTORE_PATH, ANDROID_KEYSTORE_PASSWORD,
+//        ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+//
+// With neither, release builds fall back to the debug key (android/app/
+// debug.keystore) so local release builds need no secrets. Set
+// ANDROID_REQUIRE_RELEASE_SIGNING=true (the release workflow does) to fail
+// the build instead of falling back. Nothing secret lives in this file;
+// key.properties, *.jks and *.keystore (except app/debug.keystore) are
+// gitignored in android/.gitignore.
+// ---------------------------------------------------------------------------
+class ReleaseSigning(
+    val storeFile: File,
+    val storePassword: String,
+    val keyAlias: String,
+    val keyPassword: String,
+)
+
+val releaseSigning: ReleaseSigning? = run {
+    // key.properties key -> environment variable
+    val envNames = mapOf(
+        "storeFile" to "ANDROID_KEYSTORE_PATH",
+        "storePassword" to "ANDROID_KEYSTORE_PASSWORD",
+        "keyAlias" to "ANDROID_KEY_ALIAS",
+        "keyPassword" to "ANDROID_KEY_PASSWORD",
+    )
+    val keys = envNames.keys.toList()
+    val propsFile = rootProject.file("key.properties")
+    val values: Map<String, String?>
+    val source: String
+    val missing: List<String>
+    if (propsFile.exists()) {
+        val props = Properties()
+        propsFile.inputStream().use { props.load(it) }
+        values = keys.associateWith { props.getProperty(it)?.trim() }
+        source = "android/key.properties"
+        missing = keys.filter { values[it].isNullOrBlank() }
+    } else {
+        values = keys.associateWith { System.getenv(envNames.getValue(it)) }
+        source = "environment variables"
+        missing = keys.filter { values[it].isNullOrBlank() }.map { envNames.getValue(it) }
+    }
+    when {
+        missing.isEmpty() -> {
+            val store = file(values.getValue("storeFile")!!)
+            if (!store.exists()) {
+                throw GradleException("Release keystore $store (from $source) does not exist")
+            }
+            ReleaseSigning(
+                storeFile = store,
+                storePassword = values.getValue("storePassword")!!,
+                keyAlias = values.getValue("keyAlias")!!,
+                keyPassword = values.getValue("keyPassword")!!,
+            )
+        }
+        // A half-configured key is a mistake, not a request for the fallback.
+        missing.size < keys.size ->
+            throw GradleException("Release signing from $source is missing: ${missing.joinToString()}")
+        System.getenv("ANDROID_REQUIRE_RELEASE_SIGNING") == "true" ->
+            throw GradleException(
+                "ANDROID_REQUIRE_RELEASE_SIGNING=true but no release key is configured " +
+                    "(android/key.properties or ANDROID_KEYSTORE_* env vars)",
+            )
+        else -> null
+    }
 }
 
 android {
@@ -51,6 +129,15 @@ android {
             keyAlias = "androiddebugkey"
             keyPassword = "android"
         }
+        // Play upload key, only when one is configured (see releaseSigning above).
+        if (releaseSigning != null) {
+            create("release") {
+                storeFile = releaseSigning.storeFile
+                storePassword = releaseSigning.storePassword
+                keyAlias = releaseSigning.keyAlias
+                keyPassword = releaseSigning.keyPassword
+            }
+        }
     }
 
     buildTypes {
@@ -58,9 +145,14 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // With an upload key: signed for Google Play. Without one: the debug
+            // key, so a local `flutter build apk --release` / `flutter run
+            // --release` still works (such builds cannot be uploaded to Play).
+            signingConfig = if (releaseSigning != null) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 }

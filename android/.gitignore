@@ -15,3 +15,8 @@ key.properties
 # Shared debug-only key (standard debug credentials); its SHA-1 is registered
 # for Google sign-in. Never commit a release/upload key.
 !app/debug.keystore
+# Play upload key material written by CI or kept locally; never commit.
+upload-keystore.*
+*.p12
+# Google OAuth client secrets downloaded from Cloud Console.
+client_secret_*.json

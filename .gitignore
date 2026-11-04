@@ -44,6 +44,14 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
+# Release signing material (see README "Release CI"); never commit.
+*.p8
+*.p12
+*.mobileprovision
+*.jks
+play-service-account*.json
+client_secret_*.json
+
 # Local dart-define files (see README "Environment config")
 /env/*.json
 !/env/example.json

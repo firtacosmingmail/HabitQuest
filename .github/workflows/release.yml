@@ -1,0 +1,366 @@
+# Release pipeline: create and push a branch named release/VX.Y.Z (or
+# release/vX.Y.Z) and this workflow
+#   1. sets pubspec.yaml to X.Y.Z+BUILD (BUILD = max(current + 1, run number))
+#      and pushes that commit to the release branch,
+#   2. opens a PR from the release branch into main (if none is open),
+#   3. runs flutter analyze and flutter test (both builds wait for them),
+#   4. builds a signed App Bundle and uploads it to the Google Play alpha track,
+#   5. builds a signed IPA (app + widget extension) and uploads it to TestFlight.
+# See README "Release CI" for the secrets it needs and the one-time setup.
+#
+# It runs when a release branch is *created*. To run it again on an existing
+# release branch (after pushing a fix), use "Run workflow" (workflow_dispatch)
+# and pick that branch: it sets a new build number and publishes again.
+#
+# Loop prevention: the version job commits as github-actions[bot] and pushes
+# with GITHUB_TOKEN. GitHub never starts workflow runs for pushes made with
+# GITHUB_TOKEN, and that push is not a branch creation anyway. The `if:` on the
+# version job also skips runs by the bot or whose head commit is the version
+# commit. When it skips, every other job skips too.
+name: Release
+
+on:
+  push:
+    branches:
+      - 'release/V*'
+      - 'release/v*'
+  workflow_dispatch:
+
+# One release run per branch at a time; a second one waits for the first.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  # Keep in step with the Flutter used for development (.metadata / README).
+  FLUTTER_VERSION: '3.38.10'
+  VERSION_COMMIT_PREFIX: 'chore(release): set version to'
+  BASE_BRANCH: main
+
+jobs:
+  version:
+    name: Set version
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.created &&
+       github.actor != 'github-actions[bot]' &&
+       !startsWith(github.event.head_commit.message, 'chore(release): set version to'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
+      version: ${{ steps.bump.outputs.version }}
+      version_name: ${{ steps.bump.outputs.version_name }}
+    steps:
+      - name: Check that this is a branch
+        if: github.ref_type != 'branch'
+        run: |
+          echo "::error::Run this workflow on a release/VX.Y.Z branch, not a ${{ github.ref_type }}"
+          exit 1
+
+      - name: Check out the release branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Set version in pubspec.yaml
+        id: bump
+        env:
+          BRANCH: ${{ github.ref_name }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: .github/scripts/bump_version.sh "$BRANCH" pubspec.yaml "$RUN_NUMBER"
+
+      - name: Commit and push
+        id: commit
+        env:
+          BRANCH: ${{ github.ref_name }}
+          VERSION: ${{ steps.bump.outputs.version }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add pubspec.yaml
+          git commit -m "${VERSION_COMMIT_PREFIX} ${VERSION}"
+          # Fails (instead of overwriting) if the branch moved since checkout.
+          git push origin "HEAD:refs/heads/${BRANCH}"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "### Version ${VERSION} ($(git rev-parse --short HEAD))" >> "$GITHUB_STEP_SUMMARY"
+
+  pr:
+    name: Open PR into main
+    needs: version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Create PR unless one is open
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+          VERSION: ${{ needs.version.outputs.version }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          existing="$(gh pr list --head "$BRANCH" --base "$BASE_BRANCH" --state open --json url --jq '.[0].url')"
+          if [ -n "$existing" ]; then
+            echo "PR already open: $existing" | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          body="$(printf 'Release %s.\n\n- Android: signed AAB to the Google Play **alpha** track\n- iOS: signed IPA to **TestFlight**\n\nBuilt by %s' "$VERSION" "$RUN_URL")"
+          url="$(gh pr create --base "$BASE_BRANCH" --head "$BRANCH" --title "Release ${VERSION}" --body "$body")"
+          echo "Opened $url" >> "$GITHUB_STEP_SUMMARY"
+
+  checks:
+    name: Analyze and test
+    needs: version
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out the versioned commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.sha }}
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: flutter pub get
+        run: flutter pub get
+
+      - name: flutter analyze
+        run: flutter analyze
+
+      - name: flutter test
+        run: flutter test
+
+  android:
+    name: Android → Play alpha
+    needs: [version, checks]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out the versioned commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.sha }}
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: flutter pub get
+        run: flutter pub get
+
+      - name: Write upload keystore and key.properties
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          for v in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            [ -n "${!v}" ] || { echo "::error::secret $v is not set"; exit 1; }
+          done
+          umask 077
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
+          # storeFile is resolved relative to android/app/.
+          {
+            echo "storeFile=upload-keystore.jks"
+            echo "storePassword=${ANDROID_KEYSTORE_PASSWORD}"
+            echo "keyAlias=${ANDROID_KEY_ALIAS}"
+            echo "keyPassword=${ANDROID_KEY_PASSWORD}"
+          } > android/key.properties
+
+      - name: Build release app bundle
+        env:
+          # Fail instead of falling back to the debug key.
+          ANDROID_REQUIRE_RELEASE_SIGNING: 'true'
+        run: flutter build appbundle --release
+
+      - name: Check the bundle is not debug-signed
+        run: |
+          signer="$(keytool -printcert -jarfile build/app/outputs/bundle/release/app-release.aab)"
+          echo "$signer" | grep -E 'Owner:|SHA256:' | head -n 2
+          if echo "$signer" | grep -q 'CN=Android Debug'; then
+            echo "::error::app-release.aab is signed with the debug key"; exit 1
+          fi
+
+      # Before the Play upload, so the signed bundle can be downloaded and
+      # uploaded by hand (the very first Play upload must be manual).
+      - name: Keep the bundle as an artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-aab-${{ needs.version.outputs.version }}
+          path: build/app/outputs/bundle/release/app-release.aab
+          retention-days: 14
+
+      - name: Upload to Play alpha track
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.vvs.habitquest
+          releaseFiles: build/app/outputs/bundle/release/app-release.aab
+          track: alpha
+          releaseName: ${{ needs.version.outputs.version }}
+          # 'completed' rolls out to alpha testers right away. Set the repo
+          # variable PLAY_RELEASE_STATUS=draft while the app is still a draft
+          # in Play Console (Play rejects 'completed' for draft apps).
+          status: ${{ vars.PLAY_RELEASE_STATUS || 'completed' }}
+
+      - name: Remove signing material
+        if: always()
+        run: rm -f android/app/upload-keystore.jks android/key.properties
+
+  ios:
+    name: iOS → TestFlight
+    needs: [version, checks]
+    # Xcode 26 (iOS 26 SDK) is required for App Store Connect uploads;
+    # macos-26 ships it. Bump both together when Apple raises the bar.
+    runs-on: macos-26
+    timeout-minutes: 90
+    env:
+      APP_BUNDLE_ID: com.vvs.habitquest
+      WIDGETS_BUNDLE_ID: com.vvs.habitquest.widgets
+    steps:
+      - name: Check out the versioned commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.sha }}
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.6'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: flutter pub get
+        run: flutter pub get
+
+      - name: Import distribution certificate into a temporary keychain
+        env:
+          IOS_DIST_CERT_P12_BASE64: ${{ secrets.IOS_DIST_CERT_P12_BASE64 }}
+          IOS_DIST_CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+        run: |
+          for v in IOS_DIST_CERT_P12_BASE64 IOS_DIST_CERT_PASSWORD; do
+            [ -n "${!v}" ] || { echo "::error::secret $v is not set"; exit 1; }
+          done
+          umask 077
+          KEYCHAIN_PATH="$RUNNER_TEMP/release-signing.keychain-db"
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+          # Random per-run keychain password; never leaves this job.
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 24)"
+          echo "::add-mask::${KEYCHAIN_PASSWORD}"
+          CERT_PATH="$RUNNER_TEMP/dist_cert.p12"
+          printf '%s' "$IOS_DIST_CERT_P12_BASE64" | base64 --decode > "$CERT_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$IOS_DIST_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" > /dev/null
+          # Put the temporary keychain first in the search list, keep the others.
+          existing=()
+          while IFS= read -r k; do existing+=("$k"); done < <(security list-keychains -d user | tr -d '"' | sed 's/^[[:space:]]*//')
+          security list-keychains -d user -s "$KEYCHAIN_PATH" "${existing[@]}"
+          rm -f "$CERT_PATH"
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH" | grep -q 'Apple Distribution' \
+            || { echo "::error::no 'Apple Distribution' identity in the p12"; exit 1; }
+
+      - name: Install provisioning profiles (app + widget extension)
+        id: profiles
+        env:
+          IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+          IOS_WIDGETS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_WIDGETS_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          for v in IOS_PROVISIONING_PROFILE_BASE64 IOS_WIDGETS_PROVISIONING_PROFILE_BASE64; do
+            [ -n "${!v}" ] || { echo "::error::secret $v is not set"; exit 1; }
+          done
+          printf '%s' "$IOS_PROVISIONING_PROFILE_BASE64" | base64 --decode > "$RUNNER_TEMP/runner.mobileprovision"
+          printf '%s' "$IOS_WIDGETS_PROVISIONING_PROFILE_BASE64" | base64 --decode > "$RUNNER_TEMP/widgets.mobileprovision"
+          # Runner: Sign in with Apple + the App Group shared with the widgets.
+          ios/scripts/ci_install_profile.sh "$RUNNER_TEMP/runner.mobileprovision" "$APP_BUNDLE_ID" runner \
+            com.apple.developer.applesignin com.apple.security.application-groups
+          ios/scripts/ci_install_profile.sh "$RUNNER_TEMP/widgets.mobileprovision" "$WIDGETS_BUNDLE_ID" widgets \
+            com.apple.security.application-groups
+
+      - name: Configure manual signing
+        env:
+          RUNNER_PROFILE: ${{ steps.profiles.outputs.runner_name }}
+          WIDGETS_PROFILE: ${{ steps.profiles.outputs.widgets_name }}
+        run: |
+          ios/scripts/ci_manual_signing.sh Runner "$RUNNER_PROFILE"
+          ios/scripts/ci_manual_signing.sh HabitQuestWidgets "$WIDGETS_PROFILE"
+          /usr/libexec/PlistBuddy -c "Set :provisioningProfiles:${APP_BUNDLE_ID} ${RUNNER_PROFILE}" ios/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Set :provisioningProfiles:${WIDGETS_BUNDLE_ID} ${WIDGETS_PROFILE}" ios/ExportOptions.plist
+          if grep -q '_PROFILE_NAME__' ios/ExportOptions.plist; then
+            echo "::error::ExportOptions.plist placeholders were not substituted"; exit 1
+          fi
+
+      - name: Build IPA
+        run: flutter build ipa --release --export-options-plist=ios/ExportOptions.plist
+
+      - name: Upload to TestFlight
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY_P8_BASE64: ${{ secrets.ASC_PRIVATE_KEY_P8_BASE64 }}
+        run: |
+          for v in ASC_KEY_ID ASC_ISSUER_ID ASC_PRIVATE_KEY_P8_BASE64; do
+            [ -n "${!v}" ] || { echo "::error::secret $v is not set"; exit 1; }
+          done
+          umask 077
+          mkdir -p "$HOME/.appstoreconnect/private_keys"
+          printf '%s' "$ASC_PRIVATE_KEY_P8_BASE64" | base64 --decode \
+            > "$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8"
+          shopt -s nullglob
+          ipas=(build/ios/ipa/*.ipa)
+          [ "${#ipas[@]}" = 1 ] || { echo "::error::expected one IPA in build/ios/ipa, found ${#ipas[@]}"; exit 1; }
+          xcrun altool --upload-app --type ios --file "${ipas[0]}" \
+            --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
+
+      - name: Keep the IPA as an artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa-${{ needs.version.outputs.version }}
+          path: build/ios/ipa/*.ipa
+          retention-days: 14
+
+      - name: Delete keychain, profiles and API key
+        if: always()
+        env:
+          RUNNER_UUID: ${{ steps.profiles.outputs.runner_uuid }}
+          WIDGETS_UUID: ${{ steps.profiles.outputs.widgets_uuid }}
+        run: |
+          if [ -n "${KEYCHAIN_PATH:-}" ]; then
+            security delete-keychain "$KEYCHAIN_PATH" 2>/dev/null || true
+          fi
+          rm -f "$RUNNER_TEMP/dist_cert.p12" "$RUNNER_TEMP/runner.mobileprovision" "$RUNNER_TEMP/widgets.mobileprovision"
+          for uuid in "$RUNNER_UUID" "$WIDGETS_UUID"; do
+            [ -n "$uuid" ] || continue
+            rm -f "$HOME/Library/MobileDevice/Provisioning Profiles/${uuid}.mobileprovision" \
+                  "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles/${uuid}.mobileprovision"
+          done
+          rm -rf "$HOME/.appstoreconnect/private_keys"
