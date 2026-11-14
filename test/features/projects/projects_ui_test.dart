@@ -214,7 +214,7 @@ void main() {
       expect(find.textContaining('Due in 12 days'), findsOneWidget);
       expect(key('status-chip-t1'), findsOneWidget);
       expect(find.text('1/2 tasks'), findsOneWidget);
-      expect(key('work-split-placeholder'), findsOneWidget);
+      expect(key('work-split-view'), findsOneWidget);
     });
 
     testWidgets('the status chip sets the status manually', (tester) async {

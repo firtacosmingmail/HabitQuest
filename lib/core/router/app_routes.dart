@@ -37,7 +37,7 @@ abstract final class AppRoutes {
   static String habitDetails(String id) => '/habits/$id';
   static String editHabit(String id) => '/habits/$id/edit';
 
-  /// Project details: targets, sessions, work split placeholder.
+  /// Project details: targets, work split, sessions.
   static String projectDetails(String id) => '/projects/$id';
 
   /// Create a target in project [projectId].

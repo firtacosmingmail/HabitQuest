@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/router/app_routes.dart';
-import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/dates.dart';
 import '../../../core/widgets/message_view.dart';
 import '../../../domain/providers.dart';
@@ -13,6 +12,7 @@ import '../models/session.dart';
 import '../models/target.dart';
 import '../projects_providers.dart';
 import 'projects_screen.dart';
+import 'work_split_view.dart';
 import 'widgets/project_widgets.dart';
 
 /// How many past days of sessions can be marked from the details screen.
@@ -25,7 +25,7 @@ const upcomingSessionDays = 14;
 const maxUpcomingSessions = 10;
 
 /// Project details (`/projects/:id`): targets (deadline, status chip, plan
-/// progress), the work split placeholder, recent sessions to mark attended
+/// progress), the work split (week view of this project's blocks), recent sessions to mark attended
 /// and upcoming sessions.
 class ProjectDetailsScreen extends ConsumerWidget {
   final String projectId;
@@ -104,9 +104,7 @@ class ProjectDetailsScreen extends ConsumerWidget {
           else
             for (final t in targets) TargetTile(target: t, color: color),
           const SectionTitle('Work split'),
-          // PLACEHOLDER (calendar task): replace WorkSplitPlaceholder with the
-          // work split week view filtered to this project.
-          WorkSplitPlaceholder(projectId: projectId),
+          ProjectWorkSplit(projectId: projectId),
           _SessionsSection(project: project, targets: targets, color: color),
         ],
       ),
@@ -240,39 +238,28 @@ class TargetTile extends ConsumerWidget {
   }
 }
 
-/// PLACEHOLDER for the work split calendar (a separate task fills it with
-/// the week view filtered to [projectId]). Keyed `work-split-placeholder`.
-class WorkSplitPlaceholder extends StatelessWidget {
+/// Height of the work split card on the details screen.
+const projectWorkSplitHeight = 520.0;
+
+/// The [WorkSplitView] filtered to [projectId], in a fixed-height card (the
+/// details screen scrolls; the grid scrolls inside it).
+class ProjectWorkSplit extends StatelessWidget {
   final String projectId;
 
-  const WorkSplitPlaceholder({super.key, required this.projectId});
+  const ProjectWorkSplit({super.key, required this.projectId});
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    return Padding(
-      key: const ValueKey('work-split-placeholder'),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      child: Container(
-        height: 120,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(AppTheme.radius),
-          border: Border.all(color: scheme.outlineVariant, width: 2),
-          color: scheme.primary.withValues(alpha: 0.04),
-        ),
-        alignment: Alignment.center,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.view_week_rounded, color: scheme.primary, size: 32),
-            const SizedBox(height: 6),
-            Text(
-              'Work split calendar coming soon',
-              style: theme.textTheme.titleSmall,
-            ),
-          ],
-        ),
+    final height = (MediaQuery.sizeOf(context).height * 0.7).clamp(
+      360.0,
+      projectWorkSplitHeight,
+    );
+    return Card(
+      key: const ValueKey('project-work-split'),
+      clipBehavior: Clip.antiAlias,
+      child: SizedBox(
+        height: height,
+        child: WorkSplitView(projectId: projectId),
       ),
     );
   }
