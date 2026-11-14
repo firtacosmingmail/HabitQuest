@@ -829,6 +829,14 @@ against live with `cd admin && flutter run -d chrome` and sign in as an
 admin. **Hosting** `admin/build/web` on a static host is still in the
 backlog. Details in [admin/README.md](admin/README.md).
 
+**Pending: admin stats v2 (Projects).** Migration
+`20261114130000_admin_stats_projects.sql` replaces `admin_stats` so the XP
+totals and distributions include the project XP ledger (`state.projects`)
+and adds Projects usage counts (projects, targets done, plan tasks done,
+sessions attended). It reads the Projects tables, so it **must be applied
+after** the Projects migration `20261114120000_projects.sql`; then redeploy
+`admin-stats`. Not deployed yet (needs the user's go-ahead).
+
 ## Sign in with Google & Apple
 
 The login/register screen shows **Continue with Google** and **Sign in with
@@ -1106,9 +1114,11 @@ awarding different days both keep their XP. These scenarios are covered by
 
 The game state stays a single opaque JSON object on the server
 (`game_state.state`), so the projects ledger needs **no server schema
-change**. The admin `admin_stats` XP buckets only sum `checkIns` and
-`perfectDays` today; they should also sum `state.projects` (backend
-follow-up).
+change**. The admin stats (`admin_stats` v2, migration
+`20261114130000_admin_stats_projects.sql`) sum all three ledgers
+(`checkIns` + `perfectDays` + `projects`) for the XP distribution and also
+report the project XP alone; until that migration is deployed, the live
+admin stats still sum only `checkIns` and `perfectDays`.
 
 ### Mapping notes
 

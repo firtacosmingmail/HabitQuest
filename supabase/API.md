@@ -690,8 +690,16 @@ described under `GET /quotes?date=`. Other methods → `405`, sub-paths → `404
 `400 invalid_input`.
 
 Aggregates only: counts, per-day/per-week series, histograms and the
-most-loved quotes. No user id, email, display name or habit name is ever
-returned.
+most-loved quotes. No user id, email, display name, habit name, project name
+or target title is ever returned.
+
+The SQL behind it is `public.admin_stats` from
+`migrations/20261114130000_admin_stats_projects.sql`, which replaces the
+first version (`20261017120000_admin_functions.sql`) and **needs the Projects
+tables** (`20261114120000_projects.sql`) applied first. The Projects fields
+below (`totals.xp`, `projectXp`, `projects`… , `range.projectsCreated`,
+`sessionsAttended`, `daily[].sessionsAttended`, `projectXpBuckets`) are `0`
+/ all-zero buckets while the database still runs the first version.
 
 `200`:
 
@@ -702,20 +710,25 @@ returned.
   "totals": {
     "users": 120, "usersWithGameState": 95,
     "habits": 410, "activeHabits": 350, "completions": 9800,
-    "quotes": 90, "scheduledQuotes": 90, "quoteLoves": 230
+    "quotes": 90, "scheduledQuotes": 90, "quoteLoves": 230,
+    "xp": 187430, "projectXp": 21245,
+    "projects": 51, "activeProjects": 43, "usersWithProjects": 26,
+    "targets": 149, "targetsDone": 37, "planTasksDone": 612, "sessionsAttended": 803
   },
   "range": {
     "signups": 14, "activeUsers": 61, "habitsCreated": 52,
-    "completions": 1900, "quoteLoves": 75, "averageDailyActiveUsers": 33.4
+    "completions": 1900, "quoteLoves": 75, "projectsCreated": 6,
+    "sessionsAttended": 140, "averageDailyActiveUsers": 33.4
   },
   "daily": [
     { "date": "2026-09-21", "signups": 0, "activeUsers": 31, "habitsCreated": 2,
-      "completions": 64, "quoteLoves": 3 }
+      "completions": 64, "quoteLoves": 3, "sessionsAttended": 5 }
   ],
   "weekly": [
     { "weekStart": "2026-09-21", "days": 7, "signups": 4, "completions": 450, "activeUsers": 48 }
   ],
   "xpBuckets": [ { "label": "100–499", "min": 100, "max": 499, "users": 40 } ],
+  "projectXpBuckets": [ { "label": "1–99", "min": 1, "max": 99, "users": 9 } ],
   "bestStreakBuckets": [ { "label": "7–13", "min": 7, "max": 13, "users": 12 } ],
   "levels": [ { "level": 3, "users": 20 } ],
   "topQuotes": [ { "id": "uuid", "text": "…", "author": null, "day": "2026-10-20", "loves": 9 } ],
@@ -733,14 +746,20 @@ What each figure means (and its limits):
 | `totals.habits`, `activeHabits` | non-deleted habits (`activeHabits`: also not archived) | exact (synced habits only) |
 | `daily[].habitsCreated` | `habits.created_at` (the client's creation time, also counts habits deleted later) | exact for synced habits |
 | `daily[].completions`, `weekly[].completions` | completed, non-deleted `check_ins` by `date` | exact (synced) |
-| `xpBuckets` | per user: sum of the numeric values of `game_state.state.checkIns` + `perfectDays` (the app's XP ledgers) | exact for users with a synced game state (`usersWithGameState`) |
+| `xpBuckets`, `totals.xp` | per user (`totals.xp`: summed over users): sum of the numeric values of `game_state.state.checkIns` + `perfectDays` + `projects` (the app's three XP ledgers, = `GameState.xp`) | exact for users with a synced game state (`usersWithGameState`) |
+| `projectXpBuckets`, `totals.projectXp` | the same, `state.projects` alone (keys `task:<id>` 10 XP, `session:<actionId>\|<date>` 15 XP, `target:<id>` 50 XP; README "Game rules") | exact for users with a synced game state; users without project XP are in the `0` bucket |
+| `totals.projects`, `activeProjects`, `usersWithProjects` | non-deleted `projects` (`activeProjects`: also not archived; `usersWithProjects`: distinct owners) | exact (synced projects only) |
+| `totals.targets`, `targetsDone` | non-deleted `targets` of a non-deleted project (`targetsDone`: `status = 'done'`) | exact (synced) |
+| `totals.planTasksDone` | non-deleted `plan_tasks` with `done`, of a live target | exact (synced) |
+| `totals.sessionsAttended`, `range.sessionsAttended`, `daily[].sessionsAttended` | non-deleted `session_marks` with `attended`, of a non-deleted consistent action of a live target, by the session `date` | exact (synced); a back-filled session counts on its own day |
+| `range.projectsCreated` | `projects.created_at` (the client's creation time, also counts projects deleted later) | exact for synced projects |
 | `bestStreakBuckets` | `game_state.state.bestStreakEver` | **best** streak ever; current streaks are computed on the device and not stored |
 | `levels` | `game_state.state.maxLevelReached` | highest level reached |
 | `daily[].quoteLoves`, `totals.quoteLoves` | `quote_loves.created_at` | loves still present (an unlove deletes the row, so it is not counted) |
 | `topQuotes` | the 10 quotes with the most loves, all time | exact |
 | `widgets` | – | not recorded: nothing stores widget views or taps |
 
-Buckets — XP: `0`, `1–99`, `100–499`, `500–999`, `1000–2499`, `2500–4999`,
+Buckets — XP (`xpBuckets` and `projectXpBuckets`): `0`, `1–99`, `100–499`, `500–999`, `1000–2499`, `2500–4999`,
 `5000–9999`, `10000+`; best streak: `0`, `1–2`, `3–6`, `7–13`, `14–29`,
 `30–59`, `60–99`, `100+`. `weekly` has one entry per ISO week (Monday)
 overlapping the range; `days < 7` marks a partial edge week (its counts cover
