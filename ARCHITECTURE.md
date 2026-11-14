@@ -47,6 +47,9 @@ lib/
                      quotes_cache.dart (hive box quotes_cache)
     game/            game engine (logic) + celebration UI — see README there
     notifications/   reminder scheduling — see README there
+    projects/        Projects/targets/plan/consistent actions/sessions: models,
+                     Hive storage, ProjectService, providers, session expansion
+                     and overlap rules — see docs/PROJECTS.md (no UI yet)
 test/
   flutter_test_config.dart   disables Google Fonts fetching for all tests
   helpers/test_app.dart      pumpHabitQuestApp(tester, …), wrapForTest(widget, …)
