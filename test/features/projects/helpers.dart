@@ -20,15 +20,14 @@ Target target(
   String title = 'Target',
   required DateTime deadline,
   TargetStatus status = TargetStatus.notStarted,
-}) =>
-    Target(
-      id: id,
-      projectId: projectId,
-      title: title,
-      deadline: deadline,
-      status: status,
-      createdAt: createdOn(2026, 1, 1),
-    );
+}) => Target(
+  id: id,
+  projectId: projectId,
+  title: title,
+  deadline: deadline,
+  status: status,
+  createdAt: createdOn(2026, 1, 1),
+);
 
 ClockTime hm(String s) => ClockTime.parse(s);
 
@@ -40,16 +39,15 @@ ConsistentAction weekly(
   String end = '13:00',
   DateTime? startDate,
   DateTime? created,
-}) =>
-    ConsistentAction(
-      id: id,
-      targetId: targetId,
-      startTime: hm(start),
-      endTime: hm(end),
-      recurrence: WeeklyRecurrence(days),
-      startDate: startDate,
-      createdAt: created ?? createdOn(2026, 1, 1),
-    );
+}) => ConsistentAction(
+  id: id,
+  targetId: targetId,
+  startTime: hm(start),
+  endTime: hm(end),
+  recurrence: WeeklyRecurrence(days),
+  startDate: startDate,
+  createdAt: created ?? createdOn(2026, 1, 1),
+);
 
 ConsistentAction monthly(
   String id, {
@@ -59,15 +57,14 @@ ConsistentAction monthly(
   String end = '13:00',
   DateTime? startDate,
   DateTime? created,
-}) =>
-    ConsistentAction(
-      id: id,
-      targetId: targetId,
-      startTime: hm(start),
-      endTime: hm(end),
-      recurrence: MonthlyRecurrence(days),
-      startDate: startDate,
-      createdAt: created ?? createdOn(2026, 1, 1),
-    );
+}) => ConsistentAction(
+  id: id,
+  targetId: targetId,
+  startTime: hm(start),
+  endTime: hm(end),
+  recurrence: MonthlyRecurrence(days),
+  startDate: startDate,
+  createdAt: created ?? createdOn(2026, 1, 1),
+);
 
 const monFri = {1, 2, 3, 4, 5};

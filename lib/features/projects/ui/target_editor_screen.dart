@@ -290,7 +290,7 @@ class _PlanSection extends ConsumerWidget {
     final tasks =
         ref.watch(planTasksOfTargetProvider(target.id)).value ??
         const <PlanTask>[];
-    final progress = ref.watch(planProgressProvider(target.id));
+    final progress = watchPlanProgress(ref, target.id);
     final service = ref.read(projectServiceProvider);
 
     Future<void> add() async {

@@ -25,19 +25,24 @@ ProjectRecords sample() {
     targets: [t],
     planTasks: [
       PlanTask(
-          id: 'k1',
-          targetId: 't1',
-          title: 'Script 1',
-          deliveryDate: DateTime(2026, 11, 10),
-          createdAt: createdOn(2026, 11, 1)),
+        id: 'k1',
+        targetId: 't1',
+        title: 'Script 1',
+        deliveryDate: DateTime(2026, 11, 10),
+        createdAt: createdOn(2026, 11, 1),
+      ),
     ],
-    actions: [weekly('a1', days: monFri), monthly('a2', days: {1, 15}, start: '18:00', end: '19:00')],
+    actions: [
+      weekly('a1', days: monFri),
+      monthly('a2', days: {1, 15}, start: '18:00', end: '19:00'),
+    ],
     sessionMarks: [
       SessionMark(
-          actionId: 'a1',
-          date: DateTime(2026, 11, 2),
-          attended: true,
-          updatedAt: DateTime.utc(2026, 11, 2, 14)),
+        actionId: 'a1',
+        date: DateTime(2026, 11, 2),
+        attended: true,
+        updatedAt: DateTime.utc(2026, 11, 2, 14),
+      ),
     ],
   );
 }
@@ -59,8 +64,9 @@ void main() {
     test('persists every kind across reopen (tombstones included)', () async {
       var repo = await HiveProjectRepository.open(boxPrefix: 'a_');
       await repo.save(sample());
-      final deleted = repo.getProjectRecord('p1')!.copyWith(
-          deletedAt: () => DateTime.utc(2026, 11, 20));
+      final deleted = repo
+          .getProjectRecord('p1')!
+          .copyWith(deletedAt: () => DateTime.utc(2026, 11, 20));
       await repo.close();
 
       repo = await HiveProjectRepository.open(boxPrefix: 'a_');
@@ -111,7 +117,8 @@ void main() {
       ]);
       rec.calls.clear();
       await repo.applyRemote(
-          ProjectRecords(projects: [project('p2', name: 'Remote')]));
+        ProjectRecords(projects: [project('p2', name: 'Remote')]),
+      );
       expect(rec.calls, isEmpty);
       expect(repo.getData().projects.map((p) => p.id), ['p1', 'p2']);
     });

@@ -175,7 +175,7 @@ class TargetTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final today = ref.watch(todayProvider);
-    final progress = ref.watch(planProgressProvider(target.id));
+    final progress = watchPlanProgress(ref, target.id);
     final overdue = !target.isDone && target.deadline.isBefore(today);
     return Card(
       key: ValueKey('target-tile-${target.id}'),

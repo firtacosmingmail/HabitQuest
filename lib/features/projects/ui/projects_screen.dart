@@ -17,8 +17,13 @@ class ProjectsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final active = ref.watch(activeProjectsProvider);
-    final archived = ref.watch(archivedProjectsProvider);
+    // The base stream only (not activeProjectsProvider, which derives from
+    // another derived provider): this tab sits under pushed routes, see the
+    // note in lib/domain/providers.dart.
+    final data = ref.watch(projectsDataProvider);
+    final active = data.whenData(
+      (d) => d.projects.where((p) => !p.archived).toList(),
+    );
 
     final Widget body;
     if (active.hasError) {
@@ -31,7 +36,9 @@ class ProjectsScreen extends ConsumerWidget {
       body = const Center(child: CircularProgressIndicator());
     } else {
       final activeList = active.requireValue;
-      final archivedList = archived.value ?? const <Project>[];
+      final archivedList = data.requireValue.projects
+          .where((p) => p.archived)
+          .toList();
       body = ListView(
         key: const ValueKey('projects-list'),
         padding: const EdgeInsets.only(bottom: 112),
@@ -281,7 +288,7 @@ class _TargetProgressRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final progress = ref.watch(planProgressProvider(target.id));
+    final progress = watchPlanProgress(ref, target.id);
     final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

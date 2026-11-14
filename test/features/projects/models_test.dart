@@ -9,9 +9,11 @@ import 'package:habit_quest/features/projects/models/projects_data.dart';
 import 'package:habit_quest/features/projects/models/session_mark.dart';
 import 'package:habit_quest/features/projects/models/target.dart';
 
-T roundTrip<T>(T value, Map<String, dynamic> Function(T) toJson,
-        T Function(Map<String, dynamic>) fromJson) =>
-    fromJson(jsonDecode(jsonEncode(toJson(value))) as Map<String, dynamic>);
+T roundTrip<T>(
+  T value,
+  Map<String, dynamic> Function(T) toJson,
+  T Function(Map<String, dynamic>) fromJson,
+) => fromJson(jsonDecode(jsonEncode(toJson(value))) as Map<String, dynamic>);
 
 void main() {
   final created = DateTime.utc(2026, 11, 1, 8);
@@ -32,8 +34,10 @@ void main() {
 
     test('compares', () {
       expect(const ClockTime(10, 0).isBefore(const ClockTime(10, 1)), isTrue);
-      expect(const ClockTime(10, 0).compareTo(const ClockTime(9, 59)) > 0,
-          isTrue);
+      expect(
+        const ClockTime(10, 0).compareTo(const ClockTime(9, 59)) > 0,
+        isTrue,
+      );
     });
   });
 
@@ -54,8 +58,11 @@ void main() {
     });
 
     test('Project.updatedAt defaults to createdAt', () {
-      final p = Project.fromJson(
-          {'id': 'p', 'name': 'n', 'createdAt': '2026-11-01T08:00:00.000Z'});
+      final p = Project.fromJson({
+        'id': 'p',
+        'name': 'n',
+        'createdAt': '2026-11-01T08:00:00.000Z',
+      });
       expect(p.updatedAt, created);
       expect(p.archived, isFalse);
       expect(p.deletedAt, isNull);
@@ -150,21 +157,27 @@ void main() {
 
   group('ConsistentAction validation', () {
     ConsistentAction make(ClockTime s, ClockTime e) => ConsistentAction(
-          id: 'a',
-          targetId: 't',
-          startTime: s,
-          endTime: e,
-          recurrence: WeeklyRecurrence({1}),
-          createdAt: created,
-        );
+      id: 'a',
+      targetId: 't',
+      startTime: s,
+      endTime: e,
+      recurrence: WeeklyRecurrence({1}),
+      createdAt: created,
+    );
 
     test('end must be after start', () {
-      expect(() => make(const ClockTime(10, 0), const ClockTime(10, 0)),
-          throwsArgumentError);
-      expect(() => make(const ClockTime(23, 0), const ClockTime(1, 0)),
-          throwsArgumentError);
-      expect(make(const ClockTime(10, 0), const ClockTime(10, 1))
-          .durationMinutes, 1);
+      expect(
+        () => make(const ClockTime(10, 0), const ClockTime(10, 0)),
+        throwsArgumentError,
+      );
+      expect(
+        () => make(const ClockTime(23, 0), const ClockTime(1, 0)),
+        throwsArgumentError,
+      );
+      expect(
+        make(const ClockTime(10, 0), const ClockTime(10, 1)).durationMinutes,
+        1,
+      );
     });
 
     test('recurrences reject empty / out-of-range days', () {
@@ -173,15 +186,19 @@ void main() {
       expect(() => WeeklyRecurrence({8}), throwsArgumentError);
       expect(() => MonthlyRecurrence({}), throwsArgumentError);
       expect(() => MonthlyRecurrence({32}), throwsArgumentError);
-      expect(() => ActionRecurrence.fromJson({'type': 'x'}),
-          throwsFormatException);
+      expect(
+        () => ActionRecurrence.fromJson({'type': 'x'}),
+        throwsFormatException,
+      );
     });
 
     test('effective start date defaults to the local creation day', () {
       final a = make(const ClockTime(10, 0), const ClockTime(11, 0));
       final local = created.toLocal();
-      expect(a.effectiveStartDate,
-          DateTime(local.year, local.month, local.day));
+      expect(
+        a.effectiveStartDate,
+        DateTime(local.year, local.month, local.day),
+      );
       final b = a.copyWith(startDate: () => DateTime(2026, 12, 1, 15));
       expect(b.effectiveStartDate, DateTime(2026, 12, 1));
     });
@@ -191,51 +208,73 @@ void main() {
     test('hides deleted records and their descendants', () {
       final p1 = Project(id: 'p1', name: 'A', createdAt: created);
       final p2 = Project(
-          id: 'p2', name: 'B', createdAt: created, deletedAt: later);
+        id: 'p2',
+        name: 'B',
+        createdAt: created,
+        deletedAt: later,
+      );
       final t1 = Target(
-          id: 't1',
-          projectId: 'p1',
-          title: 'x',
-          deadline: DateTime(2026, 12, 1),
-          createdAt: created);
+        id: 't1',
+        projectId: 'p1',
+        title: 'x',
+        deadline: DateTime(2026, 12, 1),
+        createdAt: created,
+      );
       final t2 = Target(
-          id: 't2',
-          projectId: 'p2',
-          title: 'y',
-          deadline: DateTime(2026, 12, 1),
-          createdAt: created);
+        id: 't2',
+        projectId: 'p2',
+        title: 'y',
+        deadline: DateTime(2026, 12, 1),
+        createdAt: created,
+      );
       final a1 = ConsistentAction(
-          id: 'a1',
-          targetId: 't1',
-          startTime: const ClockTime(9, 0),
-          endTime: const ClockTime(10, 0),
-          recurrence: WeeklyRecurrence({1}),
-          createdAt: created);
+        id: 'a1',
+        targetId: 't1',
+        startTime: const ClockTime(9, 0),
+        endTime: const ClockTime(10, 0),
+        recurrence: WeeklyRecurrence({1}),
+        createdAt: created,
+      );
       final a2 = ConsistentAction(
-          id: 'a2',
-          targetId: 't2',
-          startTime: const ClockTime(9, 0),
-          endTime: const ClockTime(10, 0),
-          recurrence: WeeklyRecurrence({1}),
-          createdAt: created);
+        id: 'a2',
+        targetId: 't2',
+        startTime: const ClockTime(9, 0),
+        endTime: const ClockTime(10, 0),
+        recurrence: WeeklyRecurrence({1}),
+        createdAt: created,
+      );
       final k1 = PlanTask(
-          id: 'k1', targetId: 't1', title: 'b', position: 1,
-          createdAt: created);
+        id: 'k1',
+        targetId: 't1',
+        title: 'b',
+        position: 1,
+        createdAt: created,
+      );
       final k0 = PlanTask(
-          id: 'k0', targetId: 't1', title: 'a', position: 0,
-          createdAt: later);
+        id: 'k0',
+        targetId: 't1',
+        title: 'a',
+        position: 0,
+        createdAt: later,
+      );
       final k2 = PlanTask(
-          id: 'k2', targetId: 't2', title: 'c', createdAt: created);
+        id: 'k2',
+        targetId: 't2',
+        title: 'c',
+        createdAt: created,
+      );
       final m1 = SessionMark(
-          actionId: 'a1',
-          date: DateTime(2026, 11, 2),
-          attended: true,
-          updatedAt: later);
+        actionId: 'a1',
+        date: DateTime(2026, 11, 2),
+        attended: true,
+        updatedAt: later,
+      );
       final m2 = SessionMark(
-          actionId: 'a2',
-          date: DateTime(2026, 11, 2),
-          attended: true,
-          updatedAt: later);
+        actionId: 'a2',
+        date: DateTime(2026, 11, 2),
+        attended: true,
+        updatedAt: later,
+      );
       final data = ProjectsData.fromRecords(
         projects: [p2, p1],
         targets: [t1, t2],

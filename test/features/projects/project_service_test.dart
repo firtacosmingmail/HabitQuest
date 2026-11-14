@@ -23,7 +23,11 @@ void main() {
     ids = 0;
     now = DateTime(2026, 11, 14, 9); // Saturday
     repo = InMemoryProjectRepository();
-    service = ProjectService(repo, now: () => now, idGenerator: () => 'id${++ids}');
+    service = ProjectService(
+      repo,
+      now: () => now,
+      idGenerator: () => 'id${++ids}',
+    );
     events = [];
     remote = [];
     attendance = [];
@@ -41,7 +45,10 @@ void main() {
   Future<(String, Target, ConsistentAction)> example() async {
     final p = await service.createProject(name: '  Content business ');
     final t = await service.createTarget(
-        projectId: p.id, title: '5 videos', deadline: d(2026, 11, 30));
+      projectId: p.id,
+      title: '5 videos',
+      deadline: d(2026, 11, 30),
+    );
     for (final s in ['scripts', 'recordings', 'edits']) {
       await service.addPlanTask(targetId: t.id, title: '5 $s');
     }
@@ -115,9 +122,13 @@ void main() {
   group('targets', () {
     test('needs a live project; status is manual and kept', () async {
       expect(
-          () => service.createTarget(
-              projectId: 'nope', title: 'x', deadline: d(2026, 12, 1)),
-          throwsStateError);
+        () => service.createTarget(
+          projectId: 'nope',
+          title: 'x',
+          deadline: d(2026, 12, 1),
+        ),
+        throwsStateError,
+      );
       final (_, t, _) = await example();
       expect(t.status, TargetStatus.notStarted);
       // Checking off every task does not change the status.
@@ -132,7 +143,10 @@ void main() {
     test('delete cascades to its tasks and actions only', () async {
       final (pid, t, _) = await example();
       final other = await service.createTarget(
-          projectId: pid, title: 'Other', deadline: d(2026, 12, 31));
+        projectId: pid,
+        title: 'Other',
+        deadline: d(2026, 12, 31),
+      );
       await service.deleteTarget(t.id);
       expect(service.data.targets, [other]);
       expect(service.data.planTasks, isEmpty);
@@ -142,7 +156,10 @@ void main() {
     test('a later deadline that creates a clash is blocked', () async {
       final (pid, t, _) = await example();
       final t2 = await service.createTarget(
-          projectId: pid, title: 'Course', deadline: d(2026, 12, 31));
+        projectId: pid,
+        title: 'Course',
+        deadline: d(2026, 12, 31),
+      );
       // Starts on 1 Dec: no clash with the 30 Nov target.
       await service.createAction(
         targetId: t2.id,
@@ -153,9 +170,15 @@ void main() {
       );
       expect(
         () => service.updateTarget(t.copyWith(deadline: d(2026, 12, 15))),
-        throwsA(isA<ActionOverlapException>()
-            .having((e) => e.clashes.single.target.title, 'target', 'Course')
-            .having((e) => e.clashes.single.firstDate, 'first', d(2026, 12, 7))),
+        throwsA(
+          isA<ActionOverlapException>()
+              .having((e) => e.clashes.single.target.title, 'target', 'Course')
+              .having(
+                (e) => e.clashes.single.firstDate,
+                'first',
+                d(2026, 12, 7),
+              ),
+        ),
       );
       expect(service.data.target(t.id)!.deadline, d(2026, 11, 30));
       // Shortening is fine.
@@ -166,7 +189,10 @@ void main() {
       final (pid, t, _) = await example();
       await service.setTargetStatus(t.id, TargetStatus.done);
       final t2 = await service.createTarget(
-          projectId: pid, title: 'Other', deadline: d(2026, 11, 30));
+        projectId: pid,
+        title: 'Other',
+        deadline: d(2026, 11, 30),
+      );
       // Allowed: actions of done targets are ignored.
       await service.createAction(
         targetId: t2.id,
@@ -174,8 +200,10 @@ void main() {
         endTime: hm('14:00'),
         recurrence: WeeklyRecurrence(monFri),
       );
-      expect(() => service.setTargetStatus(t.id, TargetStatus.inProgress),
-          throwsA(isA<ActionOverlapException>()));
+      expect(
+        () => service.setTargetStatus(t.id, TargetStatus.inProgress),
+        throwsA(isA<ActionOverlapException>()),
+      );
       expect(service.data.target(t.id)!.status, TargetStatus.done);
     });
   });
@@ -184,19 +212,36 @@ void main() {
     test('appended in order, editable, reorderable, deletable', () async {
       final (_, t, _) = await example();
       final tasks = service.data.planTasksOf(t.id);
-      expect(tasks.map((x) => x.title), ['5 scripts', '5 recordings', '5 edits']);
+      expect(tasks.map((x) => x.title), [
+        '5 scripts',
+        '5 recordings',
+        '5 edits',
+      ]);
       expect(tasks.map((x) => x.position), [0, 1, 2]);
       await service.updatePlanTask(
-          tasks[0].copyWith(deliveryDate: () => d(2026, 11, 10)));
+        tasks[0].copyWith(deliveryDate: () => d(2026, 11, 10)),
+      );
       expect(service.data.planTask(tasks[0].id)!.deliveryDate, d(2026, 11, 10));
-      await service.reorderPlanTasks(t.id, [tasks[2].id, tasks[0].id, tasks[1].id]);
-      expect(service.data.planTasksOf(t.id).map((x) => x.title),
-          ['5 edits', '5 scripts', '5 recordings']);
-      expect(() => service.reorderPlanTasks(t.id, [tasks[0].id]),
-          throwsArgumentError);
+      await service.reorderPlanTasks(t.id, [
+        tasks[2].id,
+        tasks[0].id,
+        tasks[1].id,
+      ]);
+      expect(service.data.planTasksOf(t.id).map((x) => x.title), [
+        '5 edits',
+        '5 scripts',
+        '5 recordings',
+      ]);
+      expect(
+        () => service.reorderPlanTasks(t.id, [tasks[0].id]),
+        throwsArgumentError,
+      );
       await service.deletePlanTask(tasks[1].id);
       expect(service.data.planTasksOf(t.id), hasLength(2));
-      expect(() => service.setPlanTaskDone(tasks[1].id, true), throwsStateError);
+      expect(
+        () => service.setPlanTaskDone(tasks[1].id, true),
+        throwsStateError,
+      );
     });
   });
 
@@ -217,7 +262,10 @@ void main() {
       final (pid, _, a) = await example();
       final p2 = await service.createProject(name: 'Fitness');
       final t2 = await service.createTarget(
-          projectId: p2.id, title: 'Run', deadline: d(2026, 12, 31));
+        projectId: p2.id,
+        title: 'Run',
+        deadline: d(2026, 12, 31),
+      );
       await flush();
       events.clear();
       try {
@@ -231,9 +279,11 @@ void main() {
       } on ActionOverlapException catch (e) {
         expect(e.clashes.single.action.id, a.id);
         expect(e.clashes.single.firstDate, d(2026, 11, 17));
-        expect(e.message,
-            'This time block (Tue, Thu 12:30–13:30) overlaps "5 videos" '
-            '(Content business), Mon–Fri 10:00–13:00, first on 2026-11-17');
+        expect(
+          e.message,
+          'This time block (Tue, Thu 12:30–13:30) overlaps "5 videos" '
+          '(Content business), Mon–Fri 10:00–13:00, first on 2026-11-17',
+        );
       }
       await flush();
       expect(events, isEmpty);
@@ -257,16 +307,23 @@ void main() {
         recurrence: WeeklyRecurrence(monFri),
       );
       await service.updateAction(a.copyWith(endTime: hm('14:00')));
-      expect(() => service.updateAction(b.copyWith(startTime: hm('13:30'))),
-          throwsA(isA<ActionOverlapException>()));
-      expect(service.clashesFor(b.copyWith(startTime: hm('13:30'))),
-          hasLength(1));
-      expect(() => service.createAction(
-            targetId: t.id,
-            startTime: hm('15:00'),
-            endTime: hm('15:00'),
-            recurrence: WeeklyRecurrence({1}),
-          ), throwsArgumentError);
+      expect(
+        () => service.updateAction(b.copyWith(startTime: hm('13:30'))),
+        throwsA(isA<ActionOverlapException>()),
+      );
+      expect(
+        service.clashesFor(b.copyWith(startTime: hm('13:30'))),
+        hasLength(1),
+      );
+      expect(
+        () => service.createAction(
+          targetId: t.id,
+          startTime: hm('15:00'),
+          endTime: hm('15:00'),
+          recurrence: WeeklyRecurrence({1}),
+        ),
+        throwsArgumentError,
+      );
     });
 
     test('a deleted action no longer blocks', () async {
@@ -289,51 +346,78 @@ void main() {
       await service.setSessionAttended(a.id, d(2026, 11, 16), true);
       await flush();
       expect(service.isAttended(a.id, d(2026, 11, 16)), isTrue);
-      expect(attendance.single,
-          SessionAttendanceEvent(
-              actionId: a.id,
-              targetId: t.id,
-              projectId: pid,
-              date: d(2026, 11, 16),
-              attended: true));
+      expect(
+        attendance.single,
+        SessionAttendanceEvent(
+          actionId: a.id,
+          targetId: t.id,
+          projectId: pid,
+          date: d(2026, 11, 16),
+          attended: true,
+        ),
+      );
       // Idempotent.
       await service.setSessionAttended(a.id, d(2026, 11, 16), true);
       await flush();
       expect(attendance, hasLength(1));
-      expect(await service.toggleSessionAttended(a.id, d(2026, 11, 16)), isFalse);
-      expect(repo.getSessionMarkRecord(a.id, d(2026, 11, 16))!.attended, isFalse);
-      expect(() => service.setSessionAttended(a.id, d(2026, 11, 17), true),
-          throwsArgumentError, reason: 'future');
-      expect(() => service.setSessionAttended(a.id, d(2026, 11, 15), true),
-          throwsArgumentError, reason: 'Sunday: no session');
-      expect(() => service.setSessionAttended('nope', d(2026, 11, 16), true),
-          throwsStateError);
+      expect(
+        await service.toggleSessionAttended(a.id, d(2026, 11, 16)),
+        isFalse,
+      );
+      expect(
+        repo.getSessionMarkRecord(a.id, d(2026, 11, 16))!.attended,
+        isFalse,
+      );
+      expect(
+        () => service.setSessionAttended(a.id, d(2026, 11, 17), true),
+        throwsArgumentError,
+        reason: 'future',
+      );
+      expect(
+        () => service.setSessionAttended(a.id, d(2026, 11, 15), true),
+        throwsArgumentError,
+        reason: 'Sunday: no session',
+      );
+      expect(
+        () => service.setSessionAttended('nope', d(2026, 11, 16), true),
+        throwsStateError,
+      );
     });
   });
 
   group('sync hooks', () {
-    test('applyRemote announces on remoteChanges only, no attendance', () async {
-      final (pid, t, a) = await example();
-      events.clear();
-      final renamed = service.data.project(pid)!.copyWith(
-          name: 'Renamed', updatedAt: DateTime.utc(2026, 12, 1));
-      final gone = a.copyWith(
+    test(
+      'applyRemote announces on remoteChanges only, no attendance',
+      () async {
+        final (pid, t, a) = await example();
+        events.clear();
+        final renamed = service.data
+            .project(pid)!
+            .copyWith(name: 'Renamed', updatedAt: DateTime.utc(2026, 12, 1));
+        final gone = a.copyWith(
           updatedAt: DateTime.utc(2026, 12, 1),
-          deletedAt: () => DateTime.utc(2026, 12, 1));
-      final fresh = target('t9', projectId: pid, deadline: d(2027, 1, 1));
-      await service.applyRemote(ProjectRecords(
-          projects: [renamed], targets: [fresh], actions: [gone]));
-      await flush();
-      expect(events, isEmpty);
-      expect(attendance, isEmpty);
-      expect(remote.map((e) => (e.kind, e.type)), [
-        (ProjectEntityKind.project, ProjectChangeType.updated),
-        (ProjectEntityKind.target, ProjectChangeType.created),
-        (ProjectEntityKind.consistentAction, ProjectChangeType.deleted),
-      ]);
-      expect(service.data.project(pid)!.name, 'Renamed');
-      expect(service.data.actionsOf(t.id), isEmpty);
-    });
+          deletedAt: () => DateTime.utc(2026, 12, 1),
+        );
+        final fresh = target('t9', projectId: pid, deadline: d(2027, 1, 1));
+        await service.applyRemote(
+          ProjectRecords(
+            projects: [renamed],
+            targets: [fresh],
+            actions: [gone],
+          ),
+        );
+        await flush();
+        expect(events, isEmpty);
+        expect(attendance, isEmpty);
+        expect(remote.map((e) => (e.kind, e.type)), [
+          (ProjectEntityKind.project, ProjectChangeType.updated),
+          (ProjectEntityKind.target, ProjectChangeType.created),
+          (ProjectEntityKind.consistentAction, ProjectChangeType.deleted),
+        ]);
+        expect(service.data.project(pid)!.name, 'Renamed');
+        expect(service.data.actionsOf(t.id), isEmpty);
+      },
+    );
 
     test('clearLocalData wipes and announces deletions', () async {
       await example();

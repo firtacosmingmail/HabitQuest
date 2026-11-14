@@ -38,6 +38,18 @@ Color projectColor(String projectId) {
   return colors[h % colors.length];
 }
 
+/// Plan progress (done / total) for display only, the same numbers as
+/// `planProgressProvider`. Computed from [planTasksOfTargetProvider]
+/// (one level above the data stream): watching the two-level
+/// `planProgressProvider` from lazily built tiles makes Riverpod refresh
+/// the scope during a build when a write lands (see the note in
+/// `lib/domain/providers.dart`).
+({int done, int total}) watchPlanProgress(WidgetRef ref, String targetId) {
+  final tasks =
+      ref.watch(planTasksOfTargetProvider(targetId)).value ?? const [];
+  return (done: tasks.where((t) => t.done).length, total: tasks.length);
+}
+
 /// `Mon 16 Nov`.
 String shortDate(DateTime d) => DateFormat('EEE d MMM').format(d);
 
