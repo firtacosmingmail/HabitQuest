@@ -351,6 +351,76 @@ void main() {
       expect(h.toJson(), habitJson);
     });
 
+    test(
+      'Projects records: list, put, delete and batch per function',
+      () async {
+        const markJson = {
+          'id': '5f3c0000-0000-4000-8000-000000000001|2026-11-16',
+          'actionId': '5f3c0000-0000-4000-8000-000000000001',
+          'date': '2026-11-16',
+          'attended': true,
+          'updatedAt': '2026-11-16T10:00:00.000Z',
+          'deletedAt': null,
+        };
+        handler = (r) => switch (r.method) {
+          'GET' => jsonResponse({
+            'items': [markJson],
+            'serverTime': '2026-11-16T10:00:05.000Z',
+          }),
+          'POST' => jsonResponse({
+            'results': [
+              {'id': markJson['id'], 'applied': true, 'item': markJson},
+            ],
+          }),
+          _ => jsonResponse({'item': markJson, 'applied': true}),
+        };
+        final page = await api.listProjectRecords(
+          ProjectResource.sessionMarks,
+          since: DateTime.utc(2026, 11, 16),
+        );
+        expect(requests.last.url.path, '/functions/v1/session-marks');
+        expect(
+          requests.last.url.queryParameters['since'],
+          '2026-11-16T00:00:00.000Z',
+        );
+        final mark = page.items.single;
+        expect(mark.id, markJson['id']);
+        expect(mark.parentId, markJson['actionId']);
+
+        await api.putProjectRecord(mark);
+        expect(requests.last.method, 'PUT');
+        // The `|` of the derived key is URL-encoded in the path.
+        expect(
+          requests.last.url.toString(),
+          endsWith(
+            '/session-marks/5f3c0000-0000-4000-8000-000000000001'
+            '%7C2026-11-16',
+          ),
+        );
+        expect(jsonDecode(requests.last.body), markJson);
+
+        await api.deleteProjectRecord(
+          ProjectResource.planTasks,
+          'e9d2',
+          updatedAt: DateTime.utc(2026, 11, 17),
+        );
+        expect(requests.last.method, 'DELETE');
+        expect(requests.last.url.path, '/functions/v1/plan-tasks/e9d2');
+        expect(
+          requests.last.url.queryParameters['updatedAt'],
+          '2026-11-17T00:00:00.000Z',
+        );
+
+        final results = await api.batchProjectRecords(
+          ProjectResource.sessionMarks,
+          [mark],
+        );
+        expect(requests.last.url.path, '/functions/v1/session-marks/batch');
+        expect(results.single.applied, isTrue);
+        expect(results.single.item, mark);
+      },
+    );
+
     test('putHabit PUTs to /habits/<id> and parses applied', () async {
       handler = (_) => jsonResponse({'item': habitJson, 'applied': false});
       final habit = RemoteHabit.fromJson(habitJson);

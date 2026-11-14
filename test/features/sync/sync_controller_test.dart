@@ -6,6 +6,7 @@ import 'package:habit_quest/features/projects/projects_providers.dart';
 import 'package:habit_quest/data/remote/api_exception.dart';
 import 'package:habit_quest/data/remote/fake_auth_api.dart';
 import 'package:habit_quest/data/remote/fake_habit_quest_api.dart';
+import 'package:habit_quest/data/remote/remote_models.dart';
 import 'package:habit_quest/data/repositories/in_memory_habit_repository.dart';
 import 'package:habit_quest/data/sync/string_store.dart';
 import 'package:habit_quest/data/sync/sync_meta.dart';
@@ -37,8 +38,9 @@ void main() {
           authApiProvider.overrideWithValue(FakeAuthApi()),
           sessionStoreProvider.overrideWithValue(InMemorySessionStore()),
         ],
+        // Recording into the queue, as in main.dart.
         projectRepositoryProvider.overrideWithValue(
-          InMemoryProjectRepository(),
+          InMemoryProjectRepository(recorder: queue),
         ),
         habitRepositoryProvider.overrideWithValue(
           InMemoryHabitRepository(recorder: queue),
@@ -197,6 +199,42 @@ void main() {
       async.flushMicrotasks();
       expect(server.habits, hasLength(2));
       expect(status(c).phase, SyncPhase.synced);
+    });
+  });
+
+  test('"Sync now" pushes and pulls projects records at once', () {
+    fakeAsync((async) {
+      final c = make();
+      final controller = c.read(syncControllerProvider.notifier)..start();
+      async.elapse(Duration.zero);
+      async.flushMicrotasks();
+      expect(status(c).phase, SyncPhase.synced);
+
+      c.read(projectServiceProvider).createProject(name: 'Content');
+      async.flushMicrotasks();
+      expect(status(c).pending, 1);
+
+      // Another device's project waits on the server.
+      server.seedProjectRecord(
+        RemoteProjectRecord.fromJson(ProjectResource.projects, {
+          'id': '0b9f6f0e-4a6f-4f43-9a4e-3f1d1a2b3c4d',
+          'name': 'From the phone',
+          'archived': false,
+          'createdAt': '2026-01-04T08:00:00.000Z',
+          'updatedAt': '2026-01-04T08:00:00.000Z',
+          'deletedAt': null,
+        }),
+      );
+
+      controller.syncNow(); // no debounce wait
+      async.flushMicrotasks();
+      expect(server.projectRecords(ProjectResource.projects), hasLength(2));
+      expect(
+        c.read(projectServiceProvider).data.projects.map((p) => p.name),
+        unorderedEquals(['Content', 'From the phone']),
+      );
+      expect(status(c).phase, SyncPhase.synced);
+      expect(status(c).pending, 0);
     });
   });
 }
