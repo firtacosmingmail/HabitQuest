@@ -24,15 +24,14 @@ class SettingsScreen extends ConsumerWidget {
       required String subtitle,
       required bool value,
       required ProjectNotificationSettings Function(bool) apply,
-    }) =>
-        SwitchListTile(
-          key: ValueKey(key),
-          secondary: Text(emoji, style: const TextStyle(fontSize: 24)),
-          title: Text(title),
-          subtitle: Text(subtitle),
-          value: value,
-          onChanged: (v) => notifier.set(apply(v)),
-        );
+    }) => SwitchListTile(
+      key: ValueKey(key),
+      secondary: Text(emoji, style: const TextStyle(fontSize: 24)),
+      title: Text(title),
+      subtitle: Text(subtitle),
+      value: value,
+      onChanged: (v) => notifier.set(apply(v)),
+    );
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
@@ -45,8 +44,9 @@ class SettingsScreen extends ConsumerWidget {
             kIsWeb
                 ? 'Project notifications only fire in the mobile apps.'
                 : 'Little nudges to keep your quests on track 🗺️',
-            style: theme.textTheme.bodyMedium
-                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 12),
           Card(
@@ -65,7 +65,8 @@ class SettingsScreen extends ConsumerWidget {
                   key: 'settings-deadlines',
                   emoji: '⏳',
                   title: 'Deadlines',
-                  subtitle: '3 days before, 1 day before and on the morning '
+                  subtitle:
+                      '3 days before, 1 day before and on the morning '
                       'of a target\'s deadline',
                   value: settings.deadlines,
                   apply: (v) => settings.copyWith(deadlines: v),

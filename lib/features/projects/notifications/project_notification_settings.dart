@@ -37,18 +37,17 @@ class ProjectNotificationSettings {
     bool? workSplits,
     bool? deadlines,
     bool? taskDeliveries,
-  }) =>
-      ProjectNotificationSettings(
-        workSplits: workSplits ?? this.workSplits,
-        deadlines: deadlines ?? this.deadlines,
-        taskDeliveries: taskDeliveries ?? this.taskDeliveries,
-      );
+  }) => ProjectNotificationSettings(
+    workSplits: workSplits ?? this.workSplits,
+    deadlines: deadlines ?? this.deadlines,
+    taskDeliveries: taskDeliveries ?? this.taskDeliveries,
+  );
 
   Map<String, dynamic> toJson() => {
-        'workSplits': workSplits,
-        'deadlines': deadlines,
-        'taskDeliveries': taskDeliveries,
-      };
+    'workSplits': workSplits,
+    'deadlines': deadlines,
+    'taskDeliveries': taskDeliveries,
+  };
 
   /// Missing / malformed values fall back to on.
   factory ProjectNotificationSettings.fromJson(Map<String, dynamic> json) =>
@@ -69,7 +68,8 @@ class ProjectNotificationSettings {
   int get hashCode => Object.hash(workSplits, deadlines, taskDeliveries);
 
   @override
-  String toString() => 'ProjectNotificationSettings(workSplits: $workSplits, '
+  String toString() =>
+      'ProjectNotificationSettings(workSplits: $workSplits, '
       'deadlines: $deadlines, taskDeliveries: $taskDeliveries)';
 }
 

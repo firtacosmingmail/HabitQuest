@@ -72,18 +72,17 @@ class ProjectNotification {
   int get id => projectNotificationId(key);
 
   ReminderRequest toRequest() => ReminderRequest(
-        id: id,
-        habitId: '$kProjectPayloadPrefix$projectId',
-        slot: 0,
-        title: title,
-        body: body,
-        repeat: ReminderRepeat.once,
-        firstFire: fireAt,
-      );
+    id: id,
+    habitId: '$kProjectPayloadPrefix$projectId',
+    slot: 0,
+    title: title,
+    body: body,
+    repeat: ReminderRepeat.once,
+    firstFire: fireAt,
+  );
 
   @override
-  String toString() =>
-      'ProjectNotification(${kind.name}, $key @ $fireAt)';
+  String toString() => 'ProjectNotification(${kind.name}, $key @ $fireAt)';
 }
 
 /// Plans the Projects notifications as of [now] (local time).
@@ -107,7 +106,12 @@ List<ProjectNotification> planProjectNotifications(
   final until = now.add(window);
   bool inWindow(DateTime t) => t.isAfter(now) && !t.isAfter(until);
   DateTime morning(DateTime day) => DateTime(
-      day.year, day.month, day.day, kProjectMorningHour, kProjectMorningMinute);
+    day.year,
+    day.month,
+    day.day,
+    kProjectMorningHour,
+    kProjectMorningMinute,
+  );
 
   final out = <ProjectNotification>[];
 
@@ -135,14 +139,16 @@ List<ProjectNotification> planProjectNotifications(
         'target': target.title,
         'time': '${s.startTime}',
       };
-      out.add(ProjectNotification(
-        kind: ProjectNotificationKind.workSplit,
-        key: key,
-        projectId: project.id,
-        fireAt: s.start,
-        title: fill(pick(kWorkSplitTitles, seed), values),
-        body: fill(pick(kWorkSplitBodies, seed >> 3), values),
-      ));
+      out.add(
+        ProjectNotification(
+          kind: ProjectNotificationKind.workSplit,
+          key: key,
+          projectId: project.id,
+          fireAt: s.start,
+          title: fill(pick(kWorkSplitTitles, seed), values),
+          body: fill(pick(kWorkSplitBodies, seed >> 3), values),
+        ),
+      );
     }
   }
 
@@ -156,14 +162,16 @@ List<ProjectNotification> planProjectNotifications(
         final key = 'deadline|${t.id}|$daysBefore';
         final seed = stableHash(key);
         final values = {'project': project.name, 'target': t.title};
-        out.add(ProjectNotification(
-          kind: ProjectNotificationKind.deadline,
-          key: key,
-          projectId: project.id,
-          fireAt: at,
-          title: fill(pick(kDeadlineTitles[daysBefore]!, seed), values),
-          body: fill(pick(kDeadlineBodies, seed >> 3), values),
-        ));
+        out.add(
+          ProjectNotification(
+            kind: ProjectNotificationKind.deadline,
+            key: key,
+            projectId: project.id,
+            fireAt: at,
+            title: fill(pick(kDeadlineTitles[daysBefore]!, seed), values),
+            body: fill(pick(kDeadlineBodies, seed >> 3), values),
+          ),
+        );
       }
     }
   }
@@ -185,14 +193,16 @@ List<ProjectNotification> planProjectNotifications(
         'target': target.title,
         'task': task.title,
       };
-      out.add(ProjectNotification(
-        kind: ProjectNotificationKind.taskDelivery,
-        key: key,
-        projectId: project.id,
-        fireAt: at,
-        title: fill(pick(kTaskDeliveryTitles, seed), values),
-        body: fill(pick(kTaskDeliveryBodies, seed >> 3), values),
-      ));
+      out.add(
+        ProjectNotification(
+          kind: ProjectNotificationKind.taskDelivery,
+          key: key,
+          projectId: project.id,
+          fireAt: at,
+          title: fill(pick(kTaskDeliveryTitles, seed), values),
+          body: fill(pick(kTaskDeliveryBodies, seed >> 3), values),
+        ),
+      );
     }
   }
 

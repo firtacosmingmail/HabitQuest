@@ -18,18 +18,9 @@ const kWorkSplitBodies = <String>[
 
 /// Deadline approaching, by days left (3, 1, 0). `{target}`, `{project}`.
 const kDeadlineTitles = <int, List<String>>{
-  3: [
-    '⏳ 3 days to go: {target}',
-    '🗺️ The finish line is in sight: {target}',
-  ],
-  1: [
-    '🔥 Tomorrow is the day: {target}',
-    '⚡ One day left for {target}!',
-  ],
-  0: [
-    '🏁 Deadline day: {target}',
-    '🏆 Today\'s the day: {target}!',
-  ],
+  3: ['⏳ 3 days to go: {target}', '🗺️ The finish line is in sight: {target}'],
+  1: ['🔥 Tomorrow is the day: {target}', '⚡ One day left for {target}!'],
+  0: ['🏁 Deadline day: {target}', '🏆 Today\'s the day: {target}!'],
 };
 const kDeadlineBodies = <String>[
   '{project}: give it your best shot 💪',

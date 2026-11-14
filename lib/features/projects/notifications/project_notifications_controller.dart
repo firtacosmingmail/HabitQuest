@@ -44,10 +44,10 @@ class ProjectNotificationsController {
     required ProjectNotificationSettings Function() settings,
     required Stream<Object?> triggers,
     required DateTime Function() now,
-  })  : _data = data,
-        _settings = settings,
-        _triggers = triggers,
-        _now = now;
+  }) : _data = data,
+       _settings = settings,
+       _triggers = triggers,
+       _now = now;
 
   /// Completes when all queued work has finished.
   Future<void> get idle => _queue;
@@ -79,8 +79,9 @@ class ProjectNotificationsController {
       settings: _settings(),
     );
     final plannedIds = {for (final n in planned) n.id};
-    final pending =
-        (await scheduler.pendingIds()).where(isProjectNotificationId);
+    final pending = (await scheduler.pendingIds()).where(
+      isProjectNotificationId,
+    );
     final stale = {...pending, ..._scheduled}.difference(plannedIds);
     if (stale.isNotEmpty) await scheduler.cancel(stale);
     if (planned.isNotEmpty) {

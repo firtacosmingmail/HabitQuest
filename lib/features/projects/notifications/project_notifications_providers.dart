@@ -15,16 +15,17 @@ import 'project_notifications_controller.dart';
 /// store; tests get an in-memory one (all on).
 final projectNotificationSettingsStoreProvider =
     Provider<ProjectNotificationSettingsStore>((ref) {
-  final store = ProjectNotificationSettingsStore(MemoryStringStore());
-  ref.onDispose(store.dispose);
-  return store;
-});
+      final store = ProjectNotificationSettingsStore(MemoryStringStore());
+      ref.onDispose(store.dispose);
+      return store;
+    });
 
 /// The toggles, for the Settings screen.
-final projectNotificationSettingsProvider = NotifierProvider<
-    ProjectNotificationSettingsNotifier, ProjectNotificationSettings>(
-  ProjectNotificationSettingsNotifier.new,
-);
+final projectNotificationSettingsProvider =
+    NotifierProvider<
+      ProjectNotificationSettingsNotifier,
+      ProjectNotificationSettings
+    >(ProjectNotificationSettingsNotifier.new);
 
 class ProjectNotificationSettingsNotifier
     extends Notifier<ProjectNotificationSettings> {
@@ -54,24 +55,24 @@ final projectNotificationSchedulerProvider = Provider<NotificationScheduler>(
 /// `NotificationsBootstrap`.
 final projectNotificationsControllerProvider =
     Provider<ProjectNotificationsController>((ref) {
-  final repository = ref.watch(projectRepositoryProvider);
-  final settings = ref.watch(projectNotificationSettingsStoreProvider);
-  final controller = ProjectNotificationsController(
-    scheduler: ref.watch(projectNotificationSchedulerProvider),
-    // A plain snapshot read, not a derived provider.
-    data: repository.getData,
-    settings: () => settings.value,
-    triggers: _merge<Object?>([
-      ref.watch(projectChangesProvider),
-      ref.watch(remoteProjectChangesProvider),
-      ref.watch(sessionAttendanceEventsProvider),
-      settings.changes,
-    ]),
-    now: ref.watch(clockProvider),
-  );
-  ref.onDispose(controller.dispose);
-  return controller;
-});
+      final repository = ref.watch(projectRepositoryProvider);
+      final settings = ref.watch(projectNotificationSettingsStoreProvider);
+      final controller = ProjectNotificationsController(
+        scheduler: ref.watch(projectNotificationSchedulerProvider),
+        // A plain snapshot read, not a derived provider.
+        data: repository.getData,
+        settings: () => settings.value,
+        triggers: _merge<Object?>([
+          ref.watch(projectChangesProvider),
+          ref.watch(remoteProjectChangesProvider),
+          ref.watch(sessionAttendanceEventsProvider),
+          settings.changes,
+        ]),
+        now: ref.watch(clockProvider),
+      );
+      ref.onDispose(controller.dispose);
+      return controller;
+    });
 
 Stream<T> _merge<T>(List<Stream<T>> streams) {
   late StreamController<T> controller;
