@@ -5,7 +5,7 @@ import 'json_utils.dart';
 import 'remote_models.dart';
 
 /// [HabitQuestApi] over HTTP (Edge Functions `habits`, `check-ins`,
-/// `game-state`).
+/// `game-state`, and the Projects functions of [ProjectResource]).
 class HttpHabitQuestApi implements HabitQuestApi {
   final AuthenticatedTransport transport;
 
@@ -103,6 +103,49 @@ class HttpHabitQuestApi implements HabitQuestApi {
   Future<void> deleteGameState() async {
     await transport.send('DELETE', _gameState);
   }
+
+  // Projects ----------------------------------------------------------------
+
+  @override
+  Future<DeltaPage<RemoteProjectRecord>> listProjectRecords(
+    ProjectResource resource, {
+    DateTime? since,
+  }) => _list(
+    resource.function,
+    (j) => RemoteProjectRecord.fromJson(resource, j),
+    {if (since != null) 'since': formatTimestamp(since)},
+  );
+
+  @override
+  Future<WriteResult<RemoteProjectRecord>> putProjectRecord(
+    RemoteProjectRecord record,
+  ) => _put(
+    record.resource.function,
+    record,
+    (j) => RemoteProjectRecord.fromJson(record.resource, j),
+  );
+
+  @override
+  Future<WriteResult<RemoteProjectRecord>> deleteProjectRecord(
+    ProjectResource resource,
+    String id, {
+    required DateTime updatedAt,
+  }) => _delete(
+    resource.function,
+    id,
+    updatedAt,
+    (j) => RemoteProjectRecord.fromJson(resource, j),
+  );
+
+  @override
+  Future<List<BatchItemResult<RemoteProjectRecord>>> batchProjectRecords(
+    ProjectResource resource,
+    List<RemoteProjectRecord> records,
+  ) => _batch(
+    resource.function,
+    records,
+    (j) => RemoteProjectRecord.fromJson(resource, j),
+  );
 
   // Helpers -----------------------------------------------------------------
 

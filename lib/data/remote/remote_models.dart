@@ -270,3 +270,112 @@ bool _jsonEquals(Object? a, Object? b) {
   }
   return a == b;
 }
+
+/// The five Projects Edge Functions (`supabase/API.md` "Projects"), in
+/// parent-first push order.
+enum ProjectResource {
+  projects('projects'),
+  targets('targets'),
+  planTasks('plan-tasks'),
+  consistentActions('consistent-actions'),
+  sessionMarks('session-marks');
+
+  const ProjectResource(this.function);
+
+  /// The Edge Function name.
+  final String function;
+
+  /// The parent's id field (`null` for projects).
+  String? get parentField => switch (this) {
+    projects => null,
+    targets => 'projectId',
+    planTasks || consistentActions => 'targetId',
+    sessionMarks => 'actionId',
+  };
+
+  /// The resource the parent lives in (`null` for projects).
+  ProjectResource? get parent => switch (this) {
+    projects => null,
+    targets => projects,
+    planTasks || consistentActions => targets,
+    sessionMarks => consistentActions,
+  };
+}
+
+/// One Projects record as contract JSON (`docs/PROJECTS.md`): the local
+/// model's `toJson()` **is** the wire shape, so the payload stays opaque
+/// here and the sync layer maps it to / from the models.
+///
+/// [id] is the record's UUID, or for session marks the derived key
+/// `actionId|yyyy-MM-dd` (which the server also returns as `id`).
+class RemoteProjectRecord implements RemoteEntity {
+  final ProjectResource resource;
+  final Map<String, dynamic> json;
+  @override
+  final String id;
+  @override
+  final DateTime updatedAt;
+  @override
+  final DateTime? deletedAt;
+
+  RemoteProjectRecord._(
+    this.resource,
+    this.json,
+    this.id,
+    this.updatedAt,
+    this.deletedAt,
+  );
+
+  /// Parses (and checks the LWW fields of) a record of [resource].
+  factory RemoteProjectRecord.fromJson(
+    ProjectResource resource,
+    Map<String, dynamic> json,
+  ) {
+    final id = resource == ProjectResource.sessionMarks
+        ? '${readString(json, 'actionId')}|'
+              '${formatDate(parseDate(json['date'], 'date'))}'
+        : readString(json, 'id');
+    return RemoteProjectRecord._(
+      resource,
+      Map<String, dynamic>.unmodifiable(json),
+      id,
+      parseTimestamp(json['updatedAt'], 'updatedAt'),
+      parseTimestampOrNull(json['deletedAt'], 'deletedAt'),
+    );
+  }
+
+  bool get isDeleted => deletedAt != null;
+
+  /// The parent record's id (`null` for projects).
+  String? get parentId {
+    final f = resource.parentField;
+    return f == null ? null : json[f] as String?;
+  }
+
+  /// The same record with new LWW fields (fakes: soft delete).
+  RemoteProjectRecord withStamps(DateTime updatedAt, DateTime? deletedAt) =>
+      RemoteProjectRecord.fromJson(resource, {
+        ...json,
+        'updatedAt': formatTimestamp(updatedAt),
+        'deletedAt': deletedAt == null ? null : formatTimestamp(deletedAt),
+      });
+
+  @override
+  Map<String, dynamic> toJson() => {
+    // Session marks: the server derives `id`; sending it is allowed.
+    ...json,
+    'id': id,
+  };
+
+  @override
+  bool operator ==(Object other) =>
+      other is RemoteProjectRecord &&
+      other.resource == resource &&
+      _jsonEquals(toJson(), other.toJson());
+
+  @override
+  int get hashCode => Object.hash(resource, id, updatedAt);
+
+  @override
+  String toString() => 'RemoteProjectRecord(${resource.function}, $json)';
+}

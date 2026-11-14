@@ -1,6 +1,7 @@
 import 'remote_models.dart';
 
-/// The data Edge Functions (`habits`, `check-ins`, `game-state`) for the
+/// The data Edge Functions (`habits`, `check-ins`, `game-state` and the
+/// five Projects functions, see [ProjectResource]) for the
 /// signed-in user. Implementations attach the access token themselves
 /// (refreshing it on 401 once). Every method throws [ApiException] on
 /// failure; `ApiException.isNetwork` means "offline, retry later".
@@ -62,4 +63,34 @@ abstract interface class HabitQuestApi {
 
   /// Removes the user's game state (reset).
   Future<void> deleteGameState();
+
+  // Projects ----------------------------------------------------------------
+  // One generic set for the five Projects functions: same routes and
+  // semantics as habits (supabase/API.md "Projects"). A child whose parent
+  // is not on the server yet fails with `409 parent_not_found` (a batch is
+  // all-or-nothing).
+
+  /// Records of [resource] (tombstones included) changed after [since].
+  Future<DeltaPage<RemoteProjectRecord>> listProjectRecords(
+    ProjectResource resource, {
+    DateTime? since,
+  });
+
+  /// Upsert with LWW (`PUT /<function>/<id>`).
+  Future<WriteResult<RemoteProjectRecord>> putProjectRecord(
+    RemoteProjectRecord record,
+  );
+
+  /// Soft delete with LWW. Throws `not_found` (404) for an unknown id.
+  Future<WriteResult<RemoteProjectRecord>> deleteProjectRecord(
+    ProjectResource resource,
+    String id, {
+    required DateTime updatedAt,
+  });
+
+  /// Upserts up to 500 records of [resource] (tombstones too) in order.
+  Future<List<BatchItemResult<RemoteProjectRecord>>> batchProjectRecords(
+    ProjectResource resource,
+    List<RemoteProjectRecord> records,
+  );
 }

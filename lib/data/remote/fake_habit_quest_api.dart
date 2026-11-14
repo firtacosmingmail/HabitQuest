@@ -9,9 +9,12 @@ import 'remote_models.dart';
 /// (`400 invalid_input`), batches of at most [maxBatch] items that are
 /// all-or-nothing (one invalid item → `400` naming its index, nothing
 /// written; a check-in of an unknown habit → `409 habit_not_found`), and 404s.
+/// The Projects functions behave the same way, with the parent-first rule
+/// (`409 parent_not_found`, a tombstoned parent counts) and no overlap check.
 ///
 /// For tests: inject failures with [offline] / [failNextWith], inspect
-/// [calls], seed rows with [seedHabit] / [seedCheckIn] (bypassing LWW).
+/// [calls], seed rows with [seedHabit] / [seedCheckIn] /
+/// [seedProjectRecord] (bypassing LWW).
 class FakeHabitQuestApi implements HabitQuestApi {
   FakeHabitQuestApi({DateTime Function()? now}) : _now = now ?? DateTime.now;
 
@@ -20,6 +23,10 @@ class FakeHabitQuestApi implements HabitQuestApi {
   final _habits = <String, _Row<RemoteHabit>>{};
   final _checkIns = <String, _Row<RemoteCheckIn>>{};
   _Row<RemoteGameState>? _gameState;
+  final _projects = {
+    for (final r in ProjectResource.values)
+      r: <String, _Row<RemoteProjectRecord>>{},
+  };
   DateTime? _lastServerTime;
 
   /// When true every call throws a `network_error` [ApiException].
@@ -51,6 +58,15 @@ class FakeHabitQuestApi implements HabitQuestApi {
   };
 
   RemoteGameState? get gameState => _gameState?.item;
+
+  /// Stored Projects records of [resource] by id (tombstones included).
+  Map<String, RemoteProjectRecord> projectRecords(ProjectResource resource) => {
+    for (final e in _projects[resource]!.entries) e.key: e.value.item,
+  };
+
+  /// Stores a Projects record as if another device had written it.
+  void seedProjectRecord(RemoteProjectRecord record) =>
+      _projects[record.resource]![record.id] = _Row(record, _tick());
 
   /// Stores a habit as if another device had written it (no LWW).
   void seedHabit(RemoteHabit habit) => _habits[habit.id] = _Row(habit, _tick());
@@ -185,6 +201,86 @@ class FakeHabitQuestApi implements HabitQuestApi {
   Future<void> deleteGameState() async {
     _enter('DELETE game-state');
     _gameState = null;
+  }
+
+  // Projects ----------------------------------------------------------------
+
+  @override
+  Future<DeltaPage<RemoteProjectRecord>> listProjectRecords(
+    ProjectResource resource, {
+    DateTime? since,
+  }) async {
+    _enter('GET ${resource.function}');
+    return _list(_projects[resource]!, since, (_) => true);
+  }
+
+  @override
+  Future<WriteResult<RemoteProjectRecord>> putProjectRecord(
+    RemoteProjectRecord record,
+  ) async {
+    _enter('PUT ${record.resource.function}/${record.id}');
+    _invalidIf(_projectRecordError(record));
+    _requireParents([record]);
+    return _upsert(_projects[record.resource]!, record);
+  }
+
+  @override
+  Future<WriteResult<RemoteProjectRecord>> deleteProjectRecord(
+    ProjectResource resource,
+    String id, {
+    required DateTime updatedAt,
+  }) async {
+    _enter('DELETE ${resource.function}/$id');
+    final table = _projects[resource]!;
+    final row = table[id];
+    if (row == null) throw _notFound;
+    final t = updatedAt.toUtc();
+    return _upsert(table, row.item.withStamps(t, t));
+  }
+
+  @override
+  Future<List<BatchItemResult<RemoteProjectRecord>>> batchProjectRecords(
+    ProjectResource resource,
+    List<RemoteProjectRecord> records,
+  ) async {
+    _enter('POST ${resource.function}/batch');
+    _validateBatch(records, _projectRecordError);
+    _requireParents(records); // atomic: nothing written on failure
+    final table = _projects[resource]!;
+    return [for (final r in records) _toBatch(r.id, _upsert(table, r))];
+  }
+
+  void _requireParents(List<RemoteProjectRecord> records) {
+    for (final r in records) {
+      final parent = r.resource.parent;
+      if (parent == null) continue;
+      if (!_projects[parent]!.containsKey(r.parentId)) {
+        throw ApiException(
+          status: 409,
+          code: ApiException.parentNotFound,
+          message: '${parent.function} ${r.parentId} does not exist',
+        );
+      }
+    }
+  }
+
+  /// A light version of the server's Projects validation.
+  static String? _projectRecordError(RemoteProjectRecord r) {
+    final j = r.json;
+    String? blank(String field) {
+      final v = j[field];
+      return v is String && v.trim().isNotEmpty
+          ? null
+          : '$field must not be blank';
+    }
+
+    return switch (r.resource) {
+      ProjectResource.projects => blank('name'),
+      ProjectResource.targets || ProjectResource.planTasks =>
+        blank('title') ?? blank(r.resource.parentField!),
+      ProjectResource.consistentActions ||
+      ProjectResource.sessionMarks => blank(r.resource.parentField!),
+    };
   }
 
   // Internals ---------------------------------------------------------------

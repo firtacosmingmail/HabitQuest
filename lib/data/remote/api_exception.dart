@@ -25,6 +25,7 @@ class ApiException implements Exception {
   static const signupDisabled = 'signup_disabled';
   static const notFound = 'not_found';
   static const habitNotFound = 'habit_not_found';
+  static const parentNotFound = 'parent_not_found';
   static const rateLimited = 'rate_limited';
   static const internalError = 'internal_error';
 
