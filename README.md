@@ -1147,8 +1147,12 @@ Local data is tied to the user id that first synced it (`sync_meta` box):
 - Tombstones are kept locally and on the server indefinitely (no purge yet).
 - On web, reachability relies on the browser's online state; an unreachable
   backend shows up as "offline" after the first failed request.
-- Not yet run against the real backend: the client follows the shared API
-  contract and is tested against `FakeHabitQuestApi`.
+- Tested against `FakeHabitQuestApi` (unit tests). Projects sync was also
+  run end to end against the **local** Supabase stack with
+  `test/e2e/projects_sync_e2e_test.dart` (skipped unless `HQ_E2E_URL`,
+  `HQ_E2E_ANON_KEY` and `HQ_E2E_SERVICE_KEY` are set; the header explains
+  how, local keys only). It still needs a check against the live project
+  once the Projects backend is deployed there.
 
 ## Architecture overview
 
