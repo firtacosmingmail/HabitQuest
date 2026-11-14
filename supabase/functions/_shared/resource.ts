@@ -1,9 +1,11 @@
 /**
- * Generic HTTP handler for the LWW resources (`habits`, `check-ins`). The
+ * Generic HTTP handler for the LWW resources (`habits`, `check-ins`, and the
+ * Projects resources `projects`, `targets`, `plan-tasks`,
+ * `consistent-actions`, `session-marks`). The
  * storage is behind [ResourceStore] so the routing and validation can be
  * tested without a database (see tests/resource_test.ts).
  */
-import { json, methodNotAllowed, notFound } from "./errors.ts";
+import { invalidInput, json, methodNotAllowed, notFound } from "./errors.ts";
 import { readJsonObject, subPath } from "./http.ts";
 import {
   parseSince,
@@ -12,11 +14,31 @@ import {
   validateCheckIn,
   validateHabit,
 } from "./validation.ts";
-import type { BatchResult, CheckIn, Habit, WriteResult } from "./types.ts";
+import {
+  parseSessionMarkId,
+  parseUuidId,
+  validateConsistentAction,
+  validatePlanTask,
+  validateProject,
+  validateSessionMark,
+  validateTarget,
+} from "./projects_validation.ts";
+import type {
+  BatchResult,
+  CheckIn,
+  ConsistentAction,
+  Habit,
+  PlanTask,
+  Project,
+  SessionMark,
+  Target,
+  WriteResult,
+} from "./types.ts";
 
 export interface ListQuery {
   since: string | null;
-  habitId: string | null;
+  /** Value of the spec's parent filter (`?habitId=`, `?projectId=`, ...), or null. */
+  parentId: string | null;
 }
 
 export interface ResourceStore<T> {
@@ -32,20 +54,73 @@ export interface ResourceSpec<T> {
   /** Function name, also the first path segment. */
   name: string;
   validate(body: unknown, pathId?: string): T;
-  /** Whether the list supports `?habitId=`. */
-  habitIdFilter: boolean;
+  /** Query parameter of the list's parent filter (e.g. `habitId`), if any. */
+  parentFilter?: string;
+  /** Checks/normalises the parent filter value (400 when malformed). */
+  parseParent?(value: string): string;
+  /** Checks/normalises a path id (400 when malformed); identity if absent. */
+  parseId?(id: string): string;
 }
 
 export const habitsSpec: ResourceSpec<Habit> = {
   name: "habits",
   validate: validateHabit,
-  habitIdFilter: false,
 };
 
 export const checkInsSpec: ResourceSpec<CheckIn> = {
   name: "check-ins",
   validate: validateCheckIn,
-  habitIdFilter: true,
+  parentFilter: "habitId",
+};
+
+const uuidParam = (field: string) => (v: string) => {
+  try {
+    return parseUuidId(v);
+  } catch {
+    throw invalidInput(`${field} must be a UUID`);
+  }
+};
+
+export const projectsSpec: ResourceSpec<Project> = {
+  name: "projects",
+  validate: validateProject,
+  parseId: parseUuidId,
+};
+
+export const targetsSpec: ResourceSpec<Target> = {
+  name: "targets",
+  validate: validateTarget,
+  parentFilter: "projectId",
+  parseParent: uuidParam("projectId"),
+  parseId: parseUuidId,
+};
+
+export const planTasksSpec: ResourceSpec<PlanTask> = {
+  name: "plan-tasks",
+  validate: validatePlanTask,
+  parentFilter: "targetId",
+  parseParent: uuidParam("targetId"),
+  parseId: parseUuidId,
+};
+
+export const consistentActionsSpec: ResourceSpec<ConsistentAction> = {
+  name: "consistent-actions",
+  validate: validateConsistentAction,
+  parentFilter: "targetId",
+  parseParent: uuidParam("targetId"),
+  parseId: parseUuidId,
+};
+
+/** Path id: `<actionId>|<yyyy-MM-dd>` (send the `|` URL-encoded as `%7C`). */
+export const sessionMarksSpec: ResourceSpec<SessionMark> = {
+  name: "session-marks",
+  validate: validateSessionMark,
+  parentFilter: "actionId",
+  parseParent: uuidParam("actionId"),
+  parseId: (id) => {
+    const k = parseSessionMarkId(id);
+    return `${k.actionId}|${k.date}`;
+  },
 };
 
 export async function handleResource<T>(
@@ -61,8 +136,9 @@ export async function handleResource<T>(
     switch (method) {
       case "GET": {
         const since = parseSince(url.searchParams.get("since"));
-        const habitId = spec.habitIdFilter ? (url.searchParams.get("habitId") || null) : null;
-        return json(await store.list({ since, habitId }));
+        const raw = spec.parentFilter ? (url.searchParams.get(spec.parentFilter) || null) : null;
+        const parentId = raw !== null && spec.parseParent ? spec.parseParent(raw) : raw;
+        return json(await store.list({ since, parentId }));
       }
       case "POST": {
         const item = spec.validate(await readJsonObject(req));
@@ -79,7 +155,9 @@ export async function handleResource<T>(
   }
 
   if (path.length !== 1) throw notFound(`Unknown route ${url.pathname}`);
-  const id = path[0];
+  const rawId = path[0];
+  if (!["GET", "PUT", "DELETE"].includes(method)) throw methodNotAllowed(method);
+  const id = spec.parseId ? spec.parseId(rawId) : rawId;
 
   switch (method) {
     case "GET": {
@@ -88,7 +166,7 @@ export async function handleResource<T>(
       return json(item);
     }
     case "PUT": {
-      const item = spec.validate(await readJsonObject(req), id);
+      const item = spec.validate(await readJsonObject(req), rawId);
       return json(await store.upsert(item));
     }
     case "DELETE": {

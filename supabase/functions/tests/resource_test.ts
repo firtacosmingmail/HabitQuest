@@ -6,7 +6,7 @@ import { checkInBody, habitBody, habitMustExist, MemoryStore, req } from "./fake
 
 function setup() {
   const habits = new MemoryStore<Habit>();
-  const checkIns = new MemoryStore<CheckIn>(habitMustExist(habits));
+  const checkIns = new MemoryStore<CheckIn>(habitMustExist(habits), (c) => c.habitId);
   return {
     habits,
     checkIns,

@@ -491,3 +491,19 @@ verify_jwt = false
 
 [functions.admin-stats]
 verify_jwt = false
+
+# Projects (docs/PROJECTS.md, API.md "Projects"): JWT checked in code (401 contract).
+[functions.projects]
+verify_jwt = false
+
+[functions.targets]
+verify_jwt = false
+
+[functions.plan-tasks]
+verify_jwt = false
+
+[functions.consistent-actions]
+verify_jwt = false
+
+[functions.session-marks]
+verify_jwt = false

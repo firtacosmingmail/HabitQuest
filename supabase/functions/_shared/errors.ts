@@ -55,12 +55,19 @@ export interface DbError {
   hint?: string | null;
 }
 
-/** Maps a database error to an ApiError. */
-export function mapDbError(err: DbError): ApiError {
+/** 409 for a child written before its parent exists (Projects resources). */
+export const parentNotFound = (message: string) => new ApiError(409, "parent_not_found", message);
+
+/**
+ * Maps a database error to an ApiError. `foreignKey` overrides the error of a
+ * foreign key violation (default: the check-ins `habit_not_found`).
+ */
+export function mapDbError(err: DbError, foreignKey?: ApiError): ApiError {
   const code = err.code ?? "";
   const message = err.message ?? "Database error";
   switch (code) {
     case "23503": // foreign_key_violation (check-in for an unknown habit)
+      if (foreignKey) return foreignKey;
       return new ApiError(
         409,
         "habit_not_found",
