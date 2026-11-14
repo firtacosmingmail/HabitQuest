@@ -537,6 +537,23 @@ class _HowToEarnCard extends StatelessWidget {
             '+${GameRules.perfectDayXp} XP for a Perfect Day '
                 '(every habit due that day done)',
           ),
+          const SizedBox(height: 8),
+          Text('Projects', style: theme.textTheme.titleSmall),
+          const SizedBox(height: 4),
+          row(
+            '☑️',
+            '${GameRules.planTaskXp} XP for every plan task you finish',
+          ),
+          row(
+            '⏱️',
+            '${GameRules.sessionXp} XP for every work session you attend',
+          ),
+          row(
+            '🎯',
+            '${GameRules.targetDoneXp} XP when you set a target to done',
+          ),
+          row('↩️', 'Undo it and the XP goes back: no farming!'),
+          const SizedBox(height: 8),
           row('⬆️', 'Level n → n+1 costs 100 × n XP'),
         ],
       ),
