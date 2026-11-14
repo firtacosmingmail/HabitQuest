@@ -17,6 +17,18 @@ enum AchievementKind {
 
   /// Number of Perfect Days.
   perfectDays,
+
+  /// Number of plan tasks currently done (holding XP).
+  planTasksDone,
+
+  /// Number of sessions currently attended (holding XP).
+  sessionsAttended,
+
+  /// Number of targets currently done (holding XP).
+  targetsDone,
+
+  /// Number of projects with at least one target and every target done.
+  projectsCompleted,
 }
 
 /// A badge the player can unlock. Once unlocked it stays unlocked.
@@ -67,6 +79,12 @@ abstract final class AchievementIds {
   static const checkIns500 = 'check_ins_500';
   static const firstPerfectDay = 'first_perfect_day';
   static const fiveActiveHabits = 'five_active_habits';
+  static const firstPlanTask = 'first_plan_task';
+  static const sessions10 = 'sessions_10';
+  static const sessions50 = 'sessions_50';
+  static const firstTargetDone = 'first_target_done';
+  static const targets5 = 'targets_5';
+  static const projectComplete = 'project_complete';
 }
 
 /// All achievements, in display order.
@@ -178,6 +196,60 @@ const List<Achievement> achievementCatalog = [
     hint: 'Have 5 active habits at the same time.',
     kind: AchievementKind.activeHabits,
     threshold: 5,
+  ),
+  Achievement(
+    id: AchievementIds.firstPlanTask,
+    name: 'Checked Off',
+    description: 'Finished your first plan task.',
+    emoji: '☑️',
+    hint: 'Finish a task in a target\'s plan.',
+    kind: AchievementKind.planTasksDone,
+    threshold: 1,
+  ),
+  Achievement(
+    id: AchievementIds.sessions10,
+    name: 'In the Zone',
+    description: 'Attended 10 work sessions.',
+    emoji: '⏱️',
+    hint: 'Mark 10 work split sessions attended.',
+    kind: AchievementKind.sessionsAttended,
+    threshold: 10,
+  ),
+  Achievement(
+    id: AchievementIds.sessions50,
+    name: 'Deep Worker',
+    description: 'Attended 50 work sessions.',
+    emoji: '🧠',
+    hint: 'Mark 50 work split sessions attended.',
+    kind: AchievementKind.sessionsAttended,
+    threshold: 50,
+  ),
+  Achievement(
+    id: AchievementIds.firstTargetDone,
+    name: 'Bullseye',
+    description: 'Set your first target to done.',
+    emoji: '🎯',
+    hint: 'Set a project target to done.',
+    kind: AchievementKind.targetsDone,
+    threshold: 1,
+  ),
+  Achievement(
+    id: AchievementIds.targets5,
+    name: 'Sharpshooter',
+    description: 'Set 5 targets to done.',
+    emoji: '🏹',
+    hint: 'Set 5 project targets to done.',
+    kind: AchievementKind.targetsDone,
+    threshold: 5,
+  ),
+  Achievement(
+    id: AchievementIds.projectComplete,
+    name: 'Mission Complete',
+    description: 'Finished every target of a project.',
+    emoji: '🏆',
+    hint: 'Set every target of a project to done.',
+    kind: AchievementKind.projectsCompleted,
+    threshold: 1,
   ),
 ];
 

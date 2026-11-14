@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:habit_quest/features/projects/data/project_repository.dart';
+import 'package:habit_quest/features/projects/projects_providers.dart';
 import 'package:habit_quest/app.dart';
 import 'package:habit_quest/data/repositories/in_memory_habit_repository.dart';
 import 'package:habit_quest/domain/providers.dart';
@@ -19,6 +21,9 @@ void main() {
     );
     final c = ProviderContainer(
       overrides: [
+        projectRepositoryProvider.overrideWithValue(
+          InMemoryProjectRepository(),
+        ),
         habitRepositoryProvider.overrideWithValue(
           InMemoryHabitRepository(
             habits: [

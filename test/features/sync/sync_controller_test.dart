@@ -1,6 +1,8 @@
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:habit_quest/features/projects/data/project_repository.dart';
+import 'package:habit_quest/features/projects/projects_providers.dart';
 import 'package:habit_quest/data/remote/api_exception.dart';
 import 'package:habit_quest/data/remote/fake_auth_api.dart';
 import 'package:habit_quest/data/remote/fake_habit_quest_api.dart';
@@ -35,6 +37,9 @@ void main() {
           authApiProvider.overrideWithValue(FakeAuthApi()),
           sessionStoreProvider.overrideWithValue(InMemorySessionStore()),
         ],
+        projectRepositoryProvider.overrideWithValue(
+          InMemoryProjectRepository(),
+        ),
         habitRepositoryProvider.overrideWithValue(
           InMemoryHabitRepository(recorder: queue),
         ),

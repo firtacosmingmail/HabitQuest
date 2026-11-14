@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:habit_quest/features/projects/data/project_repository.dart';
+import 'package:habit_quest/features/projects/projects_providers.dart';
 import 'package:habit_quest/core/theme/app_theme.dart';
 import 'package:habit_quest/data/remote/fake_habit_quest_api.dart';
 import 'package:habit_quest/data/sync/change_recorder.dart';
@@ -88,6 +90,9 @@ void main() {
       ProviderScope(
         overrides: [
           ...signedInOverrides(),
+          projectRepositoryProvider.overrideWithValue(
+            InMemoryProjectRepository(),
+          ),
           habitRepositoryProvider.overrideWithValue(InMemoryHabitRepository()),
           clockProvider.overrideWithValue(() => now),
           habitQuestApiProvider.overrideWithValue(server),

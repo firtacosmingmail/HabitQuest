@@ -78,7 +78,10 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Keep a habit going 100 times in a row.'), findsOneWidget);
-    expect(find.byIcon(Icons.lock_rounded), findsNWidgets(10));
+    expect(
+      find.byIcon(Icons.lock_rounded),
+      findsNWidgets(achievementCatalog.length - 2),
+    );
 
     expect(find.text('How to earn XP'), findsOneWidget);
     expect(find.text('10 XP for every check-in'), findsOneWidget);
