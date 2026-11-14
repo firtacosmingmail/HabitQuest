@@ -10,7 +10,8 @@ Base URL: `{SUPABASE_URL}/functions/v1/<name>`
 ## General rules
 
 - Every request sends the header `apikey: <anon key>`.
-- Data endpoints (`habits`, `check-ins`, `game-state`, `quotes`, `quote-loves`,
+- Data endpoints (`habits`, `check-ins`, `game-state`, `projects`, `targets`,
+  `plan-tasks`, `consistent-actions`, `session-marks`, `quotes`, `quote-loves`,
   `admin-quotes`, `admin-stats`)
   and `auth-logout` also
   send `Authorization: Bearer <accessToken>`. Exception: `GET /quotes` also
@@ -190,7 +191,8 @@ to the database time on every insert/update. It is not part of the JSON.
 
 ## Delta pull and cursors
 
-`GET /habits?since=<iso>` (and `GET /check-ins?since=<iso>`) returns every row
+`GET /habits?since=<iso>` (and the same on `check-ins` and on the
+[Projects](#projects) functions) returns every row
 whose `server_updated_at > since`, tombstones included, ordered by
 `server_updated_at`. Without `since` it returns all rows of the user.
 
@@ -296,12 +298,144 @@ signs in again with the new password right after the `204`.
 
 Body: `{ "confirm": "DELETE" }` (exactly; anything else → `400 invalid_input`).
 
-- `204`: the caller's `check_ins`, `habits`, `game_state` and `profiles` rows
-  are deleted (with their JWT, RLS), then the auth user with
+- `204`: the caller's `session_marks`, `plan_tasks`, `consistent_actions`,
+  `targets`, `projects`, `check_ins`, `habits`, `game_state` and `profiles`
+  rows are deleted (with their JWT, RLS, children first), then the auth user with
   `auth.admin.deleteUser`. That admin call uses a service-role client built
   from `SUPABASE_SERVICE_ROLE_KEY`, which Supabase provides to deployed
-  functions; it never leaves the server.
+  functions; it never leaves the server. Every user table also references
+  `auth.users` with `on delete cascade`, so deleting the auth user removes
+  any row the explicit deletes missed.
 - `401 unauthorized`, `500 internal_error`.
+
+## Projects
+
+The Projects feature (`docs/PROJECTS.md` is the data contract: field
+meanings, recurrence and overlap rules). Five functions, one per entity,
+with **exactly the semantics of `habits` / `check-ins`**: same routes, LWW,
+tombstones, batch, delta pull and cursor, CORS, error shape and `401
+unauthorized` contract (JWT checked in code with `auth.getUser`). Tables:
+`projects`, `targets`, `plan_tasks`, `consistent_actions`, `session_marks`
+(`migrations/20261114120000_projects.sql`), RLS per `auth.uid()`, LWW SQL
+functions `upsert_<entity>`, `upsert_<entities>`, `soft_delete_<entity>`,
+`pull_<entities>` (SECURITY INVOKER).
+
+| Function | Resource | Id | List filter |
+|---|---|---|---|
+| `projects` | Project | UUID | – |
+| `targets` | Target | UUID | `?projectId=<uuid>` |
+| `plan-tasks` | PlanTask | UUID | `?targetId=<uuid>` |
+| `consistent-actions` | ConsistentAction | UUID | `?targetId=<uuid>` |
+| `session-marks` | SessionMark | `<actionId>\|<yyyy-MM-dd>` | `?actionId=<uuid>` |
+
+Routes, for each function `<f>` (see [Function `habits`](#function-habits)):
+
+| Method & path | Body | Response |
+|---|---|---|
+| `GET /<f>?since=<iso>&<filter>=<id>` | – | `200 { "items": [...], "serverTime": iso }` |
+| `GET /<f>/<id>` | – | `200 item` (tombstones included) or `404 not_found` |
+| `PUT /<f>/<id>` | item | `200 { "item", "applied": bool }` |
+| `POST /<f>` | item (with its id / key fields) | same as PUT |
+| `DELETE /<f>/<id>?updatedAt=<iso>` | – | `200 { "item", "applied": bool }` or `404 not_found` |
+| `POST /<f>/batch` | `{ "items": [...] }` (max 500) | `200 { "results": [{ "id", "applied", "item" }] }` |
+
+### Common rules
+
+- Ids are UUID strings generated on the device. They are accepted in any
+  case and **returned in lower case** (stored as Postgres `uuid`); a
+  malformed id in the path, the body or a filter → `400 invalid_input`.
+  The body id must equal the path id on PUT.
+- `createdAt` and `updatedAt` are required on writes; `deletedAt` is `null`
+  or a timestamp (soft delete). LWW on `updatedAt` exactly as for habits;
+  undelete by writing `deletedAt: null` with a newer `updatedAt`.
+- Responses carry exactly the contract JSON of `docs/PROJECTS.md` (camelCase,
+  UTC timestamps with milliseconds, `yyyy-MM-dd` dates, `HH:mm` times,
+  `null` fields sent as `null`), plus the derived `id` on session marks.
+- **Parent before child.** A target needs its project on the server, a plan
+  task or consistent action its target, a session mark its consistent action
+  (a tombstoned parent counts). Otherwise `409 parent_not_found` (a batch is
+  one transaction: nothing is written). Push projects → targets → plan tasks
+  and consistent actions → session marks.
+- The server does **not** cascade soft deletes: the app tombstones the
+  children itself (`docs/PROJECTS.md`) and pushes every tombstone. Hard
+  deletes (account deletion only) cascade through the foreign keys.
+- The server does not prevent changing a child's parent id (`projectId`,
+  `targetId`); the app never does (the contract says they cannot change).
+- **Overlaps are not checked on the server.** Whether two consistent
+  actions clash in time is an app save rule (`docs/PROJECTS.md` "Overlap
+  rule"); data merged from two offline devices may contain a clash, which
+  the server stores and the client tolerates.
+
+### Project
+
+```json
+{ "id": "7b0e…", "name": "Content business", "archived": false,
+  "createdAt": "2026-11-01T08:00:00.000Z", "updatedAt": "2026-11-01T08:00:00.000Z",
+  "deletedAt": null }
+```
+
+- `name`: string, not blank, max 200 characters (stored as sent).
+- `archived`: boolean, default `false` when missing.
+
+### Target
+
+```json
+{ "id": "c41a…", "projectId": "7b0e…", "title": "5 videos",
+  "deadline": "2026-11-30", "status": "inProgress",
+  "createdAt": "…Z", "updatedAt": "…Z", "deletedAt": null }
+```
+
+- `title`: not blank, max 200 characters. `deadline`: `yyyy-MM-dd`, required.
+- `status`: `"notStarted"` (default when missing) | `"inProgress"` | `"done"`;
+  any other value → `400 invalid_input`.
+
+### PlanTask
+
+```json
+{ "id": "e9d2…", "targetId": "c41a…", "title": "5 scripts",
+  "deliveryDate": "2026-11-10", "done": false, "position": 0,
+  "createdAt": "…Z", "updatedAt": "…Z", "deletedAt": null }
+```
+
+- `deliveryDate`: `yyyy-MM-dd` or `null` (default). `done`: boolean, default
+  `false`. `position`: 32-bit integer, default `0`.
+
+### ConsistentAction
+
+```json
+{ "id": "5f3c…", "targetId": "c41a…", "startTime": "10:00", "endTime": "13:00",
+  "recurrence": { "type": "weekly", "weekdays": [1, 2, 3, 4, 5] },
+  "startDate": null,
+  "createdAt": "…Z", "updatedAt": "…Z", "deletedAt": null }
+```
+
+- `startTime`, `endTime`: `"HH:mm"` (24 h); `endTime` strictly after
+  `startTime` (no block across midnight) → else `400 invalid_input`.
+- `recurrence`: `{ "type": "weekly", "weekdays": [1..7] }` (ISO, 1 = Monday)
+  or `{ "type": "monthly", "monthDays": [1..31] }`; the list non-empty,
+  integers, sorted ascending, no duplicates. Unknown `type` → `400`. Stored
+  as `jsonb` normalised to exactly these keys (others are dropped).
+- `startDate`: `yyyy-MM-dd` or `null`.
+
+### SessionMark
+
+```json
+{ "id": "5f3c…|2026-11-16", "actionId": "5f3c…", "date": "2026-11-16",
+  "attended": true, "updatedAt": "…Z", "deletedAt": null }
+```
+
+- Keyed by `(actionId, date)` like check-ins, no UUID: two devices marking
+  the same session converge on one row. Table primary key
+  `(user_id, action_id, date)`; no `createdAt`.
+- `id` = `actionId + "|" + date` (lower-case uuid), the app's sync queue
+  key. It is **derived**: responses include it, requests may omit it; when
+  sent (body or path) it must match `actionId` and `date`
+  (`400 invalid_input` otherwise). In a path, URL-encode the `|` as `%7C`:
+  `PUT /session-marks/5f3c…%7C2026-11-16`. Batch `results[].id` is this key.
+- Un-marking is a write with `attended: false` and a newer `updatedAt`.
+  `DELETE` tombstones the mark (`deletedAt`), like check-ins.
+- The server does not check that `date` is a session day of the action or
+  not in the future (app rules).
 
 ## Quotes
 
@@ -622,6 +756,6 @@ only the days inside the range). Other methods → `405`, other sub-paths →
 | 403 | `email_not_confirmed`, `signup_disabled`, `forbidden` |
 | 404 | `not_found` |
 | 405 | `method_not_allowed` |
-| 409 | `email_taken`, `habit_not_found`, `no_password`, `day_taken` |
+| 409 | `email_taken`, `habit_not_found`, `parent_not_found`, `no_password`, `day_taken` |
 | 429 | `rate_limited` (Supabase Auth rate limit) |
 | 500 | `internal_error` |

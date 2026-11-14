@@ -119,6 +119,11 @@ function serviceClient(env: Env): SupabaseClient {
 
 /** Tables to empty, children first. */
 const USER_TABLES: { table: string; column: string }[] = [
+  { table: "session_marks", column: "user_id" },
+  { table: "plan_tasks", column: "user_id" },
+  { table: "consistent_actions", column: "user_id" },
+  { table: "targets", column: "user_id" },
+  { table: "projects", column: "user_id" },
   { table: "check_ins", column: "user_id" },
   { table: "habits", column: "user_id" },
   { table: "game_state", column: "user_id" },

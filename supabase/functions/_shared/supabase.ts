@@ -1,6 +1,9 @@
 /**
  * Supabase client creation, caller authentication and the SQL-backed stores.
  *
+ * The Projects stores (projects, targets, plan tasks, consistent actions,
+ * session marks) use the same SQL-backed LWW store as habits and check-ins.
+ *
  * Data access always goes through a client created with the anon key plus
  * the caller's JWT, so row-level security applies. The service role key is
  * used only by account-delete's auth.admin.deleteUser (supabase_account.ts)
@@ -9,7 +12,25 @@
  * filters out future quotes (supabase_quotes.ts, quotes.ts).
  */
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
-import { ApiError, mapDbError, unauthorized } from "./errors.ts";
+import { ApiError, mapDbError, parentNotFound, unauthorized } from "./errors.ts";
+import {
+  type ConsistentActionRow,
+  consistentActionToRow,
+  type PlanTaskRow,
+  planTaskToRow,
+  type ProjectRow,
+  projectToRow,
+  rowToConsistentAction,
+  rowToPlanTask,
+  rowToProject,
+  rowToSessionMark,
+  rowToTarget,
+  type SessionMarkRow,
+  sessionMarkToRow,
+  type TargetRow,
+  targetToRow,
+} from "./projects_mapping.ts";
+import { parseSessionMarkId } from "./projects_validation.ts";
 import {
   type CheckInRow,
   checkInToRow,
@@ -22,7 +43,18 @@ import {
 } from "./mapping.ts";
 import type { ListQuery, ResourceStore } from "./resource.ts";
 import type { GameStateStore } from "./game_state.ts";
-import type { BatchResult, CheckIn, GameState, Habit, WriteResult } from "./types.ts";
+import type {
+  BatchResult,
+  CheckIn,
+  ConsistentAction,
+  GameState,
+  Habit,
+  PlanTask,
+  Project,
+  SessionMark,
+  Target,
+  WriteResult,
+} from "./types.ts";
 import { toIsoMillis } from "./validation.ts";
 
 export interface Env {
@@ -102,9 +134,10 @@ async function rpc<T>(
   client: SupabaseClient,
   fn: string,
   args: Record<string, unknown>,
+  foreignKey?: ApiError,
 ): Promise<T> {
   const { data, error } = await client.rpc(fn, args);
-  if (error) throw mapDbError(error);
+  if (error) throw mapDbError(error, foreignKey);
   return data as T;
 }
 
@@ -122,6 +155,12 @@ interface SqlResourceConfig<T, R> {
   upsertMany: string;
   softDelete: string;
   pullArgs(q: ListQuery): Record<string, unknown>;
+  /** Column filter of GET /<id> (default `{ id }`). */
+  match?(id: string): Record<string, string>;
+  /** Key arguments of the soft delete function (default `{ p_id: id }`). */
+  deleteArgs?(id: string): Record<string, unknown>;
+  /** Error for a foreign key violation (child pushed before its parent). */
+  foreignKey?: ApiError;
 }
 
 class SqlResourceStore<T, R> implements ResourceStore<T> {
@@ -146,7 +185,7 @@ class SqlResourceStore<T, R> implements ResourceStore<T> {
     const { data, error } = await this.client
       .from(this.cfg.table)
       .select("*")
-      .eq("id", id)
+      .match(this.cfg.match ? this.cfg.match(id) : { id })
       .maybeSingle();
     if (error) throw mapDbError(error);
     return data ? this.cfg.fromRow(data as R) : null;
@@ -155,7 +194,7 @@ class SqlResourceStore<T, R> implements ResourceStore<T> {
   async upsert(item: T): Promise<WriteResult<T>> {
     const r = await rpc<RawWrite<R>>(this.client, this.cfg.upsert, {
       p_item: this.cfg.toRow(item),
-    });
+    }, this.cfg.foreignKey);
     return { item: this.cfg.fromRow(r.item), applied: r.applied };
   }
 
@@ -165,6 +204,7 @@ class SqlResourceStore<T, R> implements ResourceStore<T> {
       this.client,
       this.cfg.upsertMany,
       { p_items: items.map((i) => this.cfg.toRow(i)) },
+      this.cfg.foreignKey,
     );
     return rs.map((r) => ({
       id: r.id,
@@ -175,7 +215,7 @@ class SqlResourceStore<T, R> implements ResourceStore<T> {
 
   async softDelete(id: string, updatedAt: string | null) {
     const r = await rpc<RawWrite<R> | null>(this.client, this.cfg.softDelete, {
-      p_id: id,
+      ...(this.cfg.deleteArgs ? this.cfg.deleteArgs(id) : { p_id: id }),
       p_updated_at: updatedAt,
     });
     return r ? { item: this.cfg.fromRow(r.item), applied: r.applied } : null;
@@ -204,7 +244,92 @@ export function checkInStore(client: SupabaseClient): ResourceStore<CheckIn> {
     upsert: "upsert_check_in",
     upsertMany: "upsert_check_ins",
     softDelete: "soft_delete_check_in",
-    pullArgs: (q) => ({ p_since: q.since, p_habit_id: q.habitId }),
+    pullArgs: (q) => ({ p_since: q.since, p_habit_id: q.parentId }),
+  });
+}
+
+// Projects -------------------------------------------------------------------
+
+const pushParentFirst = (child: string, parent: string) =>
+  parentNotFound(
+    `The ${parent} of this ${child} does not exist on the server; push the ${parent} first`,
+  );
+
+export function projectStore(client: SupabaseClient): ResourceStore<Project> {
+  return new SqlResourceStore<Project, ProjectRow>(client, {
+    table: "projects",
+    toRow: projectToRow,
+    fromRow: rowToProject,
+    pull: "pull_projects",
+    upsert: "upsert_project",
+    upsertMany: "upsert_projects",
+    softDelete: "soft_delete_project",
+    pullArgs: (q) => ({ p_since: q.since }),
+  });
+}
+
+export function targetStore(client: SupabaseClient): ResourceStore<Target> {
+  return new SqlResourceStore<Target, TargetRow>(client, {
+    table: "targets",
+    toRow: targetToRow,
+    fromRow: rowToTarget,
+    pull: "pull_targets",
+    upsert: "upsert_target",
+    upsertMany: "upsert_targets",
+    softDelete: "soft_delete_target",
+    pullArgs: (q) => ({ p_since: q.since, p_project_id: q.parentId }),
+    foreignKey: pushParentFirst("target", "project"),
+  });
+}
+
+export function planTaskStore(client: SupabaseClient): ResourceStore<PlanTask> {
+  return new SqlResourceStore<PlanTask, PlanTaskRow>(client, {
+    table: "plan_tasks",
+    toRow: planTaskToRow,
+    fromRow: rowToPlanTask,
+    pull: "pull_plan_tasks",
+    upsert: "upsert_plan_task",
+    upsertMany: "upsert_plan_tasks",
+    softDelete: "soft_delete_plan_task",
+    pullArgs: (q) => ({ p_since: q.since, p_target_id: q.parentId }),
+    foreignKey: pushParentFirst("plan task", "target"),
+  });
+}
+
+export function consistentActionStore(client: SupabaseClient): ResourceStore<ConsistentAction> {
+  return new SqlResourceStore<ConsistentAction, ConsistentActionRow>(client, {
+    table: "consistent_actions",
+    toRow: consistentActionToRow,
+    fromRow: rowToConsistentAction,
+    pull: "pull_consistent_actions",
+    upsert: "upsert_consistent_action",
+    upsertMany: "upsert_consistent_actions",
+    softDelete: "soft_delete_consistent_action",
+    pullArgs: (q) => ({ p_since: q.since, p_target_id: q.parentId }),
+    foreignKey: pushParentFirst("consistent action", "target"),
+  });
+}
+
+/** Keyed by (action_id, date); the API id is `<actionId>|<yyyy-MM-dd>`. */
+export function sessionMarkStore(client: SupabaseClient): ResourceStore<SessionMark> {
+  return new SqlResourceStore<SessionMark, SessionMarkRow>(client, {
+    table: "session_marks",
+    toRow: sessionMarkToRow,
+    fromRow: rowToSessionMark,
+    pull: "pull_session_marks",
+    upsert: "upsert_session_mark",
+    upsertMany: "upsert_session_marks",
+    softDelete: "soft_delete_session_mark",
+    pullArgs: (q) => ({ p_since: q.since, p_action_id: q.parentId }),
+    match: (id) => {
+      const k = parseSessionMarkId(id);
+      return { action_id: k.actionId, date: k.date };
+    },
+    deleteArgs: (id) => {
+      const k = parseSessionMarkId(id);
+      return { p_action_id: k.actionId, p_date: k.date };
+    },
+    foreignKey: pushParentFirst("session mark", "consistent action"),
   });
 }
 

@@ -24,8 +24,14 @@ export class MemoryStore<T extends Syncable> implements ResourceStore<T> {
   readonly rows = new Map<string, Entry<T>>();
   /** Fake database clock (ms), advanced on every write. */
   clock = Date.UTC(2026, 9, 7, 12, 0, 0);
-  /** Optional referential check (e.g. check-in → habit). */
-  constructor(private readonly check?: (item: T) => void) {}
+  /**
+   * Optional referential check (e.g. check-in → habit) and the parent id used
+   * by the list filter (`?habitId=`, `?projectId=`, ...).
+   */
+  constructor(
+    private readonly check?: (item: T) => void,
+    private readonly parentOf?: (item: T) => string,
+  ) {}
 
   private write(item: T) {
     this.clock += 1000;
@@ -36,9 +42,7 @@ export class MemoryStore<T extends Syncable> implements ResourceStore<T> {
     const since = q.since ? Date.parse(q.since) : null;
     const items = [...this.rows.values()]
       .filter((e) => since === null || e.serverUpdatedAt > since)
-      .filter((e) =>
-        q.habitId === null || (e.item as unknown as { habitId?: string }).habitId === q.habitId
-      )
+      .filter((e) => q.parentId === null || this.parentOf?.(e.item) === q.parentId)
       .sort((a, b) => a.serverUpdatedAt - b.serverUpdatedAt)
       .map((e) => e.item);
     return Promise.resolve({

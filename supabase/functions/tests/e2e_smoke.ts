@@ -193,6 +193,152 @@ r = await call("PUT", "game-state", {
 });
 check("game-state older → not applied", r.body.applied === false, r);
 
+// Projects (docs/PROJECTS.md): parent-first, LWW, filters, session marks.
+const P = crypto.randomUUID();
+const T = crypto.randomUUID();
+const K = crypto.randomUUID();
+const A = crypto.randomUUID();
+const ts = (d: string) => `2026-11-${d}T08:00:00.000Z`;
+const project = {
+  id: P,
+  name: "Content business",
+  archived: false,
+  createdAt: ts("01"),
+  updatedAt: ts("01"),
+  deletedAt: null,
+};
+const target = {
+  id: T,
+  projectId: P,
+  title: "5 videos",
+  deadline: "2026-11-30",
+  status: "inProgress",
+  createdAt: ts("01"),
+  updatedAt: ts("01"),
+  deletedAt: null,
+};
+const task = {
+  id: K,
+  targetId: T,
+  title: "5 scripts",
+  deliveryDate: "2026-11-10",
+  done: false,
+  position: 0,
+  createdAt: ts("01"),
+  updatedAt: ts("01"),
+  deletedAt: null,
+};
+const action = {
+  id: A,
+  targetId: T,
+  startTime: "10:00",
+  endTime: "13:00",
+  recurrence: { type: "weekly", weekdays: [1, 2, 3, 4, 5] },
+  startDate: null,
+  createdAt: ts("01"),
+  updatedAt: ts("01"),
+  deletedAt: null,
+};
+const markId = `${A}|2026-11-16`;
+const mark = {
+  actionId: A,
+  date: "2026-11-16",
+  attended: true,
+  updatedAt: ts("02"),
+  deletedAt: null,
+};
+
+r = await call("GET", "projects");
+check("projects: no token → 401", r.status === 401 && r.body?.error?.code === "unauthorized", r);
+r = await call("PUT", `targets/${T}`, { token: t, body: target });
+check(
+  "target before its project → 409 parent_not_found",
+  r.status === 409 && r.body?.error?.code === "parent_not_found",
+  r,
+);
+r = await call("PUT", `projects/${P}`, { token: t, body: project });
+check(
+  "PUT project echoes contract JSON",
+  r.status === 200 && r.body.applied === true &&
+    JSON.stringify(r.body.item) === JSON.stringify(project),
+  r,
+);
+const pCursor = (await call("GET", "projects", { token: t })).body.serverTime;
+r = await call("PUT", `projects/${P}`, {
+  token: t,
+  body: { ...project, name: "older", updatedAt: "2026-10-01T00:00:00.000Z" },
+});
+check(
+  "PUT older project → applied false",
+  r.body.applied === false && r.body.item.name === project.name,
+  r,
+);
+r = await call("POST", "targets/batch", { token: t, body: { items: [target] } });
+check(
+  "targets batch echoes contract JSON",
+  r.status === 200 && JSON.stringify(r.body.results[0].item) === JSON.stringify(target),
+  r,
+);
+r = await call("PUT", `plan-tasks/${K}`, { token: t, body: task });
+check("PUT plan task", r.status === 200 && JSON.stringify(r.body.item) === JSON.stringify(task), r);
+r = await call("PUT", `consistent-actions/${A}`, { token: t, body: action });
+check(
+  "PUT consistent action (recurrence jsonb round-trip)",
+  r.status === 200 && JSON.stringify(r.body.item) === JSON.stringify(action),
+  r,
+);
+r = await call("PUT", `consistent-actions/${crypto.randomUUID()}`, {
+  token: t,
+  body: { ...action, id: undefined, endTime: "09:00" },
+});
+check(
+  "action end before start → 400",
+  r.status === 400 && r.body.error.code === "invalid_input",
+  r,
+);
+r = await call("PUT", `consistent-actions/${crypto.randomUUID()}`, {
+  token: t,
+  body: { ...action, id: undefined, startTime: "11:00", endTime: "12:00" },
+});
+check(
+  "overlapping action is accepted (overlap is an app rule)",
+  r.status === 200 && r.body.applied,
+  r,
+);
+r = await call("PUT", `session-marks/${encodeURIComponent(markId)}`, { token: t, body: mark });
+check(
+  "PUT session mark (derived id)",
+  r.status === 200 && r.body.item.id === markId && r.body.item.attended === true,
+  r,
+);
+r = await call("POST", "session-marks/batch", {
+  token: t,
+  body: { items: [{ ...mark, attended: false, updatedAt: ts("03") }] },
+});
+check(
+  "un-mark via batch (LWW), results id is the key",
+  r.status === 200 && r.body.results[0].id === markId && r.body.results[0].item.attended === false,
+  r,
+);
+r = await call("GET", `session-marks/${encodeURIComponent(markId)}`, { token: t });
+check("GET session mark by key", r.status === 200 && r.body.attended === false, r);
+r = await call("GET", `session-marks?actionId=${A}`, { token: t });
+check("session-marks actionId filter", r.status === 200 && r.body.items.length === 1, r);
+r = await call("GET", `targets?projectId=${P}`, { token: t });
+check("targets projectId filter", r.status === 200 && r.body.items.length === 1, r);
+r = await call("GET", `plan-tasks?targetId=${T}`, { token: t });
+check("plan-tasks targetId filter", r.status === 200 && r.body.items.length === 1, r);
+r = await call("DELETE", `projects/${P}?updatedAt=${ts("05")}`, { token: t });
+check("DELETE project → tombstone", r.status === 200 && r.body.item.deletedAt === ts("05"), r);
+r = await call("GET", `projects?since=${encodeURIComponent(pCursor)}`, { token: t });
+check(
+  "projects delta pull includes the tombstone",
+  r.status === 200 && r.body.items.some((i: any) => i.id === P && i.deletedAt),
+  r,
+);
+r = await call("GET", `projects/${crypto.randomUUID()}`, { token: t });
+check("GET missing project → 404", r.status === 404, r);
+
 // Isolation: a second user sees nothing of the first.
 r = await call("POST", "auth-register", {
   body: { email: `smoke2+${stamp}@example.com`, password },
@@ -206,6 +352,28 @@ r = await call("PUT", "habits/h1", { token: t2, body: habit });
 check("RLS: same id for other user is a separate row", r.body.applied === true, r);
 r = await call("GET", "game-state", { token: t2 });
 check("RLS: other user has no game state", r.body.item === null, r);
+for (const f of ["projects", "targets", "plan-tasks", "consistent-actions", "session-marks"]) {
+  r = await call("GET", f, { token: t2 });
+  check(`RLS: other user sees no ${f}`, r.status === 200 && r.body.items.length === 0, r);
+}
+r = await call("PUT", `targets/${crypto.randomUUID()}`, {
+  token: t2,
+  body: { ...target, id: undefined },
+});
+check("RLS: other user cannot attach to user 1's project", r.status === 409, r);
+
+// account-delete removes the Projects rows too (explicit deletes + FK cascade).
+r = await call("POST", "auth-register", {
+  body: { email: `smoke3+${stamp}@example.com`, password },
+});
+const t3 = r.body.session.accessToken;
+await call("PUT", `projects/${P}`, { token: t3, body: project });
+await call("PUT", `targets/${T}`, { token: t3, body: target });
+await call("PUT", `consistent-actions/${A}`, { token: t3, body: action });
+r = await call("PUT", `session-marks/${encodeURIComponent(markId)}`, { token: t3, body: mark });
+check("user 3 has a full project tree", r.status === 200 && r.body.applied, r);
+r = await call("POST", "account-delete", { token: t3, body: { confirm: "DELETE" } });
+check("account-delete with Projects rows → 204", r.status === 204, r);
 
 r = await call("DELETE", "game-state", { token: t });
 check("game-state reset → 204", r.status === 204, r);
