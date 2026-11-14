@@ -332,21 +332,18 @@ Tombstones are stored. Unreadable entries are skipped (logged). All
 records are cached in memory; `watchData()` emits the current snapshot on
 listen, then once per write batch.
 
-## Sync (for the backend/sync task)
+## Sync
 
-Ready in the model and repository, not wired yet:
+Wired like habits (README "Sync"):
 
-* `SyncEntityType` has `project`, `target`, `planTask`,
-  `consistentAction`, `sessionMark`. `CachedProjectRepository` records
-  every local write to its `recorder` (ids; session marks by key).
-  `main.dart` opens `HiveProjectRepository.open()` **without** the queue;
-  the sync task passes `recorder: queue` once the engine pushes these
-  types (otherwise the entries would sit in the queue).
-* Pull: resolve LWW, then `ProjectService.applyRemote(ProjectRecords(...))`
-  (`getAll*Records()` / `get*Record()` give the local side, tombstones
-  included).
-* First sign-in claim: record every `getAll*Records()` entry, as the
-  engine does for habits.
-* Account switch / account deletion: call
-  `ProjectService.clearLocalData()` (not yet in `LocalDataWiper` /
-  the sync engine's account change).
+* `main.dart` opens `HiveProjectRepository.open(recorder: queue)`, so every
+  local write is queued (ids; session marks by key `actionId|yyyy-MM-dd`).
+* `SyncEngine` pushes the five kinds parent-first through the Projects
+  Edge Functions (`HabitQuestApi.*ProjectRecord*`, `ProjectResource`), pulls
+  each since its own cursor, resolves LWW against `get*Record()` and applies
+  the winners with `ProjectService.applyRemote(ProjectRecords(...))`, which
+  announces them on `remoteChanges` (UI, notifications, calendar). The pulled
+  records go to `GameEngine.reconcileSynced(appliedProjects: …)`.
+* First sign-in claim records every `getAll*Records()` entry; an account
+  switch and account deletion (`LocalDataWiper`) call
+  `ProjectService.clearLocalData()`.

@@ -961,6 +961,11 @@ truth, the UI only ever reads and writes hive, and it never waits for the
 network. When signed in and online, changes are exchanged with the Supabase
 Edge Functions in the background.
 
+What syncs: habits, check-ins, the game state, and the **Projects** records
+(projects, targets, plan tasks, consistent actions and session marks; see
+docs/PROJECTS.md and supabase/API.md "Projects"). Projects follow exactly the
+same rules as habits below.
+
 ### Local model
 
 - `Habit`, check-ins (`CheckIn`, one record per habit per day) and the
@@ -972,6 +977,11 @@ Edge Functions in the background.
   from every read, so the UI, recurrence, streaks, the game and reminders
   never see them. Un-checking keeps the check-in record with
   `completed: false` so the un-check syncs too.
+- **Projects** records (`Project`, `Target`, `PlanTask`,
+  `ConsistentAction`, `SessionMark`) carry the same `updatedAt` /
+  `deletedAt`. Deleting a project, target or task tombstones it **and its
+  children** (the server does not cascade soft deletes); un-marking a
+  session keeps the mark with `attended: false`.
 - **Upgrading**: data written by the previous version is still readable.
   Habits without `updatedAt` default to their `createdAt`; the old boolean
   check-ins are migrated once, on first launch, to records stamped with the
@@ -981,7 +991,8 @@ Edge Functions in the background.
 
 Every local write of the repositories is recorded in a persistent hive box
 (`sync_queue`) as *"this entity changed"*, coalesced per entity (one entry
-per habit, per check-in, and one for the game state). The push always sends
+per habit, per check-in, per projects record, per session mark (keyed
+`actionId|yyyy-MM-dd`), and one for the game state). The push always sends
 the entity's **current** local record, so the latest local change wins. The
 queue survives restarts. Data applied from the server is never queued.
 
@@ -1005,8 +1016,11 @@ sync time.
 
 ### One sync run (`SyncEngine`)
 
-1. **Push** habits, then check-ins (the server rejects check-ins of habits
-   it does not know), through the batch endpoints (≤ 500 per call).
+1. **Push** parents before children, because the server rejects a child
+   whose parent it does not know (`409 habit_not_found` /
+   `parent_not_found`; a tombstoned parent counts): habits → check-ins,
+   then projects → targets → plan tasks → consistent actions → session
+   marks. Through the batch endpoints (≤ 500 per call).
    An entry is dropped once the server acknowledges it, whether it was
    applied or refused because the server has something newer (the pull
    brings that). If a batch is refused for a validation reason, its items
@@ -1015,9 +1029,12 @@ sync time.
    as "N changes couldn't sync") and **never blocks the rest**. In that
    per-item path, tombstones go out as `DELETE …?updatedAt=<local
    updatedAt>` (always sent, so LWW uses the client's time), and a `404
-   not_found` counts as acknowledged (the server never had the row).
+   not_found` counts as acknowledged (the server never had the row). A
+   child whose parent was refused fails with `parent_not_found` and stays
+   queued with it; it goes out once the parent does.
 2. **Pull** deltas `since` the stored cursors (the `serverTime` of the
-   previous pull; stored per user, separately for habits and check-ins;
+   previous pull; stored per user, separately for habits, check-ins and
+   each of the five Projects functions;
    the server sets it 5 s in the past, so rows can come back again and an
    equal `updatedAt` is a no-op) and
    merge with **last-write-wins** on `updatedAt`: a remote item replaces
@@ -1025,9 +1042,20 @@ sync time.
    kept. Remote data is applied through `HabitService.applyRemote`, a
    repository-level path that only refreshes the UI: it emits **no
    completion events** (so no XP), and only habits that actually changed
-   are rescheduled for reminders.
+   are rescheduled for reminders. Projects records of all five kinds are
+   pulled (parents first) and applied in one
+   `ProjectService.applyRemote(ProjectRecords(...))`: no XP-awarding
+   events, but every changed record (session marks included) is announced
+   on `ProjectService.remoteChanges`, which refreshes the Projects screens
+   and the calendar (through `projectsDataProvider`) and reschedules the
+   project notifications. Records the app cannot read (e.g. a newer
+   schema) are skipped. The server does not check that consistent actions
+   overlap, so data merged from two offline devices may contain a clash; the
+   app shows it and only blocks *new* local saves that clash.
 3. **Game state**: GET, merge (below), PUT back if the merged state differs
-   from the server's copy.
+   from the server's copy. The check-ins and projects records pulled in
+   step 2 are passed to `GameEngine.reconcileSynced(appliedCheckIns: …,
+   appliedProjects: …)`.
 
 ### How XP stays consistent
 
@@ -1066,7 +1094,9 @@ So: a check-in made offline on device A and pulled by device B gives no
 extra XP on B; toggling across devices cannot farm XP; and two devices
 awarding different days both keep their XP. These scenarios are covered by
 `test/features/sync/sync_engine_test.dart`; the projects reconciliation by
-`test/features/game/project_xp_test.dart`.
+`test/features/game/project_xp_test.dart`, and the end-to-end projects sync
+(a plan task done on A gives B its XP once, without a celebration) by
+`test/features/sync/projects_sync_test.dart`.
 
 The game state stays a single opaque JSON object on the server
 (`game_state.state`), so the projects ledger needs **no server schema
@@ -1091,7 +1121,9 @@ Local data is tied to the user id that first synced it (`sync_meta` box):
 - **Same user** logging in again: nothing special; local data and the queue
   are kept.
 - **A different user** signs in: the previous user's local habits,
-  check-ins, game state, queue and cursors are **wiped** before anything is
+  check-ins, projects records, game state, queue and cursors are **wiped**
+  (projects through `ProjectService.clearLocalData()`, announced as
+  deletions so their notifications are cancelled) before anything is
   synced, then the new user's data is pulled. The previous account's data is
   never uploaded into the new one.
 
@@ -1101,7 +1133,11 @@ Local data is tied to the user id that first synced it (`sync_meta` box):
   account signs in on the same device (they cannot be uploaded without that
   user's session). Sync before handing the device over.
 - Last-write-wins is per entity, not per field: two devices editing
-  different fields of the same habit offline keep only the later edit.
+  different fields of the same habit (or project record) offline keep only
+  the later edit.
+- If one device edits a project child (e.g. a target) after another device
+  deleted its project, the edited child comes back on the server but stays
+  hidden under its deleted parent.
 - If one device edits a habit after another deleted it, the newer edit wins
   and the habit comes back, but check-ins removed with the deletion on the
   deleting device are not restored there.
