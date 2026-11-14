@@ -258,7 +258,9 @@ class _Dashboard extends StatelessWidget {
       ),
       ChartCard(
         title: 'XP distribution',
-        note: 'Users with a synced game state, by total XP (all time).',
+        note:
+            'Users with a synced game state, by total XP (all time): '
+            'check-ins, Perfect Days and projects.',
         kind: ChartKind.column,
         labels: s.xpBuckets.map((b) => b.label).toList(),
         values: s.xpBuckets.map((b) => b.users).toList(),
@@ -286,6 +288,28 @@ class _Dashboard extends StatelessWidget {
         values: s.levels.map((b) => b.users).toList(),
         unit: 'users',
         labelHeader: 'Level',
+      ),
+      ChartCard(
+        title: 'Project XP distribution',
+        note:
+            'The projects part of each player\'s XP: plan tasks finished, '
+            'sessions attended and targets done.',
+        kind: ChartKind.column,
+        labels: s.projectXpBuckets.map((b) => b.label).toList(),
+        values: s.projectXpBuckets.map((b) => b.users).toList(),
+        unit: 'users',
+        labelHeader: 'Project XP',
+      ),
+      ChartCard(
+        title: 'Work sessions attended per day',
+        note:
+            'Consistent-action sessions marked attended, by session day '
+            '(synced accounts only).',
+        kind: ChartKind.column,
+        labels: dayLabels,
+        longLabels: dayLong,
+        values: s.daily.map((d) => d.sessionsAttended).toList(),
+        unit: 'sessions',
       ),
       _TopQuotes(quotes: s.topQuotes),
       _WidgetUsage(recorded: s.widgetsRecorded, note: s.widgetsNote),
@@ -340,6 +364,36 @@ class _Dashboard extends StatelessWidget {
               value: s.totals.activeHabits,
               caption:
                   'active (${groupThousands(s.totals.habits)} incl. archived)',
+            ),
+            StatTile(
+              label: 'Total XP',
+              value: s.totals.xp,
+              caption: '${groupThousands(s.totals.projectXp)} from projects',
+            ),
+            StatTile(
+              label: 'Projects',
+              value: s.totals.activeProjects,
+              caption:
+                  'active (${groupThousands(s.totals.projects)} incl. archived), '
+                  '${groupThousands(s.totals.usersWithProjects)} users',
+            ),
+            StatTile(
+              label: 'Targets done',
+              value: s.totals.targetsDone,
+              caption:
+                  'of ${groupThousands(s.totals.targets)}; '
+                  '${groupThousands(s.totals.planTasksDone)} plan tasks done',
+            ),
+            StatTile(
+              label: 'Sessions attended',
+              value: s.range.sessionsAttended,
+              caption:
+                  'in range (${groupThousands(s.totals.sessionsAttended)} all time)',
+            ),
+            StatTile(
+              label: 'Projects created',
+              value: s.range.projectsCreated,
+              caption: 'in range',
             ),
           ],
         ),

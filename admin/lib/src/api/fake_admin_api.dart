@@ -272,6 +272,7 @@ class FakeAdminApi implements AdminApi {
           habitsCreated: (seed * 3) % 5,
           completions: (dau * 3.2).round(),
           quoteLoves: (seed * 5) % 6,
+          sessionsAttended: (dau / 4).round(),
         ),
       );
     }
@@ -294,6 +295,15 @@ class FakeAdminApi implements AdminApi {
         quotes: 90,
         scheduledQuotes: 88,
         quoteLoves: 2304,
+        xp: 1874300,
+        projectXp: 212450,
+        projects: 512,
+        activeProjects: 431,
+        usersWithProjects: 268,
+        targets: 1490,
+        targetsDone: 377,
+        planTasksDone: 6120,
+        sessionsAttended: 8030,
       ),
       range: StatsRange(
         signups: sum(daily.map((d) => d.signups)),
@@ -301,6 +311,8 @@ class FakeAdminApi implements AdminApi {
         habitsCreated: sum(daily.map((d) => d.habitsCreated)),
         completions: sum(daily.map((d) => d.completions)),
         quoteLoves: sum(daily.map((d) => d.quoteLoves)),
+        projectsCreated: (days / 3).round(),
+        sessionsAttended: sum(daily.map((d) => d.sessionsAttended)),
         averageDailyActiveUsers: days == 0
             ? 0
             : (sum(daily.map((d) => d.activeUsers)) / days * 10).round() / 10,
@@ -325,6 +337,16 @@ class FakeAdminApi implements AdminApi {
         StatBucket('2500–4999', 52),
         StatBucket('5000–9999', 21),
         StatBucket('10000+', 7),
+      ],
+      projectXpBuckets: const [
+        StatBucket('0', 834),
+        StatBucket('1–99', 96),
+        StatBucket('100–499', 88),
+        StatBucket('500–999', 51),
+        StatBucket('1000–2499', 25),
+        StatBucket('2500–4999', 6),
+        StatBucket('5000–9999', 2),
+        StatBucket('10000+', 0),
       ],
       bestStreakBuckets: const [
         StatBucket('0', 150),

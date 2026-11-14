@@ -159,6 +159,7 @@ class DailyStat {
   final int habitsCreated;
   final int completions;
   final int quoteLoves;
+  final int sessionsAttended;
 
   const DailyStat({
     required this.date,
@@ -167,6 +168,7 @@ class DailyStat {
     this.habitsCreated = 0,
     this.completions = 0,
     this.quoteLoves = 0,
+    this.sessionsAttended = 0,
   });
 
   factory DailyStat.fromJson(Map<String, dynamic> j) => DailyStat(
@@ -176,6 +178,7 @@ class DailyStat {
     habitsCreated: _int(j['habitsCreated']),
     completions: _int(j['completions']),
     quoteLoves: _int(j['quoteLoves']),
+    sessionsAttended: _int(j['sessionsAttended']),
   );
 }
 
@@ -249,6 +252,19 @@ class StatsTotals {
   final int scheduledQuotes;
   final int quoteLoves;
 
+  /// Total XP of all players (check-ins + Perfect Days + projects).
+  final int xp;
+
+  /// The part of [xp] earned by projects.
+  final int projectXp;
+  final int projects;
+  final int activeProjects;
+  final int usersWithProjects;
+  final int targets;
+  final int targetsDone;
+  final int planTasksDone;
+  final int sessionsAttended;
+
   const StatsTotals({
     this.users = 0,
     this.usersWithGameState = 0,
@@ -258,6 +274,15 @@ class StatsTotals {
     this.quotes = 0,
     this.scheduledQuotes = 0,
     this.quoteLoves = 0,
+    this.xp = 0,
+    this.projectXp = 0,
+    this.projects = 0,
+    this.activeProjects = 0,
+    this.usersWithProjects = 0,
+    this.targets = 0,
+    this.targetsDone = 0,
+    this.planTasksDone = 0,
+    this.sessionsAttended = 0,
   });
 
   factory StatsTotals.fromJson(Map<String, dynamic> j) => StatsTotals(
@@ -269,6 +294,15 @@ class StatsTotals {
     quotes: _int(j['quotes']),
     scheduledQuotes: _int(j['scheduledQuotes']),
     quoteLoves: _int(j['quoteLoves']),
+    xp: _int(j['xp']),
+    projectXp: _int(j['projectXp']),
+    projects: _int(j['projects']),
+    activeProjects: _int(j['activeProjects']),
+    usersWithProjects: _int(j['usersWithProjects']),
+    targets: _int(j['targets']),
+    targetsDone: _int(j['targetsDone']),
+    planTasksDone: _int(j['planTasksDone']),
+    sessionsAttended: _int(j['sessionsAttended']),
   );
 }
 
@@ -278,6 +312,8 @@ class StatsRange {
   final int habitsCreated;
   final int completions;
   final int quoteLoves;
+  final int projectsCreated;
+  final int sessionsAttended;
   final double averageDailyActiveUsers;
 
   const StatsRange({
@@ -286,6 +322,8 @@ class StatsRange {
     this.habitsCreated = 0,
     this.completions = 0,
     this.quoteLoves = 0,
+    this.projectsCreated = 0,
+    this.sessionsAttended = 0,
     this.averageDailyActiveUsers = 0,
   });
 
@@ -295,6 +333,8 @@ class StatsRange {
     habitsCreated: _int(j['habitsCreated']),
     completions: _int(j['completions']),
     quoteLoves: _int(j['quoteLoves']),
+    projectsCreated: _int(j['projectsCreated']),
+    sessionsAttended: _int(j['sessionsAttended']),
     averageDailyActiveUsers: _double(j['averageDailyActiveUsers']),
   );
 }
@@ -308,6 +348,7 @@ class AdminStats {
   final List<DailyStat> daily;
   final List<WeeklyStat> weekly;
   final List<StatBucket> xpBuckets;
+  final List<StatBucket> projectXpBuckets;
   final List<StatBucket> bestStreakBuckets;
   final List<StatBucket> levels;
   final List<TopQuote> topQuotes;
@@ -322,6 +363,7 @@ class AdminStats {
     this.daily = const [],
     this.weekly = const [],
     this.xpBuckets = const [],
+    this.projectXpBuckets = const [],
     this.bestStreakBuckets = const [],
     this.levels = const [],
     this.topQuotes = const [],
@@ -339,6 +381,9 @@ class AdminStats {
       daily: _list(j['daily']).map(DailyStat.fromJson).toList(),
       weekly: _list(j['weekly']).map(WeeklyStat.fromJson).toList(),
       xpBuckets: _list(j['xpBuckets']).map(StatBucket.fromJson).toList(),
+      projectXpBuckets: _list(
+        j['projectXpBuckets'],
+      ).map(StatBucket.fromJson).toList(),
       bestStreakBuckets: _list(
         j['bestStreakBuckets'],
       ).map(StatBucket.fromJson).toList(),
