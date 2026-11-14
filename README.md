@@ -21,10 +21,29 @@ survives a reinstall or a new phone. See [Sync](#sync) and
 - **Habit details** (`/habits/:id`): current and best streak, total
   check-ins, completion rate, a monthly heatmap where you can check in or undo
   today and past days, and edit/archive/delete actions.
-- **Calendar tab**: a month grid with a progress ring per day and a ⭐ marker
-  for Perfect Days. Tap a day to see the habits due that day and check them in
-  (today and past days; future days are read-only). Swipe or use the arrows to
-  change month, and "Today" to jump back.
+- **Calendar tab**: a **Month | Work split** toggle at the top.
+  - **Month**: a month grid with a progress ring per day and a ⭐ marker
+    for Perfect Days. Days on which a plan task is due to be delivered get a
+    small 📦 marker under the number (a green tick once every task of that
+    day is done). Tap a day to see the habits due that day and check them in
+    (today and past days; future days are read-only), followed by the plan
+    tasks due that day ("Tasks due"), which you can check off on any day;
+    tapping a task opens its target. Swipe or use the arrows to change month,
+    and "Today" to jump back.
+  - **Work split**: a Monday-first week with hour rows and a time block for
+    every consistent-action session of every (non-archived) project,
+    coloured per project and labelled with the target (✓ when attended).
+    Swipe or use the arrows to change the week, and "Today" to jump back.
+    Target deadlines show as 🚩 flags in the day headers (tap for the
+    names). Tapping a block opens a sheet with the target, project and
+    times, a button to mark the session attended (today and past sessions
+    only) and "Open target". Future sessions of targets marked done are
+    hidden (their time is free again); past ones stay. On wide screens
+    (tablets, web) the week grows up to 1100 px wide; on small phones the
+    labels shrink to fit and the grid scrolls vertically.
+  The same week view (`WorkSplitView`, in
+  `lib/features/projects/ui/work_split_view.dart`) is reused on the project
+  details, filtered to that project.
 - **Projects tab** (`/projects`): your projects, each card listing its
   targets with a status chip and plan progress (tasks done/total). Create a
   project with the "New project" button; rename, archive or delete it from
@@ -33,8 +52,9 @@ survives a reinstall or a new phone. See [Sync](#sync) and
 - **Project details** (`/projects/:id`): the project's targets with deadline
   ("Due in 5 days" / "2 days overdue"), a status chip you tap to change, and
   plan progress. The progress is for display only: **you set the status
-  yourself**, and the app never changes it. Below come a placeholder for the
-  work split calendar (being built separately), the sessions of today and the
+  yourself**, and the app never changes it. Below come the project's work split
+  (the Calendar tab's week view filtered to this project, archived or not),
+  the sessions of today and the
   past week, which you mark attended with the bouncy check button, and the
   upcoming sessions (you can mark those on the day).
 - **Target editor** (`/projects/:id/targets/new`, `/projects/:id/targets/:tid`):
