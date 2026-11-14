@@ -25,6 +25,30 @@ survives a reinstall or a new phone. See [Sync](#sync) and
   for Perfect Days. Tap a day to see the habits due that day and check them in
   (today and past days; future days are read-only). Swipe or use the arrows to
   change month, and "Today" to jump back.
+- **Projects tab** (`/projects`): your projects, each card listing its
+  targets with a status chip and plan progress (tasks done/total). Create a
+  project with the "New project" button; rename, archive or delete it from
+  the card's ⋮ menu. Archived projects sit in an "Archived" section; their
+  time blocks still count, so they still block clashing times.
+- **Project details** (`/projects/:id`): the project's targets with deadline
+  ("Due in 5 days" / "2 days overdue"), a status chip you tap to change, and
+  plan progress. The progress is for display only: **you set the status
+  yourself**, and the app never changes it. Below come a placeholder for the
+  work split calendar (being built separately), the sessions of today and the
+  past week, which you mark attended with the bouncy check button, and the
+  upcoming sessions (you can mark those on the day).
+- **Target editor** (`/projects/:id/targets/new`, `/projects/:id/targets/:tid`):
+  title, deadline and status (not started / in progress / done). Once the
+  target exists, you edit its **plan** (add, edit and remove tasks, each with
+  an optional delivery date, and check them off) and its **time blocks**
+  (consistent actions): several per target, each with a start and end time, on
+  days of the week **or** days of the month, and an optional start date.
+- **No overlapping time blocks**: the time block form shows live which blocks
+  it clashes with, across all projects including archived ones. Saving a
+  clashing block is **blocked**: the message names the clashing target and
+  its times, and the form stays open. A target change that would create a
+  clash (a later deadline, or reopening a done target) is refused the same
+  way. Data model and rules: [docs/PROJECTS.md](docs/PROJECTS.md).
 - **Quest tab**: mascot, level, title, an animated XP bar, stats (check-ins,
   best streak, Perfect Days), an achievements grid (locked badges show a hint)
   and a "How to earn XP" card.
