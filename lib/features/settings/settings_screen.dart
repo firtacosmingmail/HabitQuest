@@ -2,10 +2,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../ads/ad_privacy_settings.dart';
 import '../projects/notifications/project_notification_settings.dart';
 import '../projects/notifications/project_notifications_providers.dart';
 
-/// App settings (reached from Profile): the Projects notification toggles.
+/// App settings (reached from Profile): the Projects notification toggles
+/// and, when Google UMP asks for one, the ad privacy choices entry.
 /// Stored on this device only; turning one off cancels its pending
 /// notifications at once.
 class SettingsScreen extends ConsumerWidget {
@@ -82,6 +84,7 @@ class SettingsScreen extends ConsumerWidget {
               ],
             ),
           ),
+          const AdPrivacySettings(),
         ],
       ),
     );

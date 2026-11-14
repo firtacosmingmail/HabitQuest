@@ -401,9 +401,13 @@ Done: the AdMob apps (iOS and Android, `com.vvs.habitquest`) and their two
 **Banner** units (*Habits list*, *Habit details*) exist, and their IDs are
 wired in as above. Still to do:
 
-1. In AdMob, *Privacy & messaging*: create a **GDPR** consent message (and the
-   US state regulations message if you serve the US), and optionally an
-   **IDFA explainer** for iOS. Publish them.
+1. In AdMob, *Privacy & messaging*: create and publish the **GDPR**
+   (European regulations) message for both apps, the **US state
+   regulations** message and (optional, iOS) the **IDFA explainer**.
+   Follow [docs/ADMOB_CONSENT.md](docs/ADMOB_CONSENT.md): it has the
+   click-by-click steps, the recommended settings, the S24 Ultra debug test
+   and the follow-up checklist. The app side is done; this step is console
+   only. The messages need the privacy policy URL to be live.
 2. **After publishing to the App Store / Play Store**, put an `app-ads.txt` at
    the root of the developer website listed on the store pages (e.g.
    `https://<your-site>/app-ads.txt`) containing the line AdMob shows under
@@ -426,6 +430,28 @@ wired in as above. Still to do:
   **non-personalised**. EU users who decline in the UMP form get limited /
   non-personalised ads automatically (the SDK reads the IAB TCF consent string
   UMP stores).
+- **Privacy options entry**: when UMP reports that a privacy options entry
+  point is required (EEA/UK, regulated US states), **Settings > Ads &
+  privacy > Ad privacy choices** re-opens the UMP form
+  (`ConsentForm.showPrivacyOptionsForm`), so users can change or withdraw
+  consent, or opt out of "sale/sharing" in the US.
+- If an **IDFA explainer** is published, UMP shows it and then Apple's ATT
+  prompt itself. The app's own ATT request then finds the status already
+  decided and doesn't prompt again.
+- **Debug-only consent testing**: `--dart-define=ADS_CONSENT_DEBUG_GEOGRAPHY=eea|us|other`,
+  `ADS_CONSENT_TEST_DEVICE_ID=<hashed id>` (UMP `ConsentDebugSettings`) and
+  `ADS_CONSENT_RESET=true` (`ConsentInformation.reset()` at start). Debug
+  builds also have a *Reset ad consent (debug)* tile in Settings. Release
+  builds ignore all of these (`kReleaseMode`, see
+  `lib/features/ads/ad_consent_debug.dart`). The steps (adb, the logcat
+  line with the hashed id) are in
+  [docs/ADMOB_CONSENT.md](docs/ADMOB_CONSENT.md#4-test-the-consent-form-on-the-galaxy-s24-ultra-debug-build).
+  ```sh
+  flutter run -d <device> \
+    --dart-define=ADS_CONSENT_DEBUG_GEOGRAPHY=eea \
+    --dart-define=ADS_CONSENT_TEST_DEVICE_ID=<hashed id> \
+    --dart-define=ADS_CONSENT_RESET=true
+  ```
 - `Info.plist` lists Google's `SKAdNetworkItems` (from
   <https://developers.google.com/admob/ios/3p-skadnetworks>; refresh it when
   Google updates the list).
@@ -441,7 +467,8 @@ wired in as above. Still to do:
 `ADS_ENABLED=false`, desktop), `GoogleAdService` (consent + banners,
 `platform_ad_service_mobile.dart`, only compiled off the web), `AdSlot` /
 `AdFrame` (the widget and its look), `AdsBootstrap` (starts consent from
-`main.dart`). Widget tests override `adServiceProvider` with
+`main.dart`), `ConsentDebugConfig` (`ad_consent_debug.dart`, the debug-only
+consent defines), `AdPrivacySettings` (the Settings section). Widget tests override `adServiceProvider` with
 `test/helpers/fake_ad_service.dart`, which renders a placeholder box.
 
 ## Email confirmation

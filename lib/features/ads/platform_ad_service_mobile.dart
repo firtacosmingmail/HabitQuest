@@ -2,10 +2,12 @@ import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:app_tracking_transparency/app_tracking_transparency.dart';
+import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter/widgets.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import 'ad_config.dart';
+import 'ad_consent_debug.dart';
 import 'ad_placement.dart';
 import 'ad_service.dart';
 import 'ad_slot.dart';
@@ -18,7 +20,32 @@ AdService createPlatformAdService(AdConfig config) {
     return const NoopAdService();
   }
   if (!Platform.isIOS && !Platform.isAndroid) return const NoopAdService();
-  return GoogleAdService(config, ios: Platform.isIOS);
+  return GoogleAdService(
+    config,
+    ios: Platform.isIOS,
+    consentDebug: ConsentDebugConfig.fromEnvironment(),
+  );
+}
+
+/// The UMP request parameters for [debug]: plain parameters unless a debug
+/// geography or test device is set (never in release builds, see
+/// [ConsentDebugConfig]).
+ConsentRequestParameters consentRequestParameters(ConsentDebugConfig debug) {
+  if (!debug.hasDebugSettings) return ConsentRequestParameters();
+  return ConsentRequestParameters(
+    consentDebugSettings: ConsentDebugSettings(
+      debugGeography: switch (debug.geography) {
+        ConsentDebugGeography.none => null,
+        ConsentDebugGeography.eea => DebugGeography.debugGeographyEea,
+        ConsentDebugGeography.regulatedUsState =>
+          DebugGeography.debugGeographyRegulatedUsState,
+        ConsentDebugGeography.other => DebugGeography.debugGeographyOther,
+      },
+      testIdentifiers: debug.testDeviceIds.isEmpty
+          ? null
+          : List.of(debug.testDeviceIds),
+    ),
+  );
 }
 
 /// AdMob banners behind Google UMP consent and, on iOS, App Tracking
@@ -26,8 +53,13 @@ AdService createPlatformAdService(AdConfig config) {
 class GoogleAdService implements AdService {
   final AdConfig config;
   final bool ios;
+  final ConsentDebugConfig consentDebug;
 
-  GoogleAdService(this.config, {required this.ios});
+  GoogleAdService(
+    this.config, {
+    required this.ios,
+    this.consentDebug = ConsentDebugConfig.off,
+  });
 
   final _request = Completer<AdRequest?>();
   Future<void>? _init;
@@ -51,11 +83,21 @@ class GoogleAdService implements AdService {
 
   Future<AdRequest?> _consentThenStart() async {
     final consent = ConsentInformation.instance;
+    // 0. Debug builds only: consent testing (docs/ADMOB_CONSENT.md).
+    final debug = kReleaseMode ? ConsentDebugConfig.off : consentDebug;
+    if (debug.isActive) {
+      debugPrint(
+        'Ads: consent debug: geography=${debug.geography.name}, '
+        'test devices=${debug.testDeviceIds.length}, '
+        'reset=${debug.resetOnStart}',
+      );
+    }
+    if (debug.resetOnStart) await consent.reset();
     // 1. Google UMP: refresh the consent requirement (EU/UK GDPR, US state
     //    laws) and show the form when it is required.
     final updated = Completer<void>();
     consent.requestConsentInfoUpdate(
-      ConsentRequestParameters(),
+      consentRequestParameters(debug),
       () => updated.complete(),
       (error) {
         debugPrint('Ads: consent info update failed: ${error.message}');
@@ -91,6 +133,39 @@ class GoogleAdService implements AdService {
     // 3. Only now start the SDK; no ad was requested before this point.
     await MobileAds.instance.initialize();
     return AdRequest(nonPersonalizedAds: !personalised);
+  }
+
+  @override
+  bool get managesConsent => true;
+
+  @override
+  Future<bool> privacyOptionsRequired() async {
+    await initialize();
+    try {
+      return await ConsentInformation.instance
+              .getPrivacyOptionsRequirementStatus() ==
+          PrivacyOptionsRequirementStatus.required;
+    } on Object catch (e) {
+      debugPrint('Ads: privacy options status failed: $e');
+      return false;
+    }
+  }
+
+  @override
+  Future<void> showPrivacyOptions() async {
+    final done = Completer<void>();
+    await ConsentForm.showPrivacyOptionsForm((error) {
+      if (error != null) debugPrint('Ads: privacy options: ${error.message}');
+      if (!done.isCompleted) done.complete();
+    });
+    await done.future;
+  }
+
+  @override
+  Future<void> resetConsent() async {
+    if (kReleaseMode) return;
+    await ConsentInformation.instance.reset();
+    debugPrint('Ads: consent reset (debug); restart the app to see the form');
   }
 
   @override
