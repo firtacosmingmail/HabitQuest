@@ -14,6 +14,8 @@ import 'package:habit_quest/data/repositories/in_memory_habit_repository.dart';
 import 'package:habit_quest/domain/providers.dart';
 import 'package:habit_quest/features/auth/auth_providers.dart';
 import 'package:habit_quest/features/auth/session_store.dart';
+import 'package:habit_quest/features/projects/data/project_repository.dart';
+import 'package:habit_quest/features/projects/projects_providers.dart';
 import 'package:habit_quest/features/quotes/quotes_providers.dart';
 
 /// A session that never expires during a test.
@@ -51,9 +53,11 @@ List<Override> signedInOverrides({Session? session, FakeAuthApi? authApi}) {
 ///
 /// [quotesApi] defaults to a `FakeQuotesApi` without quotes, so the Quote
 /// of the day card stays hidden and nothing goes to the network.
+/// [projectRepository] defaults to an empty `InMemoryProjectRepository`.
 Future<ProviderContainer> pumpHabitQuestApp(
   WidgetTester tester, {
   HabitRepository? repository,
+  ProjectRepository? projectRepository,
   DateTime Function()? clock,
   String initialLocation = '/habits',
   List<Override> overrides = const [],
@@ -69,6 +73,9 @@ Future<ProviderContainer> pumpHabitQuestApp(
       if (signedIn) ...signedInOverrides(),
       habitRepositoryProvider.overrideWithValue(
         repository ?? InMemoryHabitRepository(),
+      ),
+      projectRepositoryProvider.overrideWithValue(
+        projectRepository ?? InMemoryProjectRepository(),
       ),
       if (clock != null) clockProvider.overrideWithValue(clock),
       routerProvider.overrideWith(
@@ -91,6 +98,7 @@ Future<ProviderContainer> pumpHabitQuestApp(
 Widget wrapForTest(
   Widget child, {
   HabitRepository? repository,
+  ProjectRepository? projectRepository,
   DateTime Function()? clock,
   List<Override> overrides = const [],
   QuotesApi? quotesApi,
@@ -103,6 +111,9 @@ Widget wrapForTest(
       ),
       habitRepositoryProvider.overrideWithValue(
         repository ?? InMemoryHabitRepository(),
+      ),
+      projectRepositoryProvider.overrideWithValue(
+        projectRepository ?? InMemoryProjectRepository(),
       ),
       if (clock != null) clockProvider.overrideWithValue(clock),
     ],

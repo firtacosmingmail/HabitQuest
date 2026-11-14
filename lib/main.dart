@@ -12,6 +12,8 @@ import 'features/ads/ads_bootstrap.dart';
 import 'features/game/game_providers.dart';
 import 'features/game/game_repository.dart';
 import 'features/notifications/notifications_bootstrap.dart';
+import 'features/projects/data/hive_project_repository.dart';
+import 'features/projects/projects_providers.dart';
 import 'features/quotes/quotes_providers.dart';
 import 'features/sync/sync_bootstrap.dart';
 import 'features/sync/sync_providers.dart';
@@ -26,6 +28,9 @@ Future<void> main() async {
   final meta = SyncMeta(await HiveStringStore.open(SyncMeta.boxName));
   final repository = await HiveHabitRepository.open(recorder: queue);
   final gameRepository = await HiveGameRepository.open(recorder: queue);
+  // Projects (docs/PROJECTS.md). Not wired to the sync queue yet: the
+  // projects sync task passes `recorder: queue` once the engine pushes them.
+  final projectRepository = await HiveProjectRepository.open();
   // Today's quote and the saved quotes, for offline use.
   final quotesCache = QuotesCache(
     await HiveStringStore.open(QuotesCache.boxName),
@@ -36,6 +41,7 @@ Future<void> main() async {
       overrides: [
         habitRepositoryProvider.overrideWithValue(repository),
         gameRepositoryProvider.overrideWithValue(gameRepository),
+        projectRepositoryProvider.overrideWithValue(projectRepository),
         syncQueueProvider.overrideWithValue(queue),
         syncMetaProvider.overrideWithValue(meta),
         quotesCacheProvider.overrideWithValue(quotesCache),

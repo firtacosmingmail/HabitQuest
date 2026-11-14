@@ -24,6 +24,7 @@ class ProjectsData {
   final Map<String, Project> _projectsById;
   final Map<String, Target> _targetsById;
   final Map<String, ConsistentAction> _actionsById;
+  final Map<String, PlanTask> _planTasksById;
 
   ProjectsData._(
     this.projects,
@@ -33,7 +34,8 @@ class ProjectsData {
     this.sessionMarks,
   )   : _projectsById = {for (final p in projects) p.id: p},
         _targetsById = {for (final t in targets) t.id: t},
-        _actionsById = {for (final a in actions) a.id: a};
+        _actionsById = {for (final a in actions) a.id: a},
+        _planTasksById = {for (final t in planTasks) t.id: t};
 
   static final empty = ProjectsData.fromRecords();
 
@@ -87,6 +89,7 @@ class ProjectsData {
   Project? project(String id) => _projectsById[id];
   Target? target(String id) => _targetsById[id];
   ConsistentAction? action(String id) => _actionsById[id];
+  PlanTask? planTask(String id) => _planTasksById[id];
 
   /// Visible targets by id.
   Map<String, Target> get targetsById => _targetsById;
