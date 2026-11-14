@@ -10,12 +10,21 @@ import '../../data/models/completion_log.dart';
 import '../../data/models/habit.dart';
 import '../../domain/providers.dart';
 import '../../domain/recurrence.dart';
+import '../projects/projects_providers.dart';
+import '../projects/ui/work_split_view.dart';
 import 'calendar_month.dart';
 import 'widgets/day_cell.dart';
 import 'widgets/day_habit_list.dart';
+import 'widgets/day_task_list.dart';
 
-/// Calendar tab (`/calendar`): a Monday-first month grid showing each day's
-/// progress, with the selected day's due habits listed below.
+/// The Calendar tab's two views.
+enum CalendarMode { month, workSplit }
+
+/// Calendar tab (`/calendar`), with a "Month | Work split" toggle:
+/// * Month: a Monday-first month grid showing each day's habit progress and
+///   plan-task delivery markers, with the selected day's due habits and
+///   tasks listed below;
+/// * Work split: the [WorkSplitView] week of every project's time blocks.
 class CalendarScreen extends ConsumerStatefulWidget {
   const CalendarScreen({super.key});
 
@@ -26,6 +35,7 @@ class CalendarScreen extends ConsumerStatefulWidget {
 class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   late DateTime _month;
   late DateTime _selected;
+  CalendarMode _mode = CalendarMode.month;
 
   static const _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -62,13 +72,14 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     final log = ref.watch(completionsProvider);
     final onTodayView =
         isSameDay(_month, startOfMonth(today)) && isSameDay(_selected, today);
+    final workSplit = _mode == CalendarMode.workSplit;
 
     return Scaffold(
       body: SafeArea(
         bottom: false,
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 560),
+            constraints: BoxConstraints(maxWidth: workSplit ? 1100 : 560),
             child: Column(
               children: [
                 Padding(
@@ -81,37 +92,75 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                           style: Theme.of(context).textTheme.headlineMedium,
                         ),
                       ),
-                      FilledButton.tonalIcon(
-                        key: const ValueKey('calendar-today-button'),
-                        onPressed: onTodayView ? null : _goToToday,
-                        icon: const Icon(Icons.today_rounded),
-                        label: const Text('Today'),
-                        style: FilledButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 8,
+                      if (!workSplit)
+                        FilledButton.tonalIcon(
+                          key: const ValueKey('calendar-today-button'),
+                          onPressed: onTodayView ? null : _goToToday,
+                          icon: const Icon(Icons.today_rounded),
+                          label: const Text('Today'),
+                          style: FilledButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
                           ),
                         ),
-                      ),
                     ],
                   ),
                 ),
-                Expanded(
-                  child: switch ((habits, log)) {
-                    (AsyncValue(error: final Object e), _) ||
-                    (_, AsyncValue(error: final Object e)) => MessageView(
-                      emoji: '😵',
-                      title: 'Something went wrong',
-                      message: 'The calendar could not be loaded.\n$e',
-                    ),
-                    (
-                      AsyncValue(value: final List<Habit> h),
-                      AsyncValue(value: final CompletionLog l),
-                    ) =>
-                      _body(context, today, h, l),
-                    _ => const Center(child: CircularProgressIndicator()),
-                  },
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: SegmentedButton<CalendarMode>(
+                    key: const ValueKey('calendar-mode-toggle'),
+                    showSelectedIcon: false,
+                    segments: const [
+                      ButtonSegment(
+                        value: CalendarMode.month,
+                        icon: Icon(Icons.calendar_month_rounded),
+                        label: Text(
+                          'Month',
+                          key: ValueKey('calendar-mode-month'),
+                        ),
+                      ),
+                      ButtonSegment(
+                        value: CalendarMode.workSplit,
+                        icon: Icon(Icons.view_week_rounded),
+                        label: Text(
+                          'Work split',
+                          key: ValueKey('calendar-mode-work-split'),
+                        ),
+                      ),
+                    ],
+                    selected: {_mode},
+                    onSelectionChanged: (s) => setState(() => _mode = s.first),
+                  ),
                 ),
+                if (workSplit)
+                  const Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 4),
+                      child: WorkSplitView(
+                        key: ValueKey('calendar-work-split'),
+                      ),
+                    ),
+                  )
+                else
+                  Expanded(
+                    child: switch ((habits, log)) {
+                      (AsyncValue(error: final Object e), _) ||
+                      (_, AsyncValue(error: final Object e)) => MessageView(
+                        emoji: '😵',
+                        title: 'Something went wrong',
+                        message: 'The calendar could not be loaded.\n$e',
+                      ),
+                      (
+                        AsyncValue(value: final List<Habit> h),
+                        AsyncValue(value: final CompletionLog l),
+                      ) =>
+                        _body(context, today, h, l),
+                      _ => const Center(child: CircularProgressIndicator()),
+                    },
+                  ),
               ],
             ),
           ),
@@ -132,6 +181,12 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     final selectedStatus = dayStatus(_selected, today, habits, log);
     final dueOnSelected = dueHabitsOn(habits, _selected, log);
     final selectedIsFuture = _selected.isAfter(today);
+    // Computed here from the data stream (not a derived provider): see the
+    // note in lib/domain/providers.dart.
+    final projects = ref.watch(projectsDataProvider).value;
+    final taskMarkers = projects == null
+        ? const <String, ({int due, int done})>{}
+        : taskMarkersByDay(projects);
 
     return ListView(
       padding: const EdgeInsets.only(bottom: 24),
@@ -199,6 +254,9 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                                               day,
                                               _selected,
                                             ),
+                                            tasks:
+                                                taskMarkers[dateKey(day)] ??
+                                                (due: 0, done: 0),
                                             onTap: () =>
                                                 setState(() => _selected = day),
                                           ),
@@ -259,6 +317,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
           readOnly: selectedIsFuture,
           hasHabits: habits.any((h) => !h.archived),
         ),
+        DayTaskList(date: _selected),
       ],
     );
   }

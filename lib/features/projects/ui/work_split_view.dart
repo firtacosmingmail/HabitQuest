@@ -101,9 +101,8 @@ class _WorkSplitViewState extends ConsumerState<WorkSplitView> {
   void _changeWeek(int delta) =>
       setState(() => _weekStart = addDays(_weekStart, 7 * delta));
 
-  void _goToToday() => setState(
-    () => _weekStart = startOfIsoWeek(ref.read(todayProvider)),
-  );
+  void _goToToday() =>
+      setState(() => _weekStart = startOfIsoWeek(ref.read(todayProvider)));
 
   @override
   Widget build(BuildContext context) {
@@ -124,12 +123,12 @@ class _WorkSplitViewState extends ConsumerState<WorkSplitView> {
     _scroll ??= ScrollController(
       initialScrollOffset:
           ((sessions.isEmpty
-                      ? workSplitDefaultStartHour
-                      : sessions
-                                .map((s) => s.startTime.hour)
-                                .reduce((a, b) => a < b ? a : b) -
-                            1)
-                  .clamp(0, 23)) *
+                  ? workSplitDefaultStartHour
+                  : sessions
+                            .map((s) => s.startTime.hour)
+                            .reduce((a, b) => a < b ? a : b) -
+                        1)
+              .clamp(0, 23)) *
           workSplitHourHeight,
     );
 
@@ -154,8 +153,10 @@ class _WorkSplitViewState extends ConsumerState<WorkSplitView> {
           if (dataAsync.hasError)
             Expanded(
               child: Center(
-                child: Text('The work split could not be loaded.\n'
-                    '${dataAsync.error}'),
+                child: Text(
+                  'The work split could not be loaded.\n'
+                  '${dataAsync.error}',
+                ),
               ),
             )
           else if (data == null)
@@ -504,9 +505,10 @@ class _DayColumn extends StatelessWidget {
               for (final s in sessions)
                 Positioned(
                   top: _y(s.startTime.minutesOfDay),
-                  height: (_y(s.endTime.minutesOfDay) -
-                          _y(s.startTime.minutesOfDay))
-                      .clamp(18.0, double.infinity),
+                  height:
+                      (_y(s.endTime.minutesOfDay) -
+                              _y(s.startTime.minutesOfDay))
+                          .clamp(18.0, double.infinity),
                   left: lanes[s.key]! * laneWidth + 1,
                   width: laneWidth - 2,
                   child: SessionBlock(
@@ -581,7 +583,8 @@ class SessionBlock extends StatelessWidget {
     final times = '${session.startTime}–${session.endTime}';
     return Semantics(
       button: true,
-      label: '$targetTitle, $times'
+      label:
+          '$targetTitle, $times'
           '${session.attended ? ', attended' : ''}',
       excludeSemantics: true,
       child: Material(

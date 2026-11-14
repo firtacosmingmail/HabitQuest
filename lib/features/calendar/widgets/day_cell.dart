@@ -18,12 +18,16 @@ class DayCell extends StatelessWidget {
   final bool isSelected;
   final VoidCallback onTap;
 
+  /// Plan tasks delivered on this day (`due` 0 = no marker).
+  final ({int due, int done}) tasks;
+
   const DayCell({
     super.key,
     required this.status,
     required this.isToday,
     required this.isSelected,
     required this.onTap,
+    this.tasks = (due: 0, done: 0),
   });
 
   @override
@@ -53,6 +57,9 @@ class DayCell extends StatelessWidget {
       label.write(', ${status.due} due');
     }
     if (perfect) label.write(', Perfect Day');
+    if (tasks.due > 0) {
+      label.write(', ${tasks.due} ${tasks.due == 1 ? 'task' : 'tasks'} due');
+    }
 
     return Semantics(
       button: true,
@@ -90,8 +97,9 @@ class DayCell extends StatelessWidget {
                 '${status.date.day}',
                 style: theme.textTheme.titleSmall?.copyWith(
                   color: numberColor,
-                  fontWeight:
-                      isToday || perfect ? FontWeight.w800 : FontWeight.w600,
+                  fontWeight: isToday || perfect
+                      ? FontWeight.w800
+                      : FontWeight.w600,
                 ),
               ),
               if (perfect)
@@ -102,6 +110,14 @@ class DayCell extends StatelessWidget {
                     '⭐',
                     key: ValueKey('perfect-day-$key'),
                     style: const TextStyle(fontSize: 13),
+                  ),
+                ),
+              if (tasks.due > 0)
+                Positioned(
+                  bottom: -3,
+                  child: _TaskMarker(
+                    key: ValueKey('task-marker-$key'),
+                    allDone: tasks.done >= tasks.due,
                   ),
                 ),
             ],
@@ -134,8 +150,9 @@ class DayCell extends StatelessWidget {
               ),
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.perfectDay
-                      .withValues(alpha: isDark ? 0.55 : 0.7),
+                  color: AppColors.perfectDay.withValues(
+                    alpha: isDark ? 0.55 : 0.7,
+                  ),
                   blurRadius: 10,
                   spreadRadius: 1,
                 ),
@@ -156,6 +173,31 @@ class DayCell extends StatelessWidget {
           ),
         );
     }
+  }
+}
+
+/// A small "delivery" badge under the day number: a coral parcel while a
+/// task is open, a green tick when every task of the day is done.
+class _TaskMarker extends StatelessWidget {
+  final bool allDone;
+
+  const _TaskMarker({super.key, required this.allDone});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = allDone ? AppColors.success : AppColors.coral;
+    return Container(
+      padding: const EdgeInsets.all(1.5),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        shape: BoxShape.circle,
+      ),
+      child: Icon(
+        allDone ? Icons.check_circle_rounded : Icons.inventory_2_rounded,
+        size: 11,
+        color: color,
+      ),
+    );
   }
 }
 
