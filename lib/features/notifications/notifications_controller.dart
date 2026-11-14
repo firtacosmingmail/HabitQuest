@@ -73,8 +73,13 @@ class NotificationsController {
       await scheduler.cancel(allReminderIds(habit.id));
       await scheduler.schedule(requests);
     }
-    // Anything else pending belongs to deleted/archived habits or old slots.
-    final stray = (await scheduler.pendingIds()).difference(planned);
+    // Anything else pending in the habit id range belongs to deleted /
+    // archived habits or old slots. Project notifications (another id
+    // range) are left alone.
+    final stray = (await scheduler.pendingIds())
+        .where(isHabitReminderId)
+        .toSet()
+        .difference(planned);
     if (stray.isNotEmpty) await scheduler.cancel(stray);
   }
 

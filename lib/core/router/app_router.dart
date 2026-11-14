@@ -19,6 +19,7 @@ import '../../features/quest/quest_screen.dart';
 import '../../features/quotes/public_quote_screen.dart';
 import '../../features/quotes/quotes_screen.dart';
 import '../../features/quotes/saved_quotes_screen.dart';
+import '../../features/settings/settings_screen.dart';
 import '../../features/widgets_bridge/widget_bridge.dart';
 import '../../features/widgets_bridge/widget_links.dart';
 import '../widgets/message_view.dart';
@@ -114,6 +115,12 @@ GoRouter createRouter({
       GoRoute(
         path: AppRoutes.profile,
         builder: (_, _) => const ProfileScreen(),
+        routes: [
+          GoRoute(
+            path: 'settings',
+            builder: (_, _) => const SettingsScreen(),
+          ),
+        ],
       ),
       // Full screen (from the Habits quote card, Profile and the widgets).
       GoRoute(

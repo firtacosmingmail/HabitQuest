@@ -13,6 +13,8 @@ import 'features/game/game_providers.dart';
 import 'features/game/game_repository.dart';
 import 'features/notifications/notifications_bootstrap.dart';
 import 'features/projects/data/hive_project_repository.dart';
+import 'features/projects/notifications/project_notification_settings.dart';
+import 'features/projects/notifications/project_notifications_providers.dart';
 import 'features/projects/projects_providers.dart';
 import 'features/quotes/quotes_providers.dart';
 import 'features/sync/sync_bootstrap.dart';
@@ -31,6 +33,10 @@ Future<void> main() async {
   // Projects (docs/PROJECTS.md). Not wired to the sync queue yet: the
   // projects sync task passes `recorder: queue` once the engine pushes them.
   final projectRepository = await HiveProjectRepository.open();
+  // Projects notification toggles (device-local, Settings screen).
+  final projectNotificationSettings = ProjectNotificationSettingsStore(
+    await HiveStringStore.open(ProjectNotificationSettingsStore.boxName),
+  );
   // Today's quote and the saved quotes, for offline use.
   final quotesCache = QuotesCache(
     await HiveStringStore.open(QuotesCache.boxName),
@@ -45,6 +51,8 @@ Future<void> main() async {
         syncQueueProvider.overrideWithValue(queue),
         syncMetaProvider.overrideWithValue(meta),
         quotesCacheProvider.overrideWithValue(quotesCache),
+        projectNotificationSettingsStoreProvider
+            .overrideWithValue(projectNotificationSettings),
       ],
       // Home-screen widgets: snapshot writer + queued widget check-offs
       // (no-op on web; see docs/WIDGETS.md).

@@ -122,6 +122,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
               ),
               const SizedBox(height: 28),
+              _SectionTitle('Settings'),
+              Card(
+                margin: EdgeInsets.zero,
+                child: ListTile(
+                  key: const ValueKey('profile-settings'),
+                  leading: const Text('🔔', style: TextStyle(fontSize: 24)),
+                  title: const Text('Notifications'),
+                  subtitle: const Text('Choose which project nudges you get'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => context.push(AppRoutes.settings),
+                ),
+              ),
+              const SizedBox(height: 28),
               _DangerZone(onDelete: _deleteAccount),
               const SizedBox(height: 12),
               Text(

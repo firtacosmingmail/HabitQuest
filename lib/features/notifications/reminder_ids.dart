@@ -36,3 +36,12 @@ List<int> allReminderIds(String habitId) => [
       for (var slot = 0; slot < kReminderSlotsPerHabit; slot++)
         reminderId(habitId, slot),
     ];
+
+/// Habit reminder ids live in `[0, kProjectNotificationIdBase)`
+/// (26-bit hash × 16 slots = 2^30). Project notifications use the upper
+/// half of the positive 32-bit range, so the two never collide and each
+/// controller only ever cancels its own ids.
+const kProjectNotificationIdBase = 1 << 30;
+
+/// Whether [id] is in the habit reminder range.
+bool isHabitReminderId(int id) => id >= 0 && id < kProjectNotificationIdBase;

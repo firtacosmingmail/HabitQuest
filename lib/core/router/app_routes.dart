@@ -9,6 +9,9 @@ abstract final class AppRoutes {
   static const newHabit = '/habits/new';
   static const login = '/login';
   static const profile = '/profile';
+
+  /// Settings (notification toggles), reached from Profile.
+  static const settings = '/profile/settings';
   static const splash = '/splash';
 
   /// Today's quote and the past days' quotes.
