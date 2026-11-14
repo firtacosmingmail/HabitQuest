@@ -3,6 +3,9 @@ abstract final class AppRoutes {
   static const habits = '/habits';
   static const calendar = '/calendar';
   static const quest = '/quest';
+
+  /// Projects tab: the list of projects (active + archived).
+  static const projects = '/projects';
   static const newHabit = '/habits/new';
   static const login = '/login';
   static const profile = '/profile';
@@ -33,4 +36,15 @@ abstract final class AppRoutes {
 
   static String habitDetails(String id) => '/habits/$id';
   static String editHabit(String id) => '/habits/$id/edit';
+
+  /// Project details: targets, sessions, work split placeholder.
+  static String projectDetails(String id) => '/projects/$id';
+
+  /// Create a target in project [projectId].
+  static String newTarget(String projectId) =>
+      '/projects/$projectId/targets/new';
+
+  /// Target editor: title, deadline, status, plan and consistent actions.
+  static String targetEditor(String projectId, String targetId) =>
+      '/projects/$projectId/targets/$targetId';
 }

@@ -12,6 +12,9 @@ import '../../features/habits/habit_form_screen.dart';
 import '../../features/habits/habits_screen.dart';
 import '../../features/notifications/in_app_reminder.dart';
 import '../../features/profile/profile_screen.dart';
+import '../../features/projects/ui/project_details_screen.dart';
+import '../../features/projects/ui/projects_screen.dart';
+import '../../features/projects/ui/target_editor_screen.dart';
 import '../../features/quest/quest_screen.dart';
 import '../../features/quotes/public_quote_screen.dart';
 import '../../features/quotes/quotes_screen.dart';
@@ -174,6 +177,41 @@ GoRouter createRouter({
                         parentNavigatorKey: rootNavigatorKey,
                         builder: (_, state) => HabitFormScreen(
                           habitId: state.pathParameters['id']!,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.projects,
+                builder: (_, _) => const ProjectsScreen(),
+                routes: [
+                  GoRoute(
+                    path: ':id',
+                    parentNavigatorKey: rootNavigatorKey,
+                    builder: (_, state) => ProjectDetailsScreen(
+                      projectId: state.pathParameters['id']!,
+                    ),
+                    routes: [
+                      // 'targets/new' must come before 'targets/:tid'.
+                      GoRoute(
+                        path: 'targets/new',
+                        parentNavigatorKey: rootNavigatorKey,
+                        builder: (_, state) => TargetEditorScreen(
+                          projectId: state.pathParameters['id']!,
+                        ),
+                      ),
+                      GoRoute(
+                        path: 'targets/:tid',
+                        parentNavigatorKey: rootNavigatorKey,
+                        builder: (_, state) => TargetEditorScreen(
+                          projectId: state.pathParameters['id']!,
+                          targetId: state.pathParameters['tid']!,
                         ),
                       ),
                     ],

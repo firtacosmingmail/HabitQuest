@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../domain/providers.dart';
 
-/// Bottom-navigation shell for the Habits / Calendar / Quest tabs.
+/// Bottom-navigation shell for the Habits / Projects / Calendar / Quest tabs.
 ///
 /// App-wide overlays (e.g. game celebrations) can be added around the
 /// [navigationShell] here.
@@ -36,9 +36,9 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 
   void _onTap(int index) => widget.navigationShell.goBranch(
-        index,
-        initialLocation: index == widget.navigationShell.currentIndex,
-      );
+    index,
+    initialLocation: index == widget.navigationShell.currentIndex,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -52,6 +52,11 @@ class _AppShellState extends ConsumerState<AppShell> {
             icon: Icon(Icons.check_circle_outline_rounded),
             selectedIcon: Icon(Icons.check_circle_rounded),
             label: 'Habits',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.rocket_launch_outlined),
+            selectedIcon: Icon(Icons.rocket_launch_rounded),
+            label: 'Projects',
           ),
           NavigationDestination(
             icon: Icon(Icons.calendar_month_outlined),
