@@ -265,14 +265,33 @@ const RAW: RawStats = {
     quotes: 90,
     scheduled_quotes: 88,
     quote_loves: 15,
+    xp: 5100,
+    project_xp: 640,
+    projects: 6,
+    active_projects: 5,
+    users_with_projects: 4,
+    targets: 11,
+    targets_done: 3,
+    plan_tasks_done: 17,
+    sessions_attended: 22,
   },
-  in_range: { signups: 3, active_users: 5, habits_created: 7, completions: 21, quote_loves: 4 },
+  in_range: {
+    signups: 3,
+    active_users: 5,
+    habits_created: 7,
+    completions: 21,
+    quote_loves: 4,
+    projects_created: 2,
+    sessions_attended: 5,
+  },
   signups: [{ d: "2026-10-14", n: 1 }, { d: "2026-10-19", n: 2 }],
   active: [{ d: "2026-10-14", n: 3 }, { d: "2026-10-19", n: 4 }, { d: "2026-10-20", n: 3 }],
   weekly_active: [{ w: "2026-10-12", n: 3 }, { w: "2026-10-19", n: 5 }],
   habits_created: [{ d: "2026-10-15", n: 7 }],
   completions: [{ d: "2026-10-14", n: 6 }, { d: "2026-10-19", n: 9 }, { d: "2026-10-20", n: 6 }],
   loves: [{ d: "2026-10-20", n: 4 }],
+  sessions_attended: [{ d: "2026-10-15", n: 2 }, { d: "2026-10-20", n: 3 }],
+  project_xp: [{ v: 0, n: 5 }, { v: 25, n: 2 }, { v: 590, n: 1 }],
   xp: [{ v: 0, n: 2 }, { v: 150, n: 5 }, { v: 1200, n: 2 }],
   best_streak: [{ v: 0, n: 2 }, { v: 4, n: 6 }, { v: 30, n: 1 }],
   level: [{ v: 1, n: 2 }, { v: 2, n: 5 }, { v: 5, n: 2 }],
@@ -304,11 +323,45 @@ Deno.test("buildStats: daily series, weekly sums, buckets and totals", () => {
   assertEquals(s.totals.users, 12);
   assertEquals(s.totals.usersWithGameState, 9);
   assertEquals(s.xpBuckets.map((b) => b.users), [2, 0, 5, 0, 2, 0, 0, 0]);
+  assertEquals(s.projectXpBuckets.map((b) => b.users), [5, 2, 0, 1, 0, 0, 0, 0]);
+  assertEquals(s.projectXpBuckets.map((b) => b.label), s.xpBuckets.map((b) => b.label));
+  assertEquals(s.daily.map((d) => d.sessionsAttended), [0, 2, 0, 0, 0, 0, 3]);
+  assertEquals(s.totals.xp, 5100);
+  assertEquals(s.totals.projectXp, 640);
+  assertEquals(
+    [s.totals.projects, s.totals.activeProjects, s.totals.usersWithProjects, s.totals.targets],
+    [6, 5, 4, 11],
+  );
+  assertEquals(
+    [s.totals.targetsDone, s.totals.planTasksDone, s.totals.sessionsAttended],
+    [3, 17, 22],
+  );
+  assertEquals(s.range.projectsCreated, 2);
+  assertEquals(s.range.sessionsAttended, 5);
   assertEquals(s.bestStreakBuckets.map((b) => b.users), [2, 0, 6, 0, 0, 1, 0, 0]);
   assertEquals(s.levels, [{ level: 1, users: 2 }, { level: 2, users: 5 }, { level: 5, users: 2 }]);
   assertEquals(s.topQuotes[0].loves, 4);
   assertEquals(s.widgets.recorded, false);
   assertEquals(s.generatedAt, NOW.toISOString());
+});
+
+Deno.test("buildStats: the v1 SQL shape (no Projects keys) still works", () => {
+  const { sessions_attended: _s, project_xp: _p, ...v1 } = RAW;
+  const s = buildStats(
+    {
+      ...v1,
+      totals: { ...RAW.totals, xp: undefined, project_xp: undefined, projects: undefined },
+      in_range: { ...RAW.in_range, sessions_attended: undefined },
+    },
+    "2026-10-14",
+    "2026-10-20",
+    NOW,
+  );
+  assertEquals(s.totals.projectXp, 0);
+  assertEquals(s.totals.projects, 0);
+  assertEquals(s.range.sessionsAttended, 0);
+  assert(s.daily.every((d) => d.sessionsAttended === 0));
+  assert(s.projectXpBuckets.every((b) => b.users === 0));
 });
 
 Deno.test("buildStats: an empty database gives zeros, not errors", () => {
@@ -335,8 +388,12 @@ Deno.test("buildStats: an empty database gives zeros, not errors", () => {
     habitsCreated: 0,
     completions: 0,
     quoteLoves: 0,
+    sessionsAttended: 0,
   }]);
   assert(s.xpBuckets.every((b) => b.users === 0));
+  assert(s.projectXpBuckets.every((b) => b.users === 0));
+  assertEquals(s.totals.projectXp, 0);
+  assertEquals(s.range.sessionsAttended, 0);
 });
 
 // admin-stats: handler -----------------------------------------------------------
@@ -395,7 +452,9 @@ Deno.test("admin-stats: aggregates for the range, defaults to the last 30 days",
   assertEquals(body.daily.length, 7);
   // Aggregates only: no per-user data anywhere in the response.
   const text = JSON.stringify(body);
-  for (const forbiddenKey of ["userId", "user_id", "email", 'name"']) {
+  assertEquals(body.totals.projectXp, 640);
+  assertEquals(body.range.sessionsAttended, 5);
+  for (const forbiddenKey of ["userId", "user_id", "email", 'name"', "title"]) {
     assert(!text.includes(forbiddenKey), forbiddenKey);
   }
 });

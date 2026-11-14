@@ -3,7 +3,8 @@
  * (see supabase/API.md).
  *
  * The database does the counting (public.admin_stats, migration
- * 20261017120000_admin_functions.sql) and returns sparse aggregates only:
+ * 20261114130000_admin_stats_projects.sql, which replaces the first version
+ * of 20261017120000_admin_functions.sql) and returns sparse aggregates only:
  * counts per day/week and histograms of values, never a user id, email or
  * habit name. This module validates the request, runs the admin check, fills
  * the daily series with zeros, derives the weekly sums and groups the
@@ -39,6 +40,16 @@ export interface RawStats {
     quotes: number;
     scheduled_quotes: number;
     quote_loves: number;
+    /** Total XP of all players: checkIns + perfectDays + projects ledgers. */
+    xp?: number;
+    project_xp?: number;
+    projects?: number;
+    active_projects?: number;
+    users_with_projects?: number;
+    targets?: number;
+    targets_done?: number;
+    plan_tasks_done?: number;
+    sessions_attended?: number;
   };
   in_range: {
     signups: number;
@@ -46,6 +57,8 @@ export interface RawStats {
     habits_created: number;
     completions: number;
     quote_loves: number;
+    projects_created?: number;
+    sessions_attended?: number;
   };
   signups: DayCount[];
   active: DayCount[];
@@ -53,7 +66,11 @@ export interface RawStats {
   habits_created: DayCount[];
   completions: DayCount[];
   loves: DayCount[];
+  sessions_attended?: DayCount[];
+  /** Per user: checkIns + perfectDays + projects ledgers. */
   xp: ValueCount[];
+  /** Per user: the projects ledger alone. */
+  project_xp?: ValueCount[];
   best_streak: ValueCount[];
   level: ValueCount[];
   top_quotes: {
@@ -168,6 +185,7 @@ export function buildStats(raw: RawStats, from: string, to: string, now: Date) {
     habitsCreated: fillDays(raw.habits_created ?? [], from, to),
     completions: fillDays(raw.completions ?? [], from, to),
     quoteLoves: fillDays(raw.loves ?? [], from, to),
+    sessionsAttended: fillDays(raw.sessions_attended ?? [], from, to),
   };
   const daily = Array.from({ length: days }, (_, i) => ({
     date: fromEpochDay(epochDay(from) + i),
@@ -176,6 +194,7 @@ export function buildStats(raw: RawStats, from: string, to: string, now: Date) {
     habitsCreated: series.habitsCreated[i],
     completions: series.completions[i],
     quoteLoves: series.quoteLoves[i],
+    sessionsAttended: series.sessionsAttended[i],
   }));
 
   const weeklyActive = new Map(
@@ -216,6 +235,15 @@ export function buildStats(raw: RawStats, from: string, to: string, now: Date) {
       quotes: num(t?.quotes),
       scheduledQuotes: num(t?.scheduled_quotes),
       quoteLoves: num(t?.quote_loves),
+      xp: num(t?.xp),
+      projectXp: num(t?.project_xp),
+      projects: num(t?.projects),
+      activeProjects: num(t?.active_projects),
+      usersWithProjects: num(t?.users_with_projects),
+      targets: num(t?.targets),
+      targetsDone: num(t?.targets_done),
+      planTasksDone: num(t?.plan_tasks_done),
+      sessionsAttended: num(t?.sessions_attended),
     },
     range: {
       signups: num(r?.signups),
@@ -223,11 +251,14 @@ export function buildStats(raw: RawStats, from: string, to: string, now: Date) {
       habitsCreated: num(r?.habits_created),
       completions: num(r?.completions),
       quoteLoves: num(r?.quote_loves),
+      projectsCreated: num(r?.projects_created),
+      sessionsAttended: num(r?.sessions_attended),
       averageDailyActiveUsers: Math.round((sum(series.activeUsers) / days) * 10) / 10,
     },
     daily,
     weekly,
     xpBuckets: toBuckets(raw.xp ?? [], XP_BUCKETS),
+    projectXpBuckets: toBuckets(raw.project_xp ?? [], XP_BUCKETS),
     bestStreakBuckets: toBuckets(raw.best_streak ?? [], STREAK_BUCKETS),
     levels: (raw.level ?? []).map((l) => ({ level: num(l.v), users: num(l.n) })),
     topQuotes: (raw.top_quotes ?? []).map((q) => ({
