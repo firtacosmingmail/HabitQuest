@@ -1,8 +1,13 @@
 # Habit Quest 🌱⚔️
 
 A playful, gamified habit tracker for **iOS, Android and web**. Build habits,
-keep streaks alive, earn XP, level up and unlock achievements. All data stays
-on the device (hive_ce). There is no account and no server.
+keep streaks alive, earn XP, level up and unlock achievements. It is
+**offline-first**: habits, check-ins and the game state live on the device
+(hive_ce) and everything works without a connection. You sign in with an
+account (email and password, Google or Apple; backend: Supabase), and while
+online the app syncs your data with that account in the background, so it
+survives a reinstall or a new phone. See [Sync](#sync) and
+[Backend (Supabase)](#backend-supabase).
 
 ## Features
 
