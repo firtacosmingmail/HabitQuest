@@ -84,6 +84,10 @@ survives a reinstall or a new phone. See [Sync](#sync) and
   on level-up, and toasts when you unlock an achievement.
 - **Reminders**: notifications at each habit's reminder time, following its
   schedule, with rotating fun messages.
+- **Projects notifications**: a nudge when a work split session starts, as a
+  target's deadline approaches, and the day before a plan task is due. Each
+  type can be switched off in **Settings** (Profile → Notifications). See
+  [Projects notifications](#projects-notifications).
 - **Offline-first sync**: everything works offline; when signed in and
   online, habits, check-ins and the game state sync with your account in the
   background (☁️ badge in the Habits header, "Sync now" on the Quest tab).
@@ -260,6 +264,47 @@ signs in).
   plus a browser notification if you allowed them. If the tab is closed,
   nothing fires. A reminder missed while the tab was asleep for more than 15
   minutes is skipped rather than replayed.
+- **Projects notifications** use the same setup on Android and iOS (same
+  plugin, channel, time zone handling and permission prompt). On web they
+  are a no-op.
+
+### Projects notifications
+
+Three kinds, each with a toggle in **Settings** (Profile → 🔔
+Notifications, `/profile/settings`). All default to on, are stored on this
+device only (hive box `project_notification_settings`, not synced), and
+turning one off cancels its pending notifications at once.
+
+| Kind | When | Skipped when |
+|---|---|---|
+| ⚔️ Work split starts | At the start time of each session of a consistent action | The session is marked attended, the target is done, the project is archived |
+| ⏳ Deadlines | 3 days before, 1 day before and on the morning of a target's deadline, at **09:00** (`kProjectMorningHour`) | The target is done, the project is archived |
+| 📦 Task deliveries | The day before a plan task's delivery date, at **09:00** | The task is done, its target is done, the project is archived, no delivery date |
+
+Times already past are never scheduled. Copy rotates through fun messages
+in the habit reminders' tone (`project_notification_messages.dart`).
+
+**Rolling window and cap.** iOS keeps at most **64 pending notifications per
+app, shared with the habit reminders**. Projects therefore schedule only the
+next **14 days** (`kProjectNotificationWindow`), nearest first, capped at
+**32 pending** (`kProjectNotificationCap`), leaving the other half for habits
+(a daily habit uses 1, a weekdays habit up to 7, an every-N-days habit 12).
+Later notifications are added as the window moves.
+
+**When it re-plans.** On every local or synced change of projects, targets,
+plan tasks and consistent actions (`projectChangesProvider` /
+`remoteProjectChangesProvider`), on attended marks, on a toggle change, on
+app start and resume, and on sign-in / sign-out. Each re-plan schedules the
+window and cancels every other pending id in the Projects range, which also
+removes the notifications of deleted items.
+
+**Ids.** Habit reminders use ids `[0, 2^30)`; Projects notifications use
+`2^30 + (fnv1a(key) & 0x3FFFFFFF)` in `[2^30, 2^31)`, with a stable key per
+occurrence (`split|<actionId>|<date>`, `deadline|<targetId>|<3|1|0>`,
+`task|<taskId>`). Each controller only cancels its own range, so project
+notifications never cancel habit reminders and the other way round. Code:
+`lib/features/projects/notifications/` (pure planner, controller, settings)
+and `lib/features/settings/`.
 
 ## Advertising (AdMob)
 
@@ -452,6 +497,8 @@ Tap the avatar (your initials) at the top right of the Quest tab to open
 `/profile` (`lib/features/profile/`). The Logout button lives there too,
 behind a confirmation.
 
+- **Settings** (🔔 Notifications → `/profile/settings`): the Projects
+  notification toggles (see [Projects notifications](#projects-notifications)).
 - **Header**: avatar initials (from the display name, else the email), the
   display name with an inline ✏️ edit (trimmed, 1–50 characters), and the
   email.
@@ -1014,6 +1061,8 @@ lib/
                           refresh), SessionStore (flutter_secure_storage)
     game/                 game engine (XP ledger, levels, achievements) + celebration UI
     notifications/        reminder planning + mobile / web / no-op schedulers
+    projects/notifications/  Projects notifications: planner, controller, toggles
+    settings/             Settings screen (Projects notification toggles)
     sync/                 SyncEngine (push / pull / merge), SyncController (triggers,
                           backoff, status), connectivity, indicator + "Sync now" UI
 ```

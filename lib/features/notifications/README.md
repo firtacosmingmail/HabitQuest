@@ -37,12 +37,22 @@ app start / resume  ───────┘        (serialised queue)      (pur
 * `in_app_reminder.dart` — `appScaffoldMessengerKey` (wired into
   `MaterialApp` in `app.dart`; other features may reuse it) and the banner.
 
+## Projects notifications
+
+`lib/features/projects/notifications/` reuses this module's scheduler (the
+same instance on Android / iOS; a no-op on web). Its ids live in
+`[2^30, 2^31)` (`kProjectNotificationIdBase`), above the habit range
+`[0, 2^30)`; `NotificationsController` only cancels stray ids in the habit
+range (`isHabitReminderId`), and the Projects controller only in its own.
+`NotificationsBootstrap` starts it after the habit reminders and re-plans it
+on resume and on sign-in / sign-out. See the README "Projects notifications".
+
 ## Platform behaviour
 
 | Platform | Behaviour |
 |---|---|
 | Android | `flutter_local_notifications` + `timezone`/`flutter_timezone`. `POST_NOTIFICATIONS` requested on Android 13+. Uses `inexactAllowWhileIdle` (may be a few minutes late) unless the exact-alarm permission is granted, then `exactAllowWhileIdle`; an exact failure falls back to inexact. Boot / app-update receiver re-registers reminders. Icon: `res/drawable/ic_stat_habit_quest.xml`. Core library desugaring enabled in Gradle. |
-| iOS | Same plugin; alert/badge/sound permission requested explicitly (not at plugin init). `AppDelegate` sets the `UNUserNotificationCenter` delegate so reminders also show in the foreground. iOS keeps at most 64 pending notifications per app: each habit uses ≤ 12, so many every-N-days habits can hit the cap (the OS keeps the soonest). |
+| iOS | Same plugin; alert/badge/sound permission requested explicitly (not at plugin init). `AppDelegate` sets the `UNUserNotificationCenter` delegate so reminders also show in the foreground. iOS keeps at most 64 pending notifications per app: each habit uses ≤ 12, so many every-N-days habits can hit the cap (the OS keeps the soonest). Projects notifications take at most 32 of the 64 (rolling 14-day window). |
 | Web | **Reminders only fire while the app is open in a tab.** Browsers cannot schedule notifications for a closed page without a push server. A 30 s timer checks for reminders due since the last check (catch-up window 15 min, so a sleeping tab doesn't replay stale reminders) and shows an in-app snackbar plus a browser `Notification` if the user granted permission. Missing/blocked Notification API is handled silently. |
 | Others | No-op. |
 
