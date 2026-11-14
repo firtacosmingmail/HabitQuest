@@ -2,6 +2,7 @@ import '../data/project_repository.dart';
 import '../models/consistent_action.dart';
 import '../models/plan_task.dart';
 import '../models/project.dart';
+import '../models/session_mark.dart';
 import '../models/target.dart';
 
 enum ProjectChangeType { created, updated, archived, unarchived, deleted }
@@ -36,6 +37,7 @@ class ProjectChangeEvent {
         Target r => r.id,
         PlanTask r => r.id,
         ConsistentAction r => r.id,
+        SessionMark r => r.key,
         _ => throw StateError('Unexpected record $record'),
       };
 

@@ -30,9 +30,8 @@ Future<void> main() async {
   final meta = SyncMeta(await HiveStringStore.open(SyncMeta.boxName));
   final repository = await HiveHabitRepository.open(recorder: queue);
   final gameRepository = await HiveGameRepository.open(recorder: queue);
-  // Projects (docs/PROJECTS.md). Not wired to the sync queue yet: the
-  // projects sync task passes `recorder: queue` once the engine pushes them.
-  final projectRepository = await HiveProjectRepository.open();
+  // Projects (docs/PROJECTS.md), synced like habits.
+  final projectRepository = await HiveProjectRepository.open(recorder: queue);
   // Projects notification toggles (device-local, Settings screen).
   final projectNotificationSettings = ProjectNotificationSettingsStore(
     await HiveStringStore.open(ProjectNotificationSettingsStore.boxName),

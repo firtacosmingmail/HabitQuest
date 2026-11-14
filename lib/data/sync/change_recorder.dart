@@ -1,8 +1,8 @@
 /// The kinds of entities that sync.
 ///
 /// The projects kinds (`project` … `sessionMark`) are recorded by
-/// `CachedProjectRepository` once it is given a recorder; the sync engine
-/// does not push / pull them yet (see docs/PROJECTS.md "Sync").
+/// `CachedProjectRepository` (given the queue in `main.dart`) and pushed /
+/// pulled by `SyncEngine` like habits (README "Sync").
 enum SyncEntityType {
   habit,
   checkIn,

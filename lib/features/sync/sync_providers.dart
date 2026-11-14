@@ -16,6 +16,7 @@ import '../../data/sync/sync_queue.dart';
 import '../../domain/providers.dart';
 import '../auth/auth_providers.dart';
 import '../game/game_providers.dart';
+import '../projects/projects_providers.dart';
 import 'connectivity.dart';
 import 'sync_controller.dart';
 import 'sync_engine.dart';
@@ -50,6 +51,7 @@ final syncEngineProvider = Provider<SyncEngine>(
   (ref) => SyncEngine(
     api: ref.watch(habitQuestApiProvider),
     service: ref.watch(habitServiceProvider),
+    projects: ref.watch(projectServiceProvider),
     game: ref.watch(gameEngineProvider),
     queue: ref.watch(syncQueueProvider),
     meta: ref.watch(syncMetaProvider),

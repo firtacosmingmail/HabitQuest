@@ -372,12 +372,17 @@ class ProjectService {
   // Sync / maintenance -------------------------------------------------------
 
   /// Applies records pulled from the server (already resolved by
-  /// last-write-wins). No local events and no attendance events (no XP);
-  /// changed projects / targets / tasks / actions are announced on
-  /// [remoteChanges].
+  /// last-write-wins). No local events and no attendance events (no XP:
+  /// the sync engine grants it silently through `GameEngine.reconcileSynced`);
+  /// every changed record, session marks included, is announced on
+  /// [remoteChanges] so the UI, notifications and calendar refresh.
   Future<void> applyRemote(ProjectRecords records) async {
     if (records.isEmpty) return;
     final before = data;
+    final marksBefore = {
+      for (final m in records.sessionMarks)
+        m.key: _repository.getSessionMarkRecord(m.actionId, m.date),
+    };
     await _repository.applyRemote(records);
     void announce(ProjectEntityKind kind, String id, Object record,
         bool deleted, Object? previous) {
@@ -415,6 +420,18 @@ class ProjectService {
     for (final r in records.actions) {
       announce(ProjectEntityKind.consistentAction, r.id, r, r.isDeleted,
           before.action(r.id));
+    }
+    for (final m in records.sessionMarks) {
+      final previous = marksBefore[m.key];
+      _remoteChanges.add(ProjectChangeEvent(
+          type: m.deletedAt != null
+              ? ProjectChangeType.deleted
+              : (previous == null
+                  ? ProjectChangeType.created
+                  : ProjectChangeType.updated),
+          kind: ProjectEntityKind.sessionMark,
+          record: m,
+          previous: previous));
     }
   }
 

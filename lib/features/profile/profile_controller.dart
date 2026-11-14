@@ -8,10 +8,12 @@ import '../game/game_providers.dart';
 import '../notifications/notifications_providers.dart';
 import '../sync/sync_providers.dart';
 import 'local_data_wiper.dart';
+import '../projects/projects_providers.dart';
 
 final localDataWiperProvider = Provider<LocalDataWiper>(
   (ref) => LocalDataWiper(
     service: ref.watch(habitServiceProvider),
+    projects: ref.watch(projectServiceProvider),
     game: ref.watch(gameEngineProvider),
     queue: ref.watch(syncQueueProvider),
     meta: ref.watch(syncMetaProvider),

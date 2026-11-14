@@ -5,7 +5,8 @@ import 'string_store.dart';
 /// * the user id that owns the local data ([ownerUserId]; `null` = data
 ///   created before any login, i.e. "anonymous");
 /// * per user: the delta cursors (the `serverTime` of the last pull of
-///   habits and of check-ins) and the time of the last successful sync.
+///   habits, of check-ins and of each Projects resource) and the time of
+///   the last successful sync.
 class SyncMeta {
   static const boxName = 'sync_meta';
   static const _owner = 'owner';
@@ -20,6 +21,14 @@ class SyncMeta {
 
   DateTime? habitsCursor(String userId) => _date('habitsCursor:$userId');
   DateTime? checkInsCursor(String userId) => _date('checkInsCursor:$userId');
+
+  /// The delta cursor of a Projects resource ([name] = its function).
+  DateTime? projectsCursor(String userId, String name) =>
+      _date('${name}Cursor:$userId');
+
+  Future<void> setProjectsCursor(String userId, String name, DateTime t) =>
+      _store.put('${name}Cursor:$userId', t.toUtc().toIso8601String());
+
   DateTime? lastSyncedAt(String userId) => _date('lastSyncedAt:$userId');
 
   Future<void> setHabitsCursor(String userId, DateTime t) =>

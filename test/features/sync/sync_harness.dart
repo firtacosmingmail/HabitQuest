@@ -11,6 +11,9 @@ import 'package:habit_quest/features/game/game_engine.dart';
 import 'package:habit_quest/features/game/game_events.dart';
 import 'package:habit_quest/features/game/game_repository.dart';
 import 'package:habit_quest/features/game/game_state.dart';
+import 'package:habit_quest/features/projects/data/project_repository.dart';
+import 'package:habit_quest/features/projects/domain/project_events.dart';
+import 'package:habit_quest/features/projects/domain/project_service.dart';
 import 'package:habit_quest/features/sync/sync_engine.dart';
 
 /// Monday 5 Jan 2026, 10:00 local.
@@ -37,6 +40,11 @@ class Device {
   late final SyncMeta meta;
   late final InMemoryHabitRepository repo;
   late final HabitService service;
+  late final InMemoryProjectRepository projectRepo;
+  late final ProjectService projects;
+
+  /// Everything announced on `ProjectService.remoteChanges`.
+  final List<ProjectChangeEvent> remoteProjectEvents = [];
   late final InMemoryGameRepository gameRepo;
   late final GameEngine game;
   final List<GameEvent> gameEvents = [];
@@ -54,9 +62,16 @@ class Device {
     meta = SyncMeta(this.metaStore);
     repo = InMemoryHabitRepository(recorder: queue, now: clock.call);
     service = HabitService(repo, now: clock.call, idGenerator: _ids);
+    projectRepo = InMemoryProjectRepository(recorder: queue);
+    projects = ProjectService(projectRepo, now: clock.call);
+    projects.remoteChanges.listen(remoteProjectEvents.add);
     gameRepo = InMemoryGameRepository(GameState.empty, queue);
-    game = GameEngine(service: service, repository: gameRepo, now: clock.call)
-      ..start();
+    game = GameEngine(
+      service: service,
+      repository: gameRepo,
+      projects: projects,
+      now: clock.call,
+    )..start();
     game.events.listen(gameEvents.add);
     service.completionEvents.listen(completionEvents.add);
     addTearDown(game.dispose);
@@ -68,6 +83,7 @@ class Device {
   SyncEngine get engine => SyncEngine(
     api: api,
     service: service,
+    projects: projects,
     game: game,
     queue: queue,
     meta: meta,

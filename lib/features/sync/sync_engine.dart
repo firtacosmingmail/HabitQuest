@@ -9,6 +9,8 @@ import '../../data/sync/sync_queue.dart';
 import '../../domain/habit_service.dart';
 import '../game/game_engine.dart';
 import '../game/game_state.dart';
+import '../projects/data/project_repository.dart';
+import '../projects/domain/project_service.dart';
 import 'remote_mapping.dart';
 
 /// A change the server refused (validation error). It stays queued and is
@@ -29,13 +31,17 @@ class SyncReport {
   int pushed = 0;
   int pulledHabits = 0;
   int pulledCheckIns = 0;
+
+  /// Projects records of every kind that replaced (or added) local ones.
+  int pulledProjectRecords = 0;
   bool gameStatePushed = false;
   final List<SyncIssue> issues = [];
 
   @override
   String toString() =>
       'SyncReport(pushed: $pushed, pulled: $pulledHabits habits / '
-      '$pulledCheckIns check-ins, game pushed: $gameStatePushed, '
+      '$pulledCheckIns check-ins / $pulledProjectRecords projects records, '
+      'game pushed: $gameStatePushed, '
       'issues: $issues)';
 }
 
@@ -55,8 +61,10 @@ enum AccountChange {
 /// One offline-first sync run: push the queue, pull deltas, merge the game
 /// state. Stateless between runs apart from the queue and [SyncMeta].
 ///
-/// * Push: habits before check-ins (the server rejects check-ins of unknown
-///   habits), through the batch endpoints in chunks of
+/// * Push: parents before children, because the server rejects a child
+///   whose parent it does not have: habits → check-ins, then projects →
+///   targets → plan tasks and consistent actions → session marks
+///   ([ProjectResource] order). Through the batch endpoints in chunks of
 ///   [batchSize] (the server's limit). Every acknowledged entry is dropped,
 ///   whether the server applied it or kept a newer row (which the pull then
 ///   brings). A batch refused for a validation reason is retried item by
@@ -64,9 +72,13 @@ enum AccountChange {
 /// * Pull: `since` the per-user cursors (the `serverTime` of the previous
 ///   pull), merged with last-write-wins on `updatedAt` (remote replaces local
 ///   only when strictly newer) and applied through
-///   [HabitService.applyRemote], which emits no XP-awarding events.
+///   [HabitService.applyRemote] / [ProjectService.applyRemote], which emit
+///   no XP-awarding events (the projects one announces the changes on
+///   `ProjectService.remoteChanges`, so the UI, the notifications and the
+///   calendar refresh).
 /// * Game state: GET, union-merge + reconcile ([GameEngine.reconcileSynced],
-///   silent), PUT back if the merge differs from the server's copy.
+///   silent; the pulled check-ins and projects records grant their XP once,
+///   without a celebration), PUT back if the merge differs from the server's copy.
 ///
 /// Transient failures (network, 401 after refresh, 5xx, rate limiting,
 /// malformed responses) are thrown as [ApiException] and abort the run; the
@@ -74,6 +86,7 @@ enum AccountChange {
 class SyncEngine {
   final HabitQuestApi api;
   final HabitService service;
+  final ProjectService projects;
   final GameEngine game;
   final SyncQueue queue;
   final SyncMeta meta;
@@ -84,6 +97,7 @@ class SyncEngine {
   SyncEngine({
     required this.api,
     required this.service,
+    required this.projects,
     required this.game,
     required this.queue,
     required this.meta,
@@ -105,6 +119,11 @@ class SyncEngine {
       for (final c in repo.getAllCheckIns()) {
         await queue.recordChange(SyncEntityType.checkIn, c.key);
       }
+      for (final r in ProjectResource.values) {
+        for (final id in localProjectIds(projects.repository, r)) {
+          await queue.recordChange(syncTypeOf(r), id);
+        }
+      }
       if (game.state != GameState.empty) {
         await queue.recordChange(SyncEntityType.gameState, gameStateId);
       }
@@ -114,6 +133,7 @@ class SyncEngine {
     await queue.clear();
     await meta.clear();
     await service.clearLocalData();
+    await projects.clearLocalData();
     await game.resetSilently();
     await meta.setOwner(userId);
     return AccountChange.switched;
@@ -125,8 +145,12 @@ class SyncEngine {
     final report = SyncReport();
     await _pushHabits(report);
     await _pushCheckIns(report);
+    for (final r in ProjectResource.values) {
+      await _pushProjectRecords(r, report);
+    }
     final applied = await _pull(userId, report);
-    await _syncGameState(applied, report);
+    final appliedProjects = await _pullProjects(userId, report);
+    await _syncGameState(applied, appliedProjects, report);
     for (final e in queue.failed) {
       report.issues.add(SyncIssue(e.type, e.id, e.lastError!));
     }
@@ -162,6 +186,19 @@ class SyncEngine {
     delete: api.deleteCheckIn,
   );
 
+  Future<void> _pushProjectRecords(ProjectResource r, SyncReport report) =>
+      _push<RemoteProjectRecord>(
+        report,
+        entries: queue.entriesOf(syncTypeOf(r)),
+        load: (e) => localProjectRecord(projects.repository, r, e.id),
+        batch: (items) => api.batchProjectRecords(r, items),
+        put: api.putProjectRecord,
+        delete: (id, {required updatedAt}) =>
+            api.deleteProjectRecord(r, id, updatedAt: updatedAt),
+        // The server returns UUIDs in lower case.
+        idKey: (id) => id.toLowerCase(),
+      );
+
   Future<void> _push<R extends RemoteEntity>(
     SyncReport report, {
     required List<SyncQueueEntry> entries,
@@ -173,7 +210,9 @@ class SyncEngine {
       required DateTime updatedAt,
     })
     delete,
+    String Function(String id)? idKey,
   }) async {
+    final key = idKey ?? (String id) => id;
     final fresh = <(SyncQueueEntry, R)>[];
     final retry = <(SyncQueueEntry, R)>[];
     for (final e in entries) {
@@ -193,9 +232,9 @@ class SyncEngine {
       );
       try {
         final results = await batch([for (final c in chunk) c.$2]);
-        final byId = {for (final r in results) r.id: r};
+        final byId = {for (final r in results) key(r.id): r};
         for (final (entry, item) in chunk) {
-          if (byId.containsKey(item.id)) {
+          if (byId.containsKey(key(item.id))) {
             await queue.ack(entry);
             report.pushed++;
           }
@@ -275,6 +314,60 @@ class SyncEngine {
     return checkIns;
   }
 
+  /// Pulls the five Projects resources (parents first) since their cursors
+  /// and applies the LWW winners in one [ProjectService.applyRemote].
+  /// Returns what was applied (for the XP reconcile).
+  Future<ProjectRecords> _pullProjects(String userId, SyncReport report) async {
+    final repo = projects.repository;
+    final winners = <RemoteProjectRecord>[];
+    final cursors = <ProjectResource, DateTime>{};
+    for (final r in ProjectResource.values) {
+      final page = await api.listProjectRecords(
+        r,
+        since: meta.projectsCursor(userId, r.function),
+      );
+      for (final item in page.items) {
+        final local = localProjectRecord(repo, r, item.id);
+        if (_remoteWins(item.updatedAt, local?.updatedAt)) winners.add(item);
+      }
+      cursors[r] = page.serverTime;
+    }
+    final records = _readProjectRecords(winners);
+    await projects.applyRemote(records);
+    for (final MapEntry(:key, :value) in cursors.entries) {
+      await meta.setProjectsCursor(userId, key.function, value);
+    }
+    report.pulledProjectRecords =
+        records.projects.length +
+        records.targets.length +
+        records.planTasks.length +
+        records.actions.length +
+        records.sessionMarks.length;
+    return records;
+  }
+
+  /// Maps the pulled records, skipping any the models cannot read (e.g. a
+  /// newer schema) rather than failing every sync.
+  static ProjectRecords _readProjectRecords(List<RemoteProjectRecord> items) {
+    try {
+      return projectRecordsFromRemote(items);
+    } on Object {
+      return projectRecordsFromRemote([
+        for (final i in items)
+          if (_readable(i)) i,
+      ]);
+    }
+  }
+
+  static bool _readable(RemoteProjectRecord r) {
+    try {
+      projectRecordsFromRemote([r]);
+      return true;
+    } on Object {
+      return false;
+    }
+  }
+
   /// Last-write-wins: the remote copy replaces the local one only if it is
   /// strictly newer (equal = keep local).
   static bool _remoteWins(DateTime remote, DateTime? local) =>
@@ -282,7 +375,11 @@ class SyncEngine {
 
   // Game state ---------------------------------------------------------------
 
-  Future<void> _syncGameState(List<CheckIn> applied, SyncReport report) async {
+  Future<void> _syncGameState(
+    List<CheckIn> applied,
+    ProjectRecords appliedProjects,
+    SyncReport report,
+  ) async {
     // Snapshot: a local change made while this runs stays queued.
     var entry = queue.entryFor(SyncEntityType.gameState, gameStateId);
     for (var attempt = 0; attempt < 2; attempt++) {
@@ -291,6 +388,7 @@ class SyncEngine {
       final merged = await game.reconcileSynced(
         remote: remote,
         appliedCheckIns: attempt == 0 ? applied : const [],
+        appliedProjects: attempt == 0 ? appliedProjects : null,
       );
       final needsPush = remote == null
           ? (merged != GameState.empty || entry != null)
