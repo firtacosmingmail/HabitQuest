@@ -816,12 +816,18 @@ flutter analyze && flutter test
 flutter build web --release                           # → admin/build/web
 ```
 
-**Deploy** (not done yet; going live is a separate, confirmed step):
-`supabase db push` (migration `20261017120000_admin_functions.sql`), deploy
-`admin-quotes` and `admin-stats` with `--no-verify-jwt`, set
-`supabase secrets set QUOTE_ADMINS=<admin emails>`, then host
-`admin/build/web` on any static host (use `--base-href` for a sub-path).
-Details in [admin/README.md](admin/README.md).
+**Deploy status.** The backend is **live** on the project
+`fwikodmrfoorbstmkedx` since **2026-11-14**: migration
+`20261017120000_admin_functions.sql` applied, `admin-quotes` and
+`admin-stats` deployed with `--no-verify-jwt`, and the admins set in the
+`QUOTE_ADMINS` function secret (the secret is the only admin list; change it
+with `supabase secrets set QUOTE_ADMINS=<emails>`, comma separated, no
+redeploy needed). Smoke-tested on that day: both functions answer 401 with no
+token and 403 for a signed-in non-admin; `GET /quotes` (anonymous) and
+`/habits` (401 without a token) still answer. Run the console locally
+against live with `cd admin && flutter run -d chrome` and sign in as an
+admin. **Hosting** `admin/build/web` on a static host is still in the
+backlog. Details in [admin/README.md](admin/README.md).
 
 ## Sign in with Google & Apple
 

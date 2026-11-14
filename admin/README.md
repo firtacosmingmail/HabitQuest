@@ -60,14 +60,29 @@ flutter build web --release            # → admin/build/web (gitignored)
 
 `admin/build/web` is a static site: host it on any static host (Supabase
 Storage, Netlify, Cloudflare Pages, GitHub Pages, …). If it is not served at
-the domain root, build with `--base-href /some/path/`.
+the domain root, build with `--base-href /some/path/`. **Hosting is still in
+the backlog**: for now, run the console locally (`flutter run -d chrome`).
 
-Before it works against a project, the backend must be live there:
+### Backend status
 
-1. `supabase db push` (includes `20261017120000_admin_functions.sql`).
-2. `supabase functions deploy admin-quotes --no-verify-jwt` and
-   `supabase functions deploy admin-stats --no-verify-jwt` (plus `quotes`).
-3. `supabase secrets set QUOTE_ADMINS=you@example.com` (comma separated).
+**Deployed** to the live project `fwikodmrfoorbstmkedx` on **2026-11-14**:
+
+1. Migration `20261017120000_admin_functions.sql` applied (on its own; the
+   Projects migration `20261114120000` was not part of this deploy).
+2. `admin-quotes` and `admin-stats` deployed with `--no-verify-jwt`.
+3. Admins = the emails in the `QUOTE_ADMINS` function secret. That secret is
+   the only admin list. To change it:
+   `supabase secrets set QUOTE_ADMINS=a@example.com,b@example.com` (comma
+   separated, it replaces the whole list; no redeploy needed). Never use
+   `supabase config push` for this.
+
+Smoke test on that day: no token → 401 on both functions; a signed-in
+non-admin → 403 on both. To check the admin path (200), sign in to the
+console running locally against live with an email from `QUOTE_ADMINS`.
+
+To set the backend up on another project: apply the migration, deploy the
+two functions (plus `quotes`) with `--no-verify-jwt`, and set
+`QUOTE_ADMINS`.
 
 CORS is already open (`_shared/cors.ts` allows any origin), so no extra
 setting is needed for the console's domain.
