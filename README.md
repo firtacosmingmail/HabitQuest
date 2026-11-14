@@ -1108,6 +1108,13 @@ flow tests in `test/flows/`. The flow tests cover: create a habit â†’ check in â
 XP and streak update; checking in from the calendar or details shows up on the
 Habits screen and in the Quest profile; un-checking takes the XP back.
 
+Projects XP is tested in `test/features/game/project_xp_test.dart` (amounts,
+keys, merge/JSON, task / session / target grants and undo, toggling nets 0,
+deletions, the project achievements, sync reconciliation) and
+`test/features/projects/project_celebrations_test.dart` ("+N XP" and
+achievement toasts on project details, the target editor, the calendar and
+its session sheet).
+
 Quotes are tested against `FakeQuotesApi` (deterministic fallback, history
 without future days, idempotent loves, injected failures, `pause` to observe
 optimistic updates): `test/data/remote/quotes_api_test.dart` (HTTP requests
