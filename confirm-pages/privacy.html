@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#7c4dff">
+  <meta name="description" content="How the Habit Quest app collects, uses and protects your data.">
+  <title>Privacy policy · Habit Quest</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<!--
+  DRAFT. Before publishing, replace every {{PLACEHOLDER}}:
+    {{DEVELOPER_NAME}}  the developer / company name shown on the store listings
+    {{CONTACT_EMAIL}}   the privacy contact email
+    {{EFFECTIVE_DATE}}  the date this version takes effect, e.g. 1 December 2026
+    {{COUNTRY}}         the developer's country (for the "who we are" section)
+  The data described below matches the app as of commit a26c259 (Supabase
+  account + sync, quote loves, Google AdMob with UMP consent and ATT, local
+  notifications, home-screen widgets, in-app account deletion). Update this
+  page whenever the app starts collecting something new.
+-->
+<body class="doc-page">
+  <main class="card doc">
+    <div class="mascot" aria-hidden="true">🦉</div>
+    <h1>Privacy policy</h1>
+    <p class="updated">Habit Quest · effective {{EFFECTIVE_DATE}}</p>
+
+    <p>Habit Quest (“the app”) is a habit tracker for iOS, Android and the web,
+    made by <strong>{{DEVELOPER_NAME}}</strong> (“we”, “us”). This policy
+    explains what data the app handles, why, who else receives it, and the
+    choices you have. If you have a question, write to
+    <a href="mailto:{{CONTACT_EMAIL}}">{{CONTACT_EMAIL}}</a>.</p>
+
+    <h2>The short version</h2>
+    <ul>
+      <li>You need an account. We keep your <strong>email, display name and
+        your habit data</strong> on our backend so it syncs between your
+        devices.</li>
+      <li>We <strong>do not sell</strong> your data and we do not share your
+        habits with anyone.</li>
+      <li>The free iOS and Android apps show <strong>Google AdMob</strong>
+        banners. Google may use device identifiers for ads, <strong>only as
+        your consent choices allow</strong>. The web version has no ads.</li>
+      <li>Reminders and home-screen widgets work <strong>on your device
+        only</strong>.</li>
+      <li>You can <strong>delete your account and all its data</strong> from
+        the app at any time (Profile → Delete account).</li>
+    </ul>
+
+    <h2>1. Your account</h2>
+    <p>To use the app you sign in with one of:</p>
+    <ul>
+      <li><strong>Email and password.</strong> We store your email address,
+        your display name (if you give one) and a securely hashed password.
+        We send you an email to confirm your address.</li>
+      <li><strong>Sign in with Google.</strong> Google tells us your email
+        address and name, and confirms your identity. We do not receive your
+        Google password or access your other Google data.</li>
+      <li><strong>Sign in with Apple.</strong> Apple tells us your email address
+        (or a private relay address if you choose “Hide My Email”) and,
+        the first time, your name. We do not receive your Apple ID
+        password.</li>
+    </ul>
+    <p>We also keep the date you joined and which sign-in method you use. The
+    Profile screen shows this information, and you can change your display
+    name and (for email accounts) your password there.</p>
+    <p>Your sign-in session is stored on your device in the system's secure
+    storage (Keychain on iOS, Keystore-backed storage on Android).</p>
+
+    <h2>2. Your habits and progress</h2>
+    <p>The app works offline first: everything is saved on your device. When
+    you are signed in and online, it also syncs to your account so your data
+    survives a reinstall or a new phone:</p>
+    <ul>
+      <li><strong>Habits</strong>: name, emoji, colour, schedule, start date,
+        reminder time, and whether a habit is archived.</li>
+      <li><strong>Check-ins</strong>: which habit you completed on which
+        day.</li>
+      <li><strong>Game progress</strong>: XP, level, streak stats and
+        achievements.</li>
+      <li><strong>Saved quotes</strong>: which daily quotes you marked with
+        ♥.</li>
+    </ul>
+    <p>We use this data only to run the app for you (show, sync and restore
+    your habits and progress). We do not use it for advertising and do not
+    share it with advertisers. The daily quote itself is the same for everyone;
+    fetching it reveals nothing about you.</p>
+
+    <h2>3. Where your data is stored</h2>
+    <p>Our backend runs on <strong>Supabase</strong> (database, authentication
+    and server functions), which acts as our data processor. All traffic
+    between the app and the backend is encrypted (HTTPS). Each account can
+    only read and change its own data. Like most online services, Supabase may
+    keep short-lived technical logs (such as IP addresses and request times)
+    for security and to operate the service.</p>
+    <p>Your data may be processed outside your country. Where the law
+    requires it, transfers rely on appropriate safeguards such as the
+    European Commission's Standard Contractual Clauses.</p>
+
+    <h2>4. Ads (iOS and Android)</h2>
+    <p>Habit Quest is free thanks to a few small banner ads from
+    <strong>Google AdMob</strong>. Ads appear only in the habit list and on a
+    habit's detail screen. To show and measure ads, and to prevent ad fraud,
+    the Google Mobile Ads SDK may collect:</p>
+    <ul>
+      <li>your device's <strong>advertising identifier</strong> (Android
+        Advertising ID, or on iOS the IDFA if you allow tracking);</li>
+      <li>your <strong>IP address</strong>, from which an approximate
+        location (country / city level) may be derived;</li>
+      <li>information about the device and app (model, OS version, app
+        version) and your <strong>interactions with ads</strong>;</li>
+      <li>diagnostics about ad loading and performance.</li>
+    </ul>
+    <p>Your choices:</p>
+    <ul>
+      <li><strong>Consent (EEA, UK, Switzerland and other regions that
+        require it).</strong> Before any ad is requested, the app shows
+        Google's consent form (Google User Messaging Platform). If you do not
+        consent to personalised ads, you get limited or non-personalised ads.
+        If the consent tool says no ads may be requested, none are.</li>
+      <li><strong>Tracking on iOS.</strong> After the consent step, iOS asks
+        whether Habit Quest may track you (App Tracking Transparency). If you
+        decline, ads are non-personalised and the IDFA is not shared. You can
+        change this any time in iOS Settings → Privacy &amp; Security →
+        Tracking.</li>
+      <li><strong>Android.</strong> You can reset or delete your advertising
+        ID in Android Settings → Privacy → Ads (or Google → Ads).</li>
+    </ul>
+    <p>Google's use of this data is governed by Google's own policy:
+    <a href="https://policies.google.com/technologies/partner-sites">How Google
+    uses information from apps that use its services</a>. Ads are never shown
+    with your habits' content, and we never send your habits to Google.</p>
+
+    <h2>5. Reminders and notifications</h2>
+    <p>Habit reminders are <strong>local notifications</strong> scheduled on
+    your device from your habits' reminder times. They are not sent through
+    our servers or any push service. You can turn notifications off in your
+    device settings.</p>
+
+    <h2>6. Home-screen widgets</h2>
+    <p>The widgets show today's due habits and today's quote. The app shares
+    this snapshot with the widget through your device's local storage only
+    (an App Group on iOS, app preferences on Android). Checking off a habit on
+    a widget is applied by the app like any other check-in. Nothing extra
+    leaves your device because of the widgets.</p>
+
+    <h2>7. What we don't do</h2>
+    <ul>
+      <li>We don't sell or rent your personal data.</li>
+      <li>We don't use analytics or crash-reporting SDKs of our own.</li>
+      <li>We don't access your contacts, photos, microphone, camera or precise
+        location.</li>
+    </ul>
+
+    <h2>8. How long we keep data, and deleting your account</h2>
+    <p>We keep your account and synced data for as long as you have an
+    account. You can delete your account at any time in the app:
+    <strong>Profile → Danger zone → Delete account</strong> (you need to be
+    online). This permanently deletes your check-ins, habits, game progress,
+    saved quotes, profile and login from our backend, and wipes the app's
+    data and scheduled reminders from that device.</p>
+    <p>If you can't use the app, email
+    <a href="mailto:{{CONTACT_EMAIL}}?subject=Habit%20Quest%20account%20deletion">{{CONTACT_EMAIL}}</a>
+    from the address of your account and ask us to delete it; we will do so
+    within 30 days. Backups of the backend roll over and are gone within a
+    short period after deletion.</p>
+
+    <h2>9. Your rights</h2>
+    <p>Depending on where you live (for example under the GDPR in the EU/UK or
+    US state laws such as the CCPA), you may have the right to access,
+    correct, export or delete your personal data, and to object to or restrict
+    some processing. Most of this you can do in the app (edit your name,
+    delete your account). For anything else, write to
+    <a href="mailto:{{CONTACT_EMAIL}}">{{CONTACT_EMAIL}}</a>. You may also
+    complain to your local data protection authority.</p>
+    <p>Legal bases (GDPR): running the app and syncing your account is
+    necessary to provide the service you asked for (contract); personalised
+    ads rely on your consent, which you can withdraw; security logs rely on
+    our legitimate interest in keeping the service safe.</p>
+
+    <h2>10. Children</h2>
+    <p>Habit Quest is not directed at children under 13 (or the minimum age
+    in your country), and we do not knowingly collect their data. If you
+    believe a child has created an account, contact us and we will delete
+    it.</p>
+
+    <h2>11. Changes to this policy</h2>
+    <p>If we change this policy, we will update this page and its effective
+    date. For significant changes we will also tell you in the app.</p>
+
+    <h2>12. Who we are</h2>
+    <p>{{DEVELOPER_NAME}}, {{COUNTRY}}.<br>
+    Contact: <a href="mailto:{{CONTACT_EMAIL}}">{{CONTACT_EMAIL}}</a></p>
+
+    <div class="brand">Habit Quest</div>
+  </main>
+</body>
+</html>
