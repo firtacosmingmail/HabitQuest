@@ -124,6 +124,16 @@ policy draft is [`confirm-pages/privacy.html`](../confirm-pages/privacy.html)
   # must NOT say "CN=Android Debug"
   ```
 
+  **On this Mac, first:** install the Android SDK *Command-line Tools*
+  (Android Studio → *Settings → Languages & Frameworks → Android SDK → SDK
+  Tools* → tick *Android SDK Command-line Tools (latest)*), then run
+  `flutter doctor --android-licenses`. Without them `flutter build appbundle`
+  writes the bundle but exits with *"Release app bundle failed to strip debug
+  symbols from native libraries"* (seen in the dry run on 2026-11-14). Also,
+  this Mac has Flutter 3.47 while CI pins **3.38.10**; building with 3.47
+  rewrites `pubspec.lock` and `ios/Flutter/AppFrameworkInfo.plist`: don't
+  commit those changes (`git checkout -- pubspec.lock ios/`).
+
   `ANDROID_REQUIRE_RELEASE_SIGNING=true` makes the build fail instead of
   silently falling back to the debug key. The version is the one in
   `pubspec.yaml` (`1.0.0+1` today); the first CI release then uses a higher
