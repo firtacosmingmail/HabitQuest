@@ -8,6 +8,22 @@ import 'package:habit_quest/features/ads/ad_slot.dart';
 /// so widget tests can see where ads would go.
 class FakeAdService implements AdService {
   int initializeCalls = 0;
+  int showPrivacyOptionsCalls = 0;
+  int resetConsentCalls = 0;
+  bool privacyRequired;
+  @override
+  final bool managesConsent;
+
+  FakeAdService({this.privacyRequired = false, this.managesConsent = false});
+
+  @override
+  Future<bool> privacyOptionsRequired() async => privacyRequired;
+
+  @override
+  Future<void> showPrivacyOptions() async => showPrivacyOptionsCalls++;
+
+  @override
+  Future<void> resetConsent() async => resetConsentCalls++;
 
   @override
   Future<void> initialize() async => initializeCalls++;
