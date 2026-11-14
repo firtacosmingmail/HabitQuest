@@ -10,6 +10,19 @@ enum XpReason {
 
   /// A habit was deleted together with its check-ins (loss).
   habitDeleted,
+
+  /// A plan task was finished (gain) or un-checked (loss).
+  planTask,
+
+  /// A work session was marked attended (gain) or un-marked (loss).
+  session,
+
+  /// A target was set to done (gain) or back from done (loss).
+  target,
+
+  /// A project, target, plan task or consistent action was deleted with
+  /// the XP it held (loss).
+  projectItemDeleted,
 }
 
 /// Something the UI may want to celebrate (or quietly reflect).
@@ -21,8 +34,12 @@ sealed class GameEvent {
 final class XpGained extends GameEvent {
   final int amount;
 
-  /// The habit that earned it (`null` for a Perfect Day bonus).
+  /// The habit that earned it (`null` for a Perfect Day bonus and
+  /// projects).
   final String? habitId;
+
+  /// The project the XP belongs to (projects reasons only).
+  final String? projectId;
   final XpReason reason;
 
   /// The calendar day the XP belongs to.
@@ -33,6 +50,7 @@ final class XpGained extends GameEvent {
     required this.reason,
     required this.date,
     this.habitId,
+    this.projectId,
   });
 
   @override
@@ -44,6 +62,7 @@ final class XpGained extends GameEvent {
 final class XpLost extends GameEvent {
   final int amount;
   final String? habitId;
+  final String? projectId;
   final XpReason reason;
   final DateTime date;
 
@@ -52,6 +71,7 @@ final class XpLost extends GameEvent {
     required this.reason,
     required this.date,
     this.habitId,
+    this.projectId,
   });
 
   @override

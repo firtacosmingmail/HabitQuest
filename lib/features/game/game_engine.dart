@@ -12,6 +12,13 @@ import '../../domain/habit_events.dart';
 import '../../domain/habit_service.dart';
 import '../../domain/recurrence.dart';
 import '../../domain/streaks.dart';
+import '../projects/data/project_repository.dart';
+import '../projects/domain/project_events.dart';
+import '../projects/domain/project_service.dart';
+import '../projects/models/consistent_action.dart';
+import '../projects/models/plan_task.dart';
+import '../projects/models/projects_data.dart';
+import '../projects/models/target.dart';
 import 'achievements.dart';
 import 'game_events.dart';
 import 'game_profile.dart';
@@ -38,6 +45,14 @@ import 'game_state.dart';
 ///   habit with its check-ins). Creating / editing / archiving habits never
 ///   grants or removes XP.
 /// * Deleting a habit removes the XP of all its check-ins.
+/// * Projects (when a [ProjectService] is given): finishing a plan task,
+///   attending a session and setting a target to done grant
+///   [GameRules.planTaskXp], [GameRules.sessionXp] and
+///   [GameRules.targetDoneXp], keyed `task:<id>`,
+///   `session:<actionId>|<date>` and `target:<id>`. Undoing (un-check,
+///   un-attend, target back from done) or deleting the item takes exactly
+///   that grant back. Listens to local [ProjectService.changes] and
+///   [ProjectService.attendanceEvents] only (never to synced data).
 /// * Levels and achievements: see [GameRules] and [achievementCatalog].
 ///   Achievements and [LevelUp] events are emitted at most once, ever.
 ///
@@ -48,6 +63,7 @@ import 'game_state.dart';
 /// check-ins, silently: no [GameEvent] is emitted for remote awards.
 class GameEngine {
   final HabitService _service;
+  final ProjectService? _projects;
   final GameRepository _repository;
   final DateTime Function() _now;
 
@@ -62,8 +78,10 @@ class GameEngine {
   GameEngine({
     required HabitService service,
     required GameRepository repository,
+    ProjectService? projects,
     DateTime Function()? now,
   }) : _service = service,
+       _projects = projects,
        _repository = repository,
        _now = now ?? DateTime.now,
        _state = repository.load();
@@ -90,6 +108,12 @@ class GameEngine {
     _subscriptions
       ..add(_service.completionEvents.listen(handleCompletion))
       ..add(_service.habitChanges.listen(handleHabitChange));
+    final projects = _projects;
+    if (projects != null) {
+      _subscriptions
+        ..add(projects.changes.listen(handleProjectChange))
+        ..add(projects.attendanceEvents.listen(handleAttendance));
+    }
 
     final tx = _Tx(_state);
     final habits = _service.repository.getHabits();
@@ -200,6 +224,154 @@ class GameEngine {
     _commit(tx, habits);
   }
 
+  /// Applies a local projects change (plan task done / undone, target
+  /// status, deletions). Called from the service stream; public for tests.
+  void handleProjectChange(ProjectChangeEvent event) {
+    if (_disposed) return;
+    final tx = _Tx(_state);
+    final today = _service.today;
+    final deleted = event.type == ProjectChangeType.deleted;
+    switch (event.record) {
+      case PlanTask task:
+        final was =
+            event.previous is PlanTask && (event.previous! as PlanTask).done;
+        final now = !deleted && task.done;
+        if (now != was || deleted) {
+          _setProjectGrant(
+            tx,
+            GameState.planTaskKey(task.id),
+            granted: now,
+            amount: GameRules.planTaskXp,
+            reason: deleted ? XpReason.projectItemDeleted : XpReason.planTask,
+            projectId: _projectOfTarget(task.targetId),
+            date: today,
+          );
+        }
+      case Target target:
+        final was =
+            event.previous is Target && (event.previous! as Target).isDone;
+        final now = !deleted && target.isDone;
+        if (now != was || deleted) {
+          _setProjectGrant(
+            tx,
+            GameState.targetKey(target.id),
+            granted: now,
+            amount: GameRules.targetDoneXp,
+            reason: deleted ? XpReason.projectItemDeleted : XpReason.target,
+            projectId: target.projectId,
+            date: today,
+          );
+        }
+      case ConsistentAction action when deleted:
+        final prefix = '${GameState.sessionPrefix}${action.id}|';
+        final keys = tx.projects.keys
+            .where((k) => k.startsWith(prefix))
+            .toList();
+        var total = 0;
+        for (final k in keys) {
+          total += tx.projects.remove(k)!;
+        }
+        if (total > 0) {
+          tx.events.add(
+            XpLost(
+              amount: total,
+              reason: XpReason.projectItemDeleted,
+              projectId: _projectOfTarget(action.targetId),
+              date: today,
+            ),
+          );
+        }
+      default:
+        break;
+    }
+    _commit(tx, _service.repository.getHabits());
+  }
+
+  /// Applies a session marked attended / un-marked by the user. Called from
+  /// the service stream; public for tests.
+  void handleAttendance(SessionAttendanceEvent event) {
+    if (_disposed) return;
+    final tx = _Tx(_state);
+    _setProjectGrant(
+      tx,
+      GameState.sessionKey(event.actionId, event.date),
+      granted: event.attended,
+      amount: GameRules.sessionXp,
+      reason: XpReason.session,
+      projectId: event.projectId,
+      date: dateOnly(event.date),
+    );
+    _commit(tx, _service.repository.getHabits());
+  }
+
+  /// Grants [amount] under [key] (once) or takes back what [key] holds.
+  void _setProjectGrant(
+    _Tx tx,
+    String key, {
+    required bool granted,
+    required int amount,
+    required XpReason reason,
+    required DateTime date,
+    String? projectId,
+  }) {
+    if (granted) {
+      if (tx.projects.containsKey(key)) return;
+      tx.projects[key] = amount;
+      tx.events.add(
+        XpGained(
+          amount: amount,
+          reason: reason,
+          projectId: projectId,
+          date: date,
+        ),
+      );
+    } else {
+      final removed = tx.projects.remove(key);
+      if (removed != null && removed > 0) {
+        tx.events.add(
+          XpLost(
+            amount: removed,
+            reason: reason,
+            projectId: projectId,
+            date: date,
+          ),
+        );
+      }
+    }
+  }
+
+  String? _projectOfTarget(String targetId) =>
+      _projects?.repository.getTargetRecord(targetId)?.projectId;
+
+  /// Values of every [AchievementKind] for [state].
+  Map<AchievementKind, int> _achievementValues(
+    GameState state,
+    List<Habit> habits, {
+    bool habitCreated = false,
+  }) => {
+    AchievementKind.habitsCreated: (habitCreated || habits.isNotEmpty) ? 1 : 0,
+    AchievementKind.activeHabits: habits.where((h) => !h.archived).length,
+    AchievementKind.totalCheckIns: state.totalCheckIns,
+    AchievementKind.streak: state.bestStreakEver,
+    AchievementKind.perfectDays: state.perfectDays,
+    AchievementKind.planTasksDone: state.planTasksDone,
+    AchievementKind.sessionsAttended: state.sessionsAttended,
+    AchievementKind.targetsDone: state.targetsDone,
+    AchievementKind.projectsCompleted: completedProjects(
+      _projects?.data ?? ProjectsData.empty,
+    ),
+  };
+
+  /// Projects with at least one target where every target is done.
+  static int completedProjects(ProjectsData data) {
+    var n = 0;
+    for (final p in data.projects) {
+      final targets = data.targetsOf(p.id);
+      if (targets.isNotEmpty && targets.every((t) => t.isDone)) n++;
+    }
+    return n;
+  }
+
   /// Days whose Perfect Day status can change when [habit]'s check-in on
   /// [date] changes: the day itself and, for times-per-week habits, the
   /// rest of that ISO week up to today (their due status depends on it).
@@ -259,15 +431,11 @@ class GameEngine {
 
     // Achievements (never revoked).
     final unlocked = Map<String, DateTime>.of(next.unlocked);
-    final values = {
-      AchievementKind.habitsCreated: (tx.habitCreated || habits.isNotEmpty)
-          ? 1
-          : 0,
-      AchievementKind.activeHabits: habits.where((h) => !h.archived).length,
-      AchievementKind.totalCheckIns: next.totalCheckIns,
-      AchievementKind.streak: next.bestStreakEver,
-      AchievementKind.perfectDays: next.perfectDays,
-    };
+    final values = _achievementValues(
+      next,
+      habits,
+      habitCreated: tx.habitCreated,
+    );
     final now = _now();
     for (final a in achievementCatalog) {
       if (unlocked.containsKey(a.id)) continue;
@@ -277,10 +445,7 @@ class GameEngine {
       }
     }
 
-    var newState = next.copyWith(
-      unlocked: unlocked,
-      maxLevelReached: maxLevel,
-    );
+    var newState = next.copyWith(unlocked: unlocked, maxLevelReached: maxLevel);
     if (newState == _state) return;
     newState = newState.copyWith(
       updatedAt: nextStamp(_now(), _state.updatedAt),
@@ -312,13 +477,20 @@ class GameEngine {
   ///    server) that are done but hold no grant on either side yet, keyed
   ///    like any other grant so a later merge cannot double it;
   /// 4. re-evaluate Perfect Days for the days touched by 2 and 3;
-  /// 5. raise the max level / unlock achievements silently.
+  /// 5. the same for projects, derived from the synced project records:
+  ///    drop grants whose plan task / target / session is known on this
+  ///    device but no longer done / attended (or deleted), and grant the
+  ///    base XP for [appliedProjects] (pulled from the server) that are done
+  ///    or attended but hold no grant yet. Grants for records this device
+  ///    has never seen are kept (they are trusted until the record arrives);
+  /// 6. raise the max level / unlock achievements silently.
   ///
   /// The result is saved with [GameRepository.saveSynced] (not queued for
   /// upload; the sync engine decides whether to push it).
   Future<GameState> reconcileSynced({
     GameState? remote,
     Iterable<CheckIn> appliedCheckIns = const [],
+    ProjectRecords? appliedProjects,
   }) async {
     if (_disposed) return _state;
     final base = remote == null ? _state : GameState.merge(_state, remote);
@@ -355,16 +527,11 @@ class GameEngine {
     for (final d in days) {
       if (!d.isAfter(today)) _evaluatePerfectDay(tx, d, habits, log);
     }
+    _reconcileProjects(tx, appliedProjects);
 
     final next = tx.build();
     final unlocked = Map<String, DateTime>.of(next.unlocked);
-    final values = {
-      AchievementKind.habitsCreated: habits.isNotEmpty ? 1 : 0,
-      AchievementKind.activeHabits: habits.where((h) => !h.archived).length,
-      AchievementKind.totalCheckIns: next.totalCheckIns,
-      AchievementKind.streak: next.bestStreakEver,
-      AchievementKind.perfectDays: next.perfectDays,
-    };
+    final values = _achievementValues(next, habits);
     final now = _now();
     for (final a in achievementCatalog) {
       if (!unlocked.containsKey(a.id) && values[a.kind]! >= a.threshold) {
@@ -383,6 +550,63 @@ class GameEngine {
     return _state;
   }
 
+  /// Step 5 of [reconcileSynced]: projects ledger vs. project records.
+  void _reconcileProjects(_Tx tx, ProjectRecords? applied) {
+    final projects = _projects;
+    if (projects == null) return;
+    final repo = projects.repository;
+    final data = projects.data;
+
+    bool keep(String key) {
+      if (key.startsWith(GameState.planTaskPrefix)) {
+        final id = key.substring(GameState.planTaskPrefix.length);
+        if (repo.getPlanTaskRecord(id) == null) return true;
+        return data.planTask(id)?.done ?? false;
+      }
+      if (key.startsWith(GameState.targetPrefix)) {
+        final id = key.substring(GameState.targetPrefix.length);
+        if (repo.getTargetRecord(id) == null) return true;
+        return data.target(id)?.isDone ?? false;
+      }
+      final s = GameState.parseSessionKey(key);
+      if (s == null) return true;
+      final (actionId, date) = s;
+      if (repo.getActionRecord(actionId) == null) return true;
+      if (data.action(actionId) == null) return false;
+      final mark = repo.getSessionMarkRecord(actionId, date);
+      if (mark == null) return true;
+      return data.isAttended(actionId, date);
+    }
+
+    tx.projects.removeWhere((key, _) => !keep(key));
+
+    if (applied == null) return;
+    for (final t in applied.planTasks) {
+      if (data.planTask(t.id)?.done ?? false) {
+        tx.projects.putIfAbsent(
+          GameState.planTaskKey(t.id),
+          () => GameRules.planTaskXp,
+        );
+      }
+    }
+    for (final t in applied.targets) {
+      if (data.target(t.id)?.isDone ?? false) {
+        tx.projects.putIfAbsent(
+          GameState.targetKey(t.id),
+          () => GameRules.targetDoneXp,
+        );
+      }
+    }
+    for (final m in applied.sessionMarks) {
+      if (data.isAttended(m.actionId, m.date)) {
+        tx.projects.putIfAbsent(
+          GameState.sessionKey(m.actionId, m.date),
+          () => GameRules.sessionXp,
+        );
+      }
+    }
+  }
+
   /// Replaces the state without events (e.g. [GameState.empty] when a
   /// different account signs in on this device).
   Future<void> resetSilently([GameState state = GameState.empty]) =>
@@ -390,9 +614,7 @@ class GameEngine {
 
   Future<void> _adopt(GameState state, {bool force = false}) async {
     if (_disposed) return;
-    if (!force &&
-        state == _state &&
-        state.updatedAt == _state.updatedAt) {
+    if (!force && state == _state && state.updatedAt == _state.updatedAt) {
       return;
     }
     _state = state;
@@ -428,6 +650,7 @@ class _Tx {
   final GameState base;
   final Map<String, int> checkIns;
   final Map<String, int> perfectDays;
+  final Map<String, int> projects;
   int bestStreakEver;
   bool habitCreated = false;
   final List<GameEvent> events = [];
@@ -435,11 +658,13 @@ class _Tx {
   _Tx(this.base)
     : checkIns = Map.of(base.checkInLedger),
       perfectDays = Map.of(base.perfectDayLedger),
+      projects = Map.of(base.projectLedger),
       bestStreakEver = base.bestStreakEver;
 
   GameState build() => base.copyWith(
     checkInLedger: Map.unmodifiable(checkIns),
     perfectDayLedger: Map.unmodifiable(perfectDays),
+    projectLedger: Map.unmodifiable(projects),
     bestStreakEver: bestStreakEver,
   );
 }

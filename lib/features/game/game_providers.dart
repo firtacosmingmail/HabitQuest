@@ -4,6 +4,7 @@ library;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/providers.dart';
+import '../projects/projects_providers.dart';
 import 'achievements.dart';
 import 'game_engine.dart';
 import 'game_events.dart';
@@ -22,6 +23,7 @@ final gameEngineProvider = Provider<GameEngine>((ref) {
   final engine = GameEngine(
     service: ref.watch(habitServiceProvider),
     repository: ref.watch(gameRepositoryProvider),
+    projects: ref.watch(projectServiceProvider),
     now: ref.watch(clockProvider),
   )..start();
   ref.onDispose(engine.dispose);

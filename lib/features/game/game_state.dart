@@ -2,7 +2,7 @@ import '../../core/utils/dates.dart';
 
 /// Persisted game state. Immutable; the engine replaces it on every change.
 ///
-/// XP is never stored as a free-running counter: it is the sum of the two
+/// XP is never stored as a free-running counter: it is the sum of the
 /// ledgers, so every grant can be reversed exactly and toggling a check-in
 /// can never mint XP.
 class GameState {
@@ -13,6 +13,11 @@ class GameState {
 
   /// Perfect Day bonus granted per day, keyed by `yyyy-MM-dd`.
   final Map<String, int> perfectDayLedger;
+
+  /// XP granted by projects, keyed by [planTaskKey] (`task:<id>`),
+  /// [targetKey] (`target:<id>`) or [sessionKey]
+  /// (`session:<actionId>|yyyy-MM-dd`).
+  final Map<String, int> projectLedger;
 
   /// Unlocked achievement id → unlock time. Never shrinks.
   final Map<String, DateTime> unlocked;
@@ -31,6 +36,7 @@ class GameState {
   const GameState({
     this.checkInLedger = const {},
     this.perfectDayLedger = const {},
+    this.projectLedger = const {},
     this.unlocked = const {},
     this.bestStreakEver = 0,
     this.maxLevelReached = 1,
@@ -42,10 +48,48 @@ class GameState {
   static String checkInKey(String habitId, DateTime date) =>
       '$habitId|${dateKey(date)}';
 
-  /// Total XP (sum of both ledgers).
+  static const planTaskPrefix = 'task:';
+  static const targetPrefix = 'target:';
+  static const sessionPrefix = 'session:';
+
+  static String planTaskKey(String taskId) => '$planTaskPrefix$taskId';
+
+  static String targetKey(String targetId) => '$targetPrefix$targetId';
+
+  static String sessionKey(String actionId, DateTime date) =>
+      '$sessionPrefix$actionId|${dateKey(date)}';
+
+  /// Parses a [sessionKey] into (actionId, date); `null` if malformed.
+  static (String, DateTime)? parseSessionKey(String key) {
+    if (!key.startsWith(sessionPrefix)) return null;
+    final rest = key.substring(sessionPrefix.length);
+    final bar = rest.lastIndexOf('|');
+    if (bar <= 0) return null;
+    final date = DateTime.tryParse(rest.substring(bar + 1));
+    if (date == null) return null;
+    return (rest.substring(0, bar), dateOnly(date));
+  }
+
+  /// Total XP (sum of all ledgers).
   int get xp =>
-      checkInLedger.values.fold(0, (a, b) => a + b) +
-      perfectDayLedger.values.fold(0, (a, b) => a + b);
+      checkInLedger.values.fold<int>(0, (a, b) => a + b) +
+      perfectDayLedger.values.fold<int>(0, (a, b) => a + b) +
+      projectLedger.values.fold<int>(0, (a, b) => a + b);
+
+  /// XP earned by projects.
+  int get projectXp => projectLedger.values.fold<int>(0, (a, b) => a + b);
+
+  int _countPrefix(String prefix) =>
+      projectLedger.keys.where((k) => k.startsWith(prefix)).length;
+
+  /// Plan tasks that currently hold XP.
+  int get planTasksDone => _countPrefix(planTaskPrefix);
+
+  /// Targets that currently hold XP (done).
+  int get targetsDone => _countPrefix(targetPrefix);
+
+  /// Sessions that currently hold XP (attended).
+  int get sessionsAttended => _countPrefix(sessionPrefix);
 
   /// Check-ins that currently hold XP.
   int get totalCheckIns => checkInLedger.length;
@@ -56,6 +100,7 @@ class GameState {
   GameState copyWith({
     Map<String, int>? checkInLedger,
     Map<String, int>? perfectDayLedger,
+    Map<String, int>? projectLedger,
     Map<String, DateTime>? unlocked,
     int? bestStreakEver,
     int? maxLevelReached,
@@ -63,6 +108,7 @@ class GameState {
   }) => GameState(
     checkInLedger: checkInLedger ?? this.checkInLedger,
     perfectDayLedger: perfectDayLedger ?? this.perfectDayLedger,
+    projectLedger: projectLedger ?? this.projectLedger,
     unlocked: unlocked ?? this.unlocked,
     bestStreakEver: bestStreakEver ?? this.bestStreakEver,
     maxLevelReached: maxLevelReached ?? this.maxLevelReached,
@@ -72,7 +118,8 @@ class GameState {
   /// Merges two copies of the same player's state (e.g. this device and the
   /// server) without ever counting an award twice:
   ///
-  /// * ledgers: union by key (`habitId|date`, `date`); a key present on both
+  /// * ledgers: union by key (`habitId|date`, `date`, `task:<id>`, …); a
+  ///   key present on both
   ///   sides keeps the larger amount, so it is counted once;
   /// * achievements: union, keeping the earliest unlock time;
   /// * best streak, max level reached, updatedAt: the maximum.
@@ -99,6 +146,7 @@ class GameState {
     return GameState(
       checkInLedger: union(a.checkInLedger, b.checkInLedger),
       perfectDayLedger: union(a.perfectDayLedger, b.perfectDayLedger),
+      projectLedger: union(a.projectLedger, b.projectLedger),
       unlocked: Map.unmodifiable(unlocked),
       bestStreakEver: a.bestStreakEver > b.bestStreakEver
           ? a.bestStreakEver
@@ -106,9 +154,7 @@ class GameState {
       maxLevelReached: a.maxLevelReached > b.maxLevelReached
           ? a.maxLevelReached
           : b.maxLevelReached,
-      updatedAt: ua == null
-          ? ub
-          : (ub == null || ua.isAfter(ub) ? ua : ub),
+      updatedAt: ua == null ? ub : (ub == null || ua.isAfter(ub) ? ua : ub),
     );
   }
 
@@ -116,6 +162,7 @@ class GameState {
     'version': schemaVersion,
     'checkIns': checkInLedger,
     'perfectDays': perfectDayLedger,
+    'projects': projectLedger,
     'unlocked': {
       for (final e in unlocked.entries) e.key: e.value.toIso8601String(),
     },
@@ -132,6 +179,7 @@ class GameState {
     return GameState(
       checkInLedger: ints(json['checkIns']),
       perfectDayLedger: ints(json['perfectDays']),
+      projectLedger: ints(json['projects']),
       unlocked: {
         for (final e in ((json['unlocked'] as Map?) ?? const {}).entries)
           e.key as String: DateTime.parse(e.value as String),
@@ -149,6 +197,7 @@ class GameState {
       other is GameState &&
       _mapEq(other.checkInLedger, checkInLedger) &&
       _mapEq(other.perfectDayLedger, perfectDayLedger) &&
+      _mapEq(other.projectLedger, projectLedger) &&
       _mapEq(other.unlocked, unlocked) &&
       other.bestStreakEver == bestStreakEver &&
       other.maxLevelReached == maxLevelReached;
@@ -161,6 +210,9 @@ class GameState {
     Object.hashAllUnordered(
       perfectDayLedger.entries.map((e) => Object.hash(e.key, e.value)),
     ),
+    Object.hashAllUnordered(
+      projectLedger.entries.map((e) => Object.hash(e.key, e.value)),
+    ),
     Object.hashAllUnordered(unlocked.keys),
     bestStreakEver,
     maxLevelReached,
@@ -169,7 +221,7 @@ class GameState {
   @override
   String toString() =>
       'GameState(xp: $xp, checkIns: $totalCheckIns, '
-      'perfectDays: $perfectDays, unlocked: ${unlocked.keys.toList()})';
+      'perfectDays: $perfectDays, projectXp: $projectXp, unlocked: ${unlocked.keys.toList()})';
 }
 
 bool _mapEq<K, V>(Map<K, V> a, Map<K, V> b) {

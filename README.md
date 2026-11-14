@@ -81,7 +81,9 @@ survives a reinstall or a new phone. See [Sync](#sync) and
   email, member-since date and sign-in method; change your password, log out
   or delete your account. See [Profile & account](#profile--account).
 - **Celebrations** across the app: a floating "+N XP", confetti and a dialog
-  on level-up, and toasts when you unlock an achievement.
+  on level-up, and toasts when you unlock an achievement. They also show on
+  the Projects screens and the calendar (and its session sheet) when you
+  finish a plan task, attend a session or set a target to done.
 - **Reminders**: notifications at each habit's reminder time, following its
   schedule, with rotating fun messages.
 - **Projects notifications**: a nudge when a work split session starts, as a
@@ -123,6 +125,26 @@ it's done, but can't break the streak before it is over.
 - **Perfect Day**: **+25 XP** when every habit due that day is done. This
   also counts for past days you complete later.
 
+**Projects XP**
+- **Plan task finished**: **10 XP** (the same as a check-in without a
+  streak).
+- **Work session attended** (a consistent-action session, today or a past
+  day only): **15 XP**. A session is a timed block of focused work, so it is
+  worth a bit more than a plain check-in, but less than a check-in on a
+  10-day streak (20 XP).
+- **Target set to done**: **50 XP**, a milestone worth two Perfect Days.
+
+Undoing takes exactly that XP back, like un-checking a habit: un-checking a
+task, un-attending a session or setting a target back from done. Deleting a
+plan task, target, consistent action or project removes the XP its items
+held. Archiving a project keeps its XP. Creating or editing projects,
+targets, tasks or actions never grants XP.
+
+*Balance*: a typical day with 3 habits on a streak (≈ 45–60 XP) plus a
+Perfect Day (25) earns ≈ 70–85 XP; adding one attended work session and a
+finished plan task (25 XP) is a ~30–35 % boost, and finishing a target (50)
+is a once-in-a-while spike, about level 1 → 2 halfway on its own.
+
 **Levels**: going from level *n* to *n + 1* costs **100 × n XP** (level 1→2
 costs 100, 2→3 costs 200, and so on). Level *L* starts at 50·L·(L−1) total XP.
 
@@ -136,7 +158,7 @@ costs 100, 2→3 costs 200, and so on). Level *L* starts at 50·L·(L−1) total
 | 15–19 | Legend |
 | 20+ | Mythic |
 
-**Achievements (12)**
+**Achievements (18)**
 
 | Achievement | How to unlock it |
 |---|---|
@@ -146,12 +168,21 @@ costs 100, 2→3 costs 200, and so on). Level *L* starts at 50·L·(L−1) total
 | Getting Started / Habit Builder / Triple Digits / Habit Master | 10 / 50 / 100 / 500 total check-ins |
 | Perfect Day | your first Perfect Day |
 | Juggler | 5 active habits at once |
+| Checked Off ☑️ | finish your first plan task |
+| In the Zone ⏱️ / Deep Worker 🧠 | 10 / 50 work sessions attended |
+| Bullseye 🎯 | set your first target to done |
+| Sharpshooter 🏹 | 5 targets done |
+| Mission Complete 🏆 | a project with at least one target and every target done |
+
+Locked badges show a hint on the Quest tab.
 
 **Anti-toggle-exploit**: every XP grant goes into a ledger, keyed by what
-earned it (`habit + date` for a check-in, `date` for a Perfect Day).
+earned it (`habit + date` for a check-in, `date` for a Perfect Day,
+`task:<id>`, `session:<action>|<date>` and `target:<id>` for projects).
 Un-checking a habit takes back exactly the XP that check-in earned, and the
-Perfect Day bonus if that day is no longer perfect. Turning a check-in on and
-off any number of times therefore nets 0 XP. Deleting a habit removes the XP
+Perfect Day bonus if that day is no longer perfect. Turning a check-in (or a
+plan task, session or target status) on and off any number of times
+therefore nets 0 XP. Deleting a habit removes the XP
 of all its check-ins. Level-up and achievement celebrations are shown only
 once, ever. Creating, editing or archiving a habit never grants XP.
 
@@ -975,7 +1006,9 @@ sync time.
 
 XP was already never a free-running counter: the game engine keeps a
 **ledger** of grants keyed by what earned them (`habitId|date` for a
-check-in, `date` for a Perfect Day) and XP is the sum of the ledger. A key
+check-in, `date` for a Perfect Day; projects: `task:<id>`,
+`session:<actionId>|<date>`, `target:<id>`, stored in `state.projects`) and
+XP is the sum of the ledgers. A key
 can only be granted once, which is what makes toggling a check-in on/off/on
 net zero. Sync builds on that:
 
@@ -988,6 +1021,16 @@ net zero. Sync builds on that:
   no grant on either side yet gets its base grant under the same key (so a
   later merge cannot double it); Perfect Days of the touched days are
   re-evaluated.
+- **Projects** follow the same model, derived from the synced project
+  records (`GameEngine.reconcileSynced(appliedProjects: …)`): a grant whose
+  plan task / target / session mark is known on this device but is no
+  longer done / attended (or was deleted) is dropped; a pulled record that
+  is done / attended but holds no grant on either side gets the base grant
+  under the same key. Grants for records this device has not pulled yet are
+  kept (trusted until the record arrives), so a device that has not synced
+  projects yet never wipes another device's project XP. Project XP is only
+  ever awarded from local user actions (`ProjectService.changes` and
+  `attendanceEvents`), never from `applyRemote`.
 - All of this happens **silently**: remote awards, level-ups and
   achievements never fire celebration events; the profile is simply
   re-derived from the merged state.
@@ -995,7 +1038,14 @@ net zero. Sync builds on that:
 So: a check-in made offline on device A and pulled by device B gives no
 extra XP on B; toggling across devices cannot farm XP; and two devices
 awarding different days both keep their XP. These scenarios are covered by
-`test/features/sync/sync_engine_test.dart`.
+`test/features/sync/sync_engine_test.dart`; the projects reconciliation by
+`test/features/game/project_xp_test.dart`.
+
+The game state stays a single opaque JSON object on the server
+(`game_state.state`), so the projects ledger needs **no server schema
+change**. The admin `admin_stats` XP buckets only sum `checkIns` and
+`perfectDays` today; they should also sum `state.projects` (backend
+follow-up).
 
 ### Mapping notes
 
@@ -1106,6 +1156,13 @@ and engine, reminder planning), widget tests for every screen, and end-to-end
 flow tests in `test/flows/`. The flow tests cover: create a habit → check in →
 XP and streak update; checking in from the calendar or details shows up on the
 Habits screen and in the Quest profile; un-checking takes the XP back.
+
+Projects XP is tested in `test/features/game/project_xp_test.dart` (amounts,
+keys, merge/JSON, task / session / target grants and undo, toggling nets 0,
+deletions, the project achievements, sync reconciliation) and
+`test/features/projects/project_celebrations_test.dart` ("+N XP" and
+achievement toasts on project details, the target editor, the calendar and
+its session sheet).
 
 Quotes are tested against `FakeQuotesApi` (deterministic fallback, history
 without future days, idempotent loves, injected failures, `pause` to observe

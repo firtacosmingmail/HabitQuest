@@ -290,6 +290,12 @@ Stream<SessionAttendanceEvent> attendanceEvents  // user marks (XP)
   emits one `deleted` event per record, children first.
 * `SessionAttendanceEvent {actionId, targetId, projectId, date, attended}`
   for XP (like `CompletionEvent`). Never emitted for synced data.
+* XP: the `GameEngine` listens to `changes` (plan task `done`, target
+  `status`, deletions; compares `previous` with `record`) and
+  `attendanceEvents`. Amounts and keys: README "Game rules" → Projects XP.
+  The sync task must pass the pulled records to
+  `GameEngine.reconcileSynced(appliedProjects: …)` (README "How XP stays
+  consistent").
 
 ## Providers (`projects_providers.dart`)
 

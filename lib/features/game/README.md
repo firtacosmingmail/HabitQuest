@@ -9,7 +9,7 @@ task (celebration overlays). Persisted in its own hive_ce box `game`.
 |---|---|
 | `game_providers.dart` | `gameEngineProvider`, `gameProfileProvider`, `achievementsCatalogProvider`, `gameEventsProvider`, `gameRepositoryProvider` |
 | `game_profile.dart` | `GameProfile` {xp, level, xpIntoLevel, xpForNextLevel, progress (0..1), title, unlockedAchievements, stats, isUnlocked(id), unlockedAt(id)}, `GameStats` {totalCheckIns, bestStreakEver, perfectDays}, `UnlockedAchievement` {achievement, unlockedAt} |
-| `game_events.dart` | sealed `GameEvent`: `XpGained`/`XpLost` {amount, habitId?, reason: XpReason, date}, `LevelUp` {newLevel, title}, `AchievementUnlocked` {achievement} |
+| `game_events.dart` | sealed `GameEvent`: `XpGained`/`XpLost` {amount, habitId?, projectId?, reason: XpReason, date}, `LevelUp` {newLevel, title}, `AchievementUnlocked` {achievement} |
 | `achievements.dart` | `Achievement` {id, name, description, emoji, hint, kind, threshold}, `achievementCatalog`, `AchievementIds`, `achievementById` |
 | `game_rules.dart` | `GameRules` (XP constants, level curve, titles) |
 | `game_engine.dart` | `GameEngine` (started eagerly by `app.dart`) |
@@ -41,6 +41,12 @@ each achievement is announced once.
   and a per-date Perfect Day ledger. Un-checking reverses exactly the recorded
   amount; a key already in the ledger never earns again. Toggling nets 0.
   Deleting a habit removes the XP of its check-ins.
+* Projects (`GameEngine(projects: ProjectService)`): plan task done 10 XP,
+  session attended 15 XP, target set to done 50 XP, in `projectLedger`
+  (keys `task:<id>`, `session:<actionId>|<date>`, `target:<id>`). Undo or
+  delete takes the grant back. Only local `ProjectService.changes` /
+  `attendanceEvents` award XP; `reconcileSynced(appliedProjects:)` derives
+  it from synced project records silently.
 * Levels: n → n+1 costs 100·n XP (level L starts at 50·L·(L−1)). Titles:
   Sprout 1–2, Seeker 3–4, Adventurer 5–7, Hero 8–10, Champion 11–14,
   Legend 15–19, Mythic 20+. Level is derived from XP and can drop.

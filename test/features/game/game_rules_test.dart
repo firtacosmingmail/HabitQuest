@@ -126,9 +126,9 @@ void main() {
     });
   });
 
-  test('catalog: 12 achievements with unique ids and full metadata', () {
-    expect(achievementCatalog, hasLength(12));
-    expect(achievementCatalog.map((a) => a.id).toSet(), hasLength(12));
+  test('catalog: 18 achievements with unique ids and full metadata', () {
+    expect(achievementCatalog, hasLength(18));
+    expect(achievementCatalog.map((a) => a.id).toSet(), hasLength(18));
     for (final a in achievementCatalog) {
       expect(a.name, isNotEmpty);
       expect(a.description, isNotEmpty);

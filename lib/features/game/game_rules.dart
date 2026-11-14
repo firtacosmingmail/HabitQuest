@@ -15,6 +15,15 @@ abstract final class GameRules {
   /// Bonus when every habit due on a day is complete.
   static const perfectDayXp = 25;
 
+  /// Projects: finishing a plan task (one step of a target's plan).
+  static const planTaskXp = 10;
+
+  /// Projects: marking a consistent-action (work split) session attended.
+  static const sessionXp = 15;
+
+  /// Projects: setting a target to done.
+  static const targetDoneXp = 50;
+
   /// Streak bonus for a check-in that brings the streak to [streak].
   static int streakBonus(int streak) =>
       streak <= 0 ? 0 : math.min(streak, maxStreakBonus);
