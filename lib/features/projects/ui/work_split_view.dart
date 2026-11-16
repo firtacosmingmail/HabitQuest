@@ -30,10 +30,10 @@ const workSplitDefaultEndHour = 20;
 /// Hours revealed by one tap on an expand button.
 const workSplitExpandStep = 2;
 
-/// Smallest hour-row height (logical pixels). The rows share the frame's
-/// height; only when the range cannot fit at this size does the grid fall
-/// back to scrolling (e.g. 00:00–24:00 on a 320×568 phone). 06:00–20:00
-/// fits even there (~13 px rows).
+/// Smallest hour-row height (logical pixels). The automatic range's rows
+/// share the frame's height; only when it cannot fit at this size does the
+/// grid get taller than the frame. 06:00–20:00 fits even on a 320×568
+/// phone (~13 px rows).
 const workSplitMinHourHeight = 12.0;
 
 /// Below this row height only every second hour is labelled.
@@ -41,6 +41,9 @@ const _denseHourHeight = 16.0;
 
 /// How long range / row-height changes animate.
 const workSplitAnimationDuration = Duration(milliseconds: 300);
+
+/// Height of each expand strip (above and below the grid).
+const _stripHeight = 30.0;
 
 /// Width of the hour labels column.
 const _gutterWidth = 40.0;
@@ -116,20 +119,33 @@ List<Target> deadlinesOn(
       t,
 ];
 
-/// The week view. Needs a bounded height (put it in an `Expanded` or a
-/// `SizedBox`): the visible hours share that height (no vertical scroll).
-/// Arrows, a horizontal swipe and the Today button change the week; tapping
-/// a block opens [showSessionSheet].
+/// The week view. Arrows, a horizontal swipe and the Today button change
+/// the week; tapping a block opens [showSessionSheet].
 ///
-/// Range: [workSplitVisibleRange] of the week's sessions. The buttons above
-/// and below the grid reveal [workSplitExpandStep] earlier / later hours,
-/// and "Reset" collapses back to the automatic range. The manual expansion
-/// is kept across rebuilds (data changes) and reset when the week changes.
+/// Range: [workSplitVisibleRange] of the week's sessions. The hour-row
+/// height is fitted to the AUTOMATIC range ([workSplitAutoRange]): its
+/// hours share the grid's fitted height. The buttons above and below the
+/// grid reveal [workSplitExpandStep] earlier / later hours at that same row
+/// height, so the grid grows taller (animated) instead of squeezing the
+/// rows; "Reset" shrinks it back. The manual expansion is kept across
+/// rebuilds (data changes) and reset when the week changes.
+///
+/// Two layouts:
+/// * [gridHeight] null (Calendar tab): needs a bounded height (an
+///   `Expanded`); the grid fits the space left under the headers, and the
+///   body (expand strips + grid) scrolls vertically as a whole once an
+///   expansion makes it taller. The grid has no scroll of its own.
+/// * [gridHeight] set (project details card): the view sizes itself; the
+///   automatic range fits [gridHeight] and an expansion makes the view (and
+///   the card around it) taller. The screen around it scrolls.
 class WorkSplitView extends ConsumerStatefulWidget {
   /// Only this project's sessions and deadlines when set.
   final String? projectId;
 
-  const WorkSplitView({super.key, this.projectId});
+  /// The grid's fitted height when the view sizes itself (see above).
+  final double? gridHeight;
+
+  const WorkSplitView({super.key, this.projectId, this.gridHeight});
 
   @override
   ConsumerState<WorkSplitView> createState() => _WorkSplitViewState();
@@ -142,6 +158,10 @@ class _WorkSplitViewState extends ConsumerState<WorkSplitView> {
   int _earlier = 0;
   int _later = 0;
 
+  /// Set by "Later": once the grid has grown, scroll the new hours in.
+  bool _revealLater = false;
+  final _bottomStripKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
@@ -152,6 +172,7 @@ class _WorkSplitViewState extends ConsumerState<WorkSplitView> {
     if (!isSameDay(weekStart, _weekStart)) {
       _earlier = 0;
       _later = 0;
+      _revealLater = false;
     }
     _weekStart = weekStart;
   });
@@ -159,6 +180,32 @@ class _WorkSplitViewState extends ConsumerState<WorkSplitView> {
   void _changeWeek(int delta) => _setWeek(addDays(_weekStart, 7 * delta));
 
   void _goToToday() => _setWeek(startOfIsoWeek(ref.read(todayProvider)));
+
+  void _expandLater() => setState(() {
+    _later += workSplitExpandStep;
+    _revealLater = true;
+  });
+
+  void _reset() => setState(() {
+    _earlier = 0;
+    _later = 0;
+    _revealLater = false;
+  });
+
+  /// After a "Later" expansion has animated: bring the new bottom hours
+  /// into view (the Calendar body or the details screen scrolls).
+  void _onGridAnimationEnd() {
+    if (!_revealLater) return;
+    _revealLater = false;
+    final ctx = _bottomStripKey.currentContext;
+    if (ctx == null) return;
+    Scrollable.ensureVisible(
+      ctx,
+      duration: workSplitAnimationDuration,
+      curve: Curves.easeOutCubic,
+      alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -193,6 +240,9 @@ class _WorkSplitViewState extends ConsumerState<WorkSplitView> {
         _changeWeek(v < 0 ? 1 : -1);
       },
       child: Column(
+        mainAxisSize: widget.gridHeight == null
+            ? MainAxisSize.max
+            : MainAxisSize.min,
         children: [
           _WeekToolbar(
             weekStart: _weekStart,
@@ -201,8 +251,8 @@ class _WorkSplitViewState extends ConsumerState<WorkSplitView> {
             onToday: onThisWeek ? null : _goToToday,
           ),
           if (dataAsync.hasError)
-            Expanded(
-              child: Center(
+            _placeholder(
+              Center(
                 child: Text(
                   'The work split could not be loaded.\n'
                   '${dataAsync.error}',
@@ -210,7 +260,7 @@ class _WorkSplitViewState extends ConsumerState<WorkSplitView> {
               ),
             )
           else if (data == null)
-            const Expanded(child: Center(child: CircularProgressIndicator()))
+            _placeholder(const Center(child: CircularProgressIndicator()))
           else ...[
             _DayHeaders(
               days: days,
@@ -219,56 +269,97 @@ class _WorkSplitViewState extends ConsumerState<WorkSplitView> {
               projectId: widget.projectId,
             ),
             const Divider(height: 1),
-            _ExpandStrip(
-              key: const ValueKey('work-split-expand-top'),
-              icon: Icons.keyboard_arrow_up_rounded,
-              label: 'Earlier',
-              buttonKey: const ValueKey('work-split-expand-earlier'),
-              onExpand: range.start > 0
-                  ? () => setState(() => _earlier += workSplitExpandStep)
-                  : null,
-              onCollapse: expanded
-                  ? () => setState(() {
-                      _earlier = 0;
-                      _later = 0;
-                    })
-                  : null,
-            ),
-            Expanded(
-              child: Stack(
-                children: [
-                  _WeekGrid(
-                    range: range,
-                    days: days,
-                    today: today,
-                    now: ref.watch(clockProvider)(),
-                    sessions: sessions,
-                    data: data,
-                  ),
-                  if (sessions.isEmpty)
-                    Align(
-                      alignment: Alignment.topCenter,
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 16),
-                        child: _EmptyWeekNote(
-                          filtered: widget.projectId != null,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            _ExpandStrip(
-              key: const ValueKey('work-split-expand-bottom'),
-              icon: Icons.keyboard_arrow_down_rounded,
-              label: 'Later',
-              buttonKey: const ValueKey('work-split-expand-later'),
-              onExpand: range.end < 24
-                  ? () => setState(() => _later += workSplitExpandStep)
-                  : null,
+            _body(
+              range: range,
+              auto: workSplitAutoRange(sessions),
+              expanded: expanded,
+              days: days,
+              today: today,
+              sessions: sessions,
+              data: data,
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  /// Loading / error content: fills the frame, or the fitted grid height.
+  Widget _placeholder(Widget child) {
+    final h = widget.gridHeight;
+    return h == null
+        ? Expanded(child: child)
+        : SizedBox(height: h + 2 * _stripHeight, child: child);
+  }
+
+  /// The expand strips and the grid. Rows: the fitted height over the
+  /// automatic range's hours (at least [workSplitMinHourHeight]); the grid
+  /// is that row height times the visible hours.
+  Widget _body({
+    required HourRange range,
+    required HourRange auto,
+    required bool expanded,
+    required List<DateTime> days,
+    required DateTime today,
+    required List<Session> sessions,
+    required ProjectsData data,
+  }) {
+    Widget content(double fitted) => Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _ExpandStrip(
+          key: const ValueKey('work-split-expand-top'),
+          icon: Icons.keyboard_arrow_up_rounded,
+          label: 'Earlier',
+          buttonKey: const ValueKey('work-split-expand-earlier'),
+          onExpand: range.start > 0
+              ? () => setState(() => _earlier += workSplitExpandStep)
+              : null,
+          onCollapse: expanded ? _reset : null,
+        ),
+        _WeekGrid(
+          range: range,
+          autoHours: auto.end - auto.start,
+          fittedHeight: fitted,
+          days: days,
+          today: today,
+          now: ref.watch(clockProvider)(),
+          sessions: sessions,
+          data: data,
+          onAnimationEnd: _onGridAnimationEnd,
+          overlay: sessions.isEmpty
+              ? Align(
+                  alignment: Alignment.topCenter,
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 16),
+                    child: _EmptyWeekNote(filtered: widget.projectId != null),
+                  ),
+                )
+              : null,
+        ),
+        _ExpandStrip(
+          key: _bottomStripKey,
+          icon: Icons.keyboard_arrow_down_rounded,
+          label: 'Later',
+          buttonKey: const ValueKey('work-split-expand-later'),
+          onExpand: range.end < 24 ? _expandLater : null,
+        ),
+      ],
+    );
+
+    final gridHeight = widget.gridHeight;
+    if (gridHeight != null) return content(gridHeight);
+    return Expanded(
+      child: LayoutBuilder(
+        builder: (context, constraints) => SingleChildScrollView(
+          key: const ValueKey('work-split-body-scroll'),
+          child: content(
+            (constraints.maxHeight - 2 * _stripHeight).clamp(
+              0.0,
+              double.infinity,
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -302,7 +393,7 @@ class _ExpandStrip extends StatelessWidget {
       textStyle: Theme.of(context).textTheme.labelMedium,
     );
     return SizedBox(
-      height: 30,
+      height: _stripHeight,
       child: Row(
         children: [
           const SizedBox(width: _gutterWidth),
@@ -340,16 +431,22 @@ class _Span {
   final double start;
   final double end;
 
-  const _Span(this.start, this.end);
+  /// Hours of the automatic range (the rows' fitted height divides by it).
+  final double base;
+
+  const _Span(this.start, this.end, this.base);
 
   double get hours => end - start;
 
   @override
   bool operator ==(Object other) =>
-      other is _Span && other.start == start && other.end == end;
+      other is _Span &&
+      other.start == start &&
+      other.end == end &&
+      other.base == base;
 
   @override
-  int get hashCode => Object.hash(start, end);
+  int get hashCode => Object.hash(start, end, base);
 }
 
 class _SpanTween extends Tween<_Span> {
@@ -359,6 +456,7 @@ class _SpanTween extends Tween<_Span> {
   _Span lerp(double t) => _Span(
     begin!.start + (end!.start - begin!.start) * t,
     begin!.end + (end!.end - begin!.end) * t,
+    begin!.base + (end!.base - begin!.base) * t,
   );
 }
 
@@ -562,55 +660,67 @@ class _DeadlineMarker extends StatelessWidget {
   }
 }
 
-/// The hour grid: the visible [range] shares the available height (rows
-/// of at least [workSplitMinHourHeight]); range changes animate.
+/// The hour grid: rows of [fittedHeight] / [autoHours] (at least
+/// [workSplitMinHourHeight]), [range] hours tall. Range and height changes
+/// animate. No scroll of its own.
 class _WeekGrid extends StatelessWidget {
   final HourRange range;
+  final int autoHours;
+  final double fittedHeight;
   final List<DateTime> days;
   final DateTime today;
   final DateTime now;
   final List<Session> sessions;
   final ProjectsData data;
+  final VoidCallback onAnimationEnd;
+  final Widget? overlay;
 
   const _WeekGrid({
     required this.range,
+    required this.autoHours,
+    required this.fittedHeight,
     required this.days,
     required this.today,
     required this.now,
     required this.sessions,
     required this.data,
+    required this.onAnimationEnd,
+    this.overlay,
   });
 
   @override
   Widget build(BuildContext context) {
     return TweenAnimationBuilder<_Span>(
       tween: _SpanTween(
-        end: _Span(range.start.toDouble(), range.end.toDouble()),
+        end: _Span(
+          range.start.toDouble(),
+          range.end.toDouble(),
+          autoHours.toDouble(),
+        ),
       ),
       duration: workSplitAnimationDuration,
       curve: Curves.easeInOutCubic,
-      builder: (context, span, _) => LayoutBuilder(
-        builder: (context, constraints) {
-          final available = constraints.maxHeight;
-          final hours = span.hours <= 0 ? 1.0 : span.hours;
-          final hourHeight = (available / hours) < workSplitMinHourHeight
-              ? workSplitMinHourHeight
-              : available / hours;
-          final height = hourHeight * hours;
-          final grid = SizedBox(
-            key: const ValueKey('work-split-grid'),
-            height: height,
-            child: _grid(context, _Geometry(span, hourHeight), height),
-          );
-          // Only when the range cannot fit at the minimum row height.
-          return height > available + 0.5
-              ? SingleChildScrollView(
-                  key: const ValueKey('work-split-scroll'),
-                  child: grid,
-                )
-              : grid;
-        },
-      ),
+      onEnd: onAnimationEnd,
+      builder: (context, span, _) {
+        final base = span.base <= 0 ? 1.0 : span.base;
+        final fitted = fittedHeight / base;
+        final hourHeight = fitted < workSplitMinHourHeight
+            ? workSplitMinHourHeight
+            : fitted;
+        final height = hourHeight * (span.hours <= 0 ? 0 : span.hours);
+        return SizedBox(
+          key: const ValueKey('work-split-grid'),
+          height: height,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: _grid(context, _Geometry(span, hourHeight), height),
+              ),
+              ?overlay,
+            ],
+          ),
+        );
+      },
     );
   }
 

@@ -7,6 +7,7 @@ import 'package:habit_quest/features/projects/models/consistent_action.dart';
 import 'package:habit_quest/features/projects/models/plan_task.dart';
 import 'package:habit_quest/features/projects/models/session.dart';
 import 'package:habit_quest/features/projects/models/target.dart';
+import 'package:habit_quest/features/projects/ui/project_details_screen.dart';
 import 'package:habit_quest/features/projects/projects_providers.dart';
 import 'package:habit_quest/features/projects/ui/target_editor_screen.dart';
 import 'package:habit_quest/features/projects/ui/work_split_view.dart';
@@ -332,17 +333,35 @@ void main() {
   });
 
   group('work split hour range', () {
-    Finder scrollables() => find.descendant(
-      of: key('work-split-view'),
-      matching: find.byType(Scrollable),
+    /// The Calendar body's scroll position (strips + grid scroll together).
+    ScrollPosition bodyScroll(WidgetTester tester) => tester
+        .state<ScrollableState>(
+          find.descendant(
+            of: key('work-split-body-scroll'),
+            matching: find.byType(Scrollable),
+          ),
+        )
+        .position;
+
+    /// The grid has no scroll of its own.
+    void expectNoGridScroll() => expect(
+      find.descendant(
+        of: key('work-split-grid'),
+        matching: find.byType(Scrollable),
+      ),
+      findsNothing,
     );
 
     void expectFits(WidgetTester tester) {
-      expect(scrollables(), findsNothing);
+      expectNoGridScroll();
+      expect(bodyScroll(tester).maxScrollExtent, 0);
       final view = tester.getRect(key('work-split-view'));
       final grid = tester.getRect(key('work-split-grid'));
       expect(grid.bottom, lessThanOrEqualTo(view.bottom + 0.5));
     }
+
+    double gridHeight(WidgetTester tester) =>
+        tester.getSize(key('work-split-grid')).height;
 
     test('auto range: 06–20, extended to the floor/ceil of the sessions', () {
       final data = outOfHoursRepo().getData();
@@ -389,11 +408,42 @@ void main() {
 
     testWidgets('fits the project details card', (tester) async {
       await pump(tester, location: '/projects/p1', size: const Size(900, 2600));
-      expect(scrollables(), findsNothing);
+      expectNoGridScroll();
       final card = tester.getRect(key('project-work-split'));
       final grid = tester.getRect(key('work-split-grid'));
       expect(grid.bottom, lessThanOrEqualTo(card.bottom));
+      expect(grid.height, closeTo(projectWorkSplitGridHeight, 0.5));
       expect(visibleHours(tester), hours(6, 20));
+    });
+
+    testWidgets('expanding grows the project card at the same row height', (
+      tester,
+    ) async {
+      await pump(tester, location: '/projects/p1', size: const Size(900, 2600));
+      final card = tester.getSize(key('project-work-split')).height;
+      final grid = gridHeight(tester);
+      final row = grid / 14;
+      final blockHeight = tester.getRect(block('a1', '2026-11-17')).height;
+
+      await tapVisible(tester, key('work-split-expand-later'));
+      expect(visibleHours(tester), hours(6, 22));
+      expect(gridHeight(tester), closeTo(grid + 2 * row, 0.5));
+      expect(
+        tester.getSize(key('project-work-split')).height,
+        closeTo(card + 2 * row, 0.5),
+      );
+      expect(
+        tester.getRect(block('a1', '2026-11-17')).height,
+        closeTo(blockHeight, 0.5),
+      );
+      expectNoGridScroll();
+
+      await tapVisible(tester, key('work-split-collapse'));
+      expect(gridHeight(tester), closeTo(grid, 0.5));
+      expect(
+        tester.getSize(key('project-work-split')).height,
+        closeTo(card, 0.5),
+      );
     });
 
     testWidgets('extends automatically per week and animates', (tester) async {
@@ -427,19 +477,28 @@ void main() {
     ) async {
       await pump(tester);
       await openWorkSplit(tester);
-      final rowBefore = tester.getRect(block('a1', '2026-11-17')).height;
+      final fitted = gridHeight(tester);
+      final row = fitted / 14;
+      final blockBefore = tester.getRect(block('a1', '2026-11-17')).height;
 
       await tester.tap(key('work-split-expand-earlier'));
+      await tester.pump();
+      await tester.pump(workSplitAnimationDuration ~/ 2);
+      // The grid grows smoothly.
+      expect(tester.hasRunningAnimations, isTrue);
+      expect(gridHeight(tester), inExclusiveRange(fitted, fitted + 2 * row));
       await tester.pumpAndSettle();
       expect(visibleHours(tester), hours(4, 20));
-      // Same frame, more hours: shorter rows.
+      // Same row height, more hours: a taller grid; the body scrolls.
+      expect(gridHeight(tester), closeTo(fitted + 2 * row, 0.5));
       expect(
         tester.getRect(block('a1', '2026-11-17')).height,
-        lessThan(rowBefore),
+        closeTo(blockBefore, 0.5),
       );
+      expect(bodyScroll(tester).maxScrollExtent, closeTo(2 * row, 0.5));
+      expectNoGridScroll();
       for (var i = 0; i < 2; i++) {
-        await tester.tap(key('work-split-expand-earlier'));
-        await tester.pumpAndSettle();
+        await tapVisible(tester, key('work-split-expand-earlier'));
       }
       expect(visibleHours(tester), hours(0, 20));
       expect(
@@ -447,19 +506,22 @@ void main() {
         isNull,
       );
       for (var i = 0; i < 2; i++) {
-        await tester.tap(key('work-split-expand-later'));
-        await tester.pumpAndSettle();
+        await tapVisible(tester, key('work-split-expand-later'));
       }
       expect(visibleHours(tester), hours(0, 24));
+      expect(gridHeight(tester), closeTo(24 * row, 0.5));
+      // "Later" scrolls the new bottom hours into view.
+      final pos = bodyScroll(tester);
+      expect(pos.pixels, closeTo(pos.maxScrollExtent, 0.5));
       expect(
         tester.widget<TextButton>(key('work-split-expand-later')).onPressed,
         isNull,
       );
-      expectFits(tester);
 
-      await tester.tap(key('work-split-collapse'));
-      await tester.pumpAndSettle();
+      await tapVisible(tester, key('work-split-collapse'));
       expect(visibleHours(tester), hours(6, 20));
+      expect(gridHeight(tester), closeTo(fitted, 0.5));
+      expectFits(tester);
       expect(key('work-split-collapse'), findsNothing);
 
       // A manual expansion is reset when the week changes.
@@ -469,6 +531,8 @@ void main() {
       await tester.tap(key('work-split-next-week'));
       await tester.pumpAndSettle();
       expect(visibleHours(tester), hours(6, 20));
+      expect(gridHeight(tester), closeTo(fitted, 0.5));
+      expectFits(tester);
     });
   });
 
