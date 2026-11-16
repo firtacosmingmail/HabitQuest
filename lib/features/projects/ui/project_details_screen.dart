@@ -242,7 +242,7 @@ class TargetTile extends ConsumerWidget {
 const projectWorkSplitHeight = 520.0;
 
 /// The [WorkSplitView] filtered to [projectId], in a fixed-height card (the
-/// details screen scrolls; the grid scrolls inside it).
+/// details screen scrolls; the grid's hour rows fit the card's height).
 class ProjectWorkSplit extends StatelessWidget {
   final String projectId;
 
