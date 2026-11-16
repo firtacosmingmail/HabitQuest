@@ -32,8 +32,12 @@ const workSplitExpandStep = 2;
 
 /// Smallest hour-row height (logical pixels). The rows share the frame's
 /// height; only when the range cannot fit at this size does the grid fall
-/// back to scrolling (e.g. 00:00–24:00 on a tiny phone).
-const workSplitMinHourHeight = 18.0;
+/// back to scrolling (e.g. 00:00–24:00 on a 320×568 phone). 06:00–20:00
+/// fits even there (~13 px rows).
+const workSplitMinHourHeight = 12.0;
+
+/// Below this row height only every second hour is labelled.
+const _denseHourHeight = 16.0;
 
 /// How long range / row-height changes animate.
 const workSplitAnimationDuration = Duration(milliseconds: 300);
@@ -621,21 +625,22 @@ class _WeekGrid extends StatelessWidget {
           child: Stack(
             children: [
               for (final h in g.hours)
-                Positioned(
-                  key: ValueKey('work-split-hour-$h'),
-                  top: (g.y(h * 60) - 7).clamp(0.0, height - 14),
-                  left: 0,
-                  right: 6,
-                  child: Text(
-                    '${h.toString().padLeft(2, '0')}:00',
-                    textAlign: TextAlign.right,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      fontSize: 10,
-                      height: 1.3,
-                      color: scheme.onSurfaceVariant,
+                if (g.hourHeight >= _denseHourHeight || h.isEven)
+                  Positioned(
+                    key: ValueKey('work-split-hour-$h'),
+                    top: (g.y(h * 60) - 7).clamp(0.0, height - 14),
+                    left: 0,
+                    right: 6,
+                    child: Text(
+                      '${h.toString().padLeft(2, '0')}:00',
+                      textAlign: TextAlign.right,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        fontSize: 10,
+                        height: 1.3,
+                        color: scheme.onSurfaceVariant,
+                      ),
                     ),
                   ),
-                ),
             ],
           ),
         ),

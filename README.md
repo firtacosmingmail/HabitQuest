@@ -40,7 +40,16 @@ survives a reinstall or a new phone. See [Sync](#sync) and
     only) and "Open target". Future sessions of targets marked done are
     hidden (their time is free again); past ones stay. On wide screens
     (tablets, web) the week grows up to 1100 px wide; on small phones the
-    labels shrink to fit and the grid scrolls vertically.
+    labels shrink to fit. The hours **fit the available height** (no
+    vertical scroll): 06:00–20:00 by default, extended automatically per
+    week to cover any session outside it (floor of the earliest start,
+    ceiling of the latest end; never smaller than 06–20). "Earlier" /
+    "Later" buttons above and below the grid reveal 2 more hours per tap
+    (down to 00:00 / up to 24:00) and "Reset" collapses back; a manual
+    expansion is kept while you stay on the week and reset when the week
+    changes. Range and row-height changes animate. Only if a range cannot
+    fit at the 12 px minimum row height (e.g. 00–24 on a 320×568 phone)
+    does the grid fall back to scrolling.
   The same week view (`WorkSplitView`, in
   `lib/features/projects/ui/work_split_view.dart`) is reused on the project
   details, filtered to that project.
