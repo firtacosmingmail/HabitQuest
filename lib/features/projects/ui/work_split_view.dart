@@ -21,14 +21,61 @@ import '../projects_providers.dart';
 import 'widgets/project_widgets.dart';
 import '../../habits/widgets/check_in_button.dart';
 
-/// Height of one hour row (logical pixels).
-const workSplitHourHeight = 48.0;
+/// First hour shown by default (the range never starts later than this).
+const workSplitDefaultStartHour = 6;
 
-/// Hour the grid scrolls to when the week has no sessions.
-const workSplitDefaultStartHour = 8;
+/// Hour the default range ends at (it never ends earlier than this).
+const workSplitDefaultEndHour = 20;
+
+/// Hours revealed by one tap on an expand button.
+const workSplitExpandStep = 2;
+
+/// Smallest hour-row height (logical pixels). The rows share the frame's
+/// height; only when the range cannot fit at this size does the grid fall
+/// back to scrolling (e.g. 00:00–24:00 on a 320×568 phone). 06:00–20:00
+/// fits even there (~13 px rows).
+const workSplitMinHourHeight = 12.0;
+
+/// Below this row height only every second hour is labelled.
+const _denseHourHeight = 16.0;
+
+/// How long range / row-height changes animate.
+const workSplitAnimationDuration = Duration(milliseconds: 300);
 
 /// Width of the hour labels column.
 const _gutterWidth = 40.0;
+
+/// The visible hours of the grid: from [start] (inclusive) to [end]
+/// (exclusive), whole hours in 0..24.
+typedef HourRange = ({int start, int end});
+
+/// The range a week needs: 06:00–20:00, extended to the floor of the
+/// earliest session start and the ceiling of the latest session end.
+HourRange workSplitAutoRange(Iterable<Session> sessions) {
+  var start = workSplitDefaultStartHour;
+  var end = workSplitDefaultEndHour;
+  for (final s in sessions) {
+    final from = s.startTime.minutesOfDay ~/ 60;
+    final to = (s.endTime.minutesOfDay + 59) ~/ 60;
+    if (from < start) start = from;
+    if (to > end) end = to;
+  }
+  return (start: start, end: end.clamp(0, 24));
+}
+
+/// The visible range: the week's [workSplitAutoRange] widened by the
+/// manual expansion ([earlier] / [later] extra hours), within 00–24.
+HourRange workSplitVisibleRange(
+  Iterable<Session> sessions, {
+  int earlier = 0,
+  int later = 0,
+}) {
+  final auto = workSplitAutoRange(sessions);
+  return (
+    start: (auto.start - earlier).clamp(0, 24),
+    end: (auto.end + later).clamp(0, 24),
+  );
+}
 
 /// The sessions shown in the week starting [weekStart] (Monday): every
 /// session of the week, except sessions of archived projects (unless
@@ -70,8 +117,14 @@ List<Target> deadlinesOn(
 ];
 
 /// The week view. Needs a bounded height (put it in an `Expanded` or a
-/// `SizedBox`). Arrows, a horizontal swipe and the Today button change the
-/// week; tapping a block opens [showSessionSheet].
+/// `SizedBox`): the visible hours share that height (no vertical scroll).
+/// Arrows, a horizontal swipe and the Today button change the week; tapping
+/// a block opens [showSessionSheet].
+///
+/// Range: [workSplitVisibleRange] of the week's sessions. The buttons above
+/// and below the grid reveal [workSplitExpandStep] earlier / later hours,
+/// and "Reset" collapses back to the automatic range. The manual expansion
+/// is kept across rebuilds (data changes) and reset when the week changes.
 class WorkSplitView extends ConsumerStatefulWidget {
   /// Only this project's sessions and deadlines when set.
   final String? projectId;
@@ -84,7 +137,10 @@ class WorkSplitView extends ConsumerStatefulWidget {
 
 class _WorkSplitViewState extends ConsumerState<WorkSplitView> {
   late DateTime _weekStart;
-  ScrollController? _scroll;
+
+  /// Manual expansion, in extra hours before / after the automatic range.
+  int _earlier = 0;
+  int _later = 0;
 
   @override
   void initState() {
@@ -92,17 +148,17 @@ class _WorkSplitViewState extends ConsumerState<WorkSplitView> {
     _weekStart = startOfIsoWeek(ref.read(todayProvider));
   }
 
-  @override
-  void dispose() {
-    _scroll?.dispose();
-    super.dispose();
-  }
+  void _setWeek(DateTime weekStart) => setState(() {
+    if (!isSameDay(weekStart, _weekStart)) {
+      _earlier = 0;
+      _later = 0;
+    }
+    _weekStart = weekStart;
+  });
 
-  void _changeWeek(int delta) =>
-      setState(() => _weekStart = addDays(_weekStart, 7 * delta));
+  void _changeWeek(int delta) => _setWeek(addDays(_weekStart, 7 * delta));
 
-  void _goToToday() =>
-      setState(() => _weekStart = startOfIsoWeek(ref.read(todayProvider)));
+  void _goToToday() => _setWeek(startOfIsoWeek(ref.read(todayProvider)));
 
   @override
   Widget build(BuildContext context) {
@@ -119,18 +175,12 @@ class _WorkSplitViewState extends ConsumerState<WorkSplitView> {
             today: today,
             projectId: widget.projectId,
           );
-    // Scroll to the first block of the first week shown (or 08:00).
-    _scroll ??= ScrollController(
-      initialScrollOffset:
-          ((sessions.isEmpty
-                  ? workSplitDefaultStartHour
-                  : sessions
-                            .map((s) => s.startTime.hour)
-                            .reduce((a, b) => a < b ? a : b) -
-                        1)
-              .clamp(0, 23)) *
-          workSplitHourHeight,
+    final range = workSplitVisibleRange(
+      sessions,
+      earlier: _earlier,
+      later: _later,
     );
+    final expanded = _earlier > 0 || _later > 0;
 
     final days = [for (var i = 0; i < 7; i++) addDays(_weekStart, i)];
 
@@ -169,11 +219,26 @@ class _WorkSplitViewState extends ConsumerState<WorkSplitView> {
               projectId: widget.projectId,
             ),
             const Divider(height: 1),
+            _ExpandStrip(
+              key: const ValueKey('work-split-expand-top'),
+              icon: Icons.keyboard_arrow_up_rounded,
+              label: 'Earlier',
+              buttonKey: const ValueKey('work-split-expand-earlier'),
+              onExpand: range.start > 0
+                  ? () => setState(() => _earlier += workSplitExpandStep)
+                  : null,
+              onCollapse: expanded
+                  ? () => setState(() {
+                      _earlier = 0;
+                      _later = 0;
+                    })
+                  : null,
+            ),
             Expanded(
               child: Stack(
                 children: [
                   _WeekGrid(
-                    controller: _scroll!,
+                    range: range,
                     days: days,
                     today: today,
                     now: ref.watch(clockProvider)(),
@@ -193,10 +258,124 @@ class _WorkSplitViewState extends ConsumerState<WorkSplitView> {
                 ],
               ),
             ),
+            _ExpandStrip(
+              key: const ValueKey('work-split-expand-bottom'),
+              icon: Icons.keyboard_arrow_down_rounded,
+              label: 'Later',
+              buttonKey: const ValueKey('work-split-expand-later'),
+              onExpand: range.end < 24
+                  ? () => setState(() => _later += workSplitExpandStep)
+                  : null,
+            ),
           ],
         ],
       ),
     );
+  }
+}
+
+/// A thin bar above / below the grid with an expand button (and, on the
+/// top bar, "Reset" while the range is manually expanded).
+class _ExpandStrip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Key buttonKey;
+  final VoidCallback? onExpand;
+  final VoidCallback? onCollapse;
+
+  const _ExpandStrip({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.buttonKey,
+    required this.onExpand,
+    this.onCollapse,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final style = TextButton.styleFrom(
+      minimumSize: const Size(0, 30),
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      visualDensity: VisualDensity.compact,
+      textStyle: Theme.of(context).textTheme.labelMedium,
+    );
+    return SizedBox(
+      height: 30,
+      child: Row(
+        children: [
+          const SizedBox(width: _gutterWidth),
+          Expanded(
+            child: Center(
+              child: TextButton.icon(
+                key: buttonKey,
+                style: style,
+                onPressed: onExpand,
+                icon: Icon(icon, size: 18),
+                label: Text(label),
+              ),
+            ),
+          ),
+          SizedBox(
+            width: 72,
+            child: onCollapse == null
+                ? null
+                : TextButton(
+                    key: const ValueKey('work-split-collapse'),
+                    style: style,
+                    onPressed: onCollapse,
+                    child: const Text('Reset'),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// An hour range with fractional ends, for the animation.
+@immutable
+class _Span {
+  final double start;
+  final double end;
+
+  const _Span(this.start, this.end);
+
+  double get hours => end - start;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _Span && other.start == start && other.end == end;
+
+  @override
+  int get hashCode => Object.hash(start, end);
+}
+
+class _SpanTween extends Tween<_Span> {
+  _SpanTween({super.end});
+
+  @override
+  _Span lerp(double t) => _Span(
+    begin!.start + (end!.start - begin!.start) * t,
+    begin!.end + (end!.end - begin!.end) * t,
+  );
+}
+
+/// Where the (animated) visible range puts things: y of a time of day.
+class _Geometry {
+  final _Span span;
+  final double hourHeight;
+
+  const _Geometry(this.span, this.hourHeight);
+
+  double y(int minutes) => (minutes / 60 - span.start) * hourHeight;
+
+  /// The whole hours on or inside the range.
+  Iterable<int> get hours sync* {
+    for (var h = span.start.ceil(); h <= span.end.floor(); h++) {
+      yield h;
+    }
   }
 }
 
@@ -383,8 +562,10 @@ class _DeadlineMarker extends StatelessWidget {
   }
 }
 
+/// The hour grid: the visible [range] shares the available height (rows
+/// of at least [workSplitMinHourHeight]); range changes animate.
 class _WeekGrid extends StatelessWidget {
-  final ScrollController controller;
+  final HourRange range;
   final List<DateTime> days;
   final DateTime today;
   final DateTime now;
@@ -392,7 +573,7 @@ class _WeekGrid extends StatelessWidget {
   final ProjectsData data;
 
   const _WeekGrid({
-    required this.controller,
+    required this.range,
     required this.days,
     required this.today,
     required this.now,
@@ -402,60 +583,89 @@ class _WeekGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return TweenAnimationBuilder<_Span>(
+      tween: _SpanTween(
+        end: _Span(range.start.toDouble(), range.end.toDouble()),
+      ),
+      duration: workSplitAnimationDuration,
+      curve: Curves.easeInOutCubic,
+      builder: (context, span, _) => LayoutBuilder(
+        builder: (context, constraints) {
+          final available = constraints.maxHeight;
+          final hours = span.hours <= 0 ? 1.0 : span.hours;
+          final hourHeight = (available / hours) < workSplitMinHourHeight
+              ? workSplitMinHourHeight
+              : available / hours;
+          final height = hourHeight * hours;
+          final grid = SizedBox(
+            key: const ValueKey('work-split-grid'),
+            height: height,
+            child: _grid(context, _Geometry(span, hourHeight), height),
+          );
+          // Only when the range cannot fit at the minimum row height.
+          return height > available + 0.5
+              ? SingleChildScrollView(
+                  key: const ValueKey('work-split-scroll'),
+                  child: grid,
+                )
+              : grid;
+        },
+      ),
+    );
+  }
+
+  Widget _grid(BuildContext context, _Geometry g, double height) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    const totalHeight = 24 * workSplitHourHeight;
-    return SingleChildScrollView(
-      key: const ValueKey('work-split-scroll'),
-      controller: controller,
-      child: SizedBox(
-        height: totalHeight,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SizedBox(
-              width: _gutterWidth,
-              child: Stack(
-                children: [
-                  for (var h = 1; h < 24; h++)
-                    Positioned(
-                      top: h * workSplitHourHeight - 7,
-                      left: 0,
-                      right: 6,
-                      child: Text(
-                        '${h.toString().padLeft(2, '0')}:00',
-                        textAlign: TextAlign.right,
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          fontSize: 10,
-                          color: scheme.onSurfaceVariant,
-                        ),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          width: _gutterWidth,
+          child: Stack(
+            children: [
+              for (final h in g.hours)
+                if (g.hourHeight >= _denseHourHeight || h.isEven)
+                  Positioned(
+                    key: ValueKey('work-split-hour-$h'),
+                    top: (g.y(h * 60) - 7).clamp(0.0, height - 14),
+                    left: 0,
+                    right: 6,
+                    child: Text(
+                      '${h.toString().padLeft(2, '0')}:00',
+                      textAlign: TextAlign.right,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        fontSize: 10,
+                        height: 1.3,
+                        color: scheme.onSurfaceVariant,
                       ),
                     ),
-                ],
-              ),
-            ),
-            for (final day in days)
-              Expanded(
-                child: _DayColumn(
-                  day: day,
-                  isToday: isSameDay(day, today),
-                  now: now,
-                  sessions: [
-                    for (final s in sessions)
-                      if (isSameDay(s.date, day)) s,
-                  ],
-                  data: data,
-                  canAttend: !day.isAfter(today),
-                ),
-              ),
-          ],
+                  ),
+            ],
+          ),
         ),
-      ),
+        for (final day in days)
+          Expanded(
+            child: _DayColumn(
+              geometry: g,
+              day: day,
+              isToday: isSameDay(day, today),
+              now: now,
+              sessions: [
+                for (final s in sessions)
+                  if (isSameDay(s.date, day)) s,
+              ],
+              data: data,
+              canAttend: !day.isAfter(today),
+            ),
+          ),
+      ],
     );
   }
 }
 
 class _DayColumn extends StatelessWidget {
+  final _Geometry geometry;
   final DateTime day;
   final bool isToday;
   final DateTime now;
@@ -464,6 +674,7 @@ class _DayColumn extends StatelessWidget {
   final bool canAttend;
 
   const _DayColumn({
+    required this.geometry,
     required this.day,
     required this.isToday,
     required this.now,
@@ -491,9 +702,9 @@ class _DayColumn extends StatelessWidget {
           final laneWidth = constraints.maxWidth / laneCount;
           return Stack(
             children: [
-              for (var h = 1; h < 24; h++)
+              for (final h in geometry.hours)
                 Positioned(
-                  top: h * workSplitHourHeight,
+                  top: _y(h * 60),
                   left: 0,
                   right: 0,
                   child: Divider(
@@ -536,7 +747,7 @@ class _DayColumn extends StatelessWidget {
     );
   }
 
-  static double _y(int minutes) => minutes / 60 * workSplitHourHeight;
+  double _y(int minutes) => geometry.y(minutes);
 }
 
 /// Side-by-side lanes for overlapping sessions of one day (a lane index
