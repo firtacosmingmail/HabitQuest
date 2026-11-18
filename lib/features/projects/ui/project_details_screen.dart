@@ -238,11 +238,13 @@ class TargetTile extends ConsumerWidget {
   }
 }
 
-/// Height of the work split card on the details screen.
-const projectWorkSplitHeight = 520.0;
+/// Largest fitted grid height of the work split card on the details screen.
+const projectWorkSplitGridHeight = 340.0;
 
-/// The [WorkSplitView] filtered to [projectId], in a fixed-height card (the
-/// details screen scrolls; the grid scrolls inside it).
+/// The [WorkSplitView] filtered to [projectId], in a card. The automatic
+/// hour range fits a grid of about 45% of the screen height (200–340 px);
+/// "Earlier" / "Later" add rows at that same height, so the card grows
+/// (the details screen scrolls).
 class ProjectWorkSplit extends StatelessWidget {
   final String projectId;
 
@@ -250,17 +252,14 @@ class ProjectWorkSplit extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final height = (MediaQuery.sizeOf(context).height * 0.7).clamp(
-      360.0,
-      projectWorkSplitHeight,
+    final gridHeight = (MediaQuery.sizeOf(context).height * 0.45).clamp(
+      200.0,
+      projectWorkSplitGridHeight,
     );
     return Card(
       key: const ValueKey('project-work-split'),
       clipBehavior: Clip.antiAlias,
-      child: SizedBox(
-        height: height,
-        child: WorkSplitView(projectId: projectId),
-      ),
+      child: WorkSplitView(projectId: projectId, gridHeight: gridHeight),
     );
   }
 }
