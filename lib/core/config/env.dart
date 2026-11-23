@@ -81,7 +81,9 @@ const admobTestIds = AdMobIds(
   androidHabitDetailsUnitId: 'ca-app-pub-3940256099942544/6300978111',
 );
 
-/// Habit Quest's real AdMob app IDs (com.vvs.habitquest). The native
+/// Perseveo's real AdMob app IDs. NOTE: these AdMob apps (and the unit IDs below)
+/// were registered for the old package com.vvs.habitquest; replace them with
+/// new AdMob apps for ro.csm.perseveo (README "Real ads"). The native
 /// Info.plist / AndroidManifest use these for EVERY build: Google's test unit
 /// IDs work fine with a real app ID, so no per-build switching is needed.
 const admobIosAppId = 'ca-app-pub-5156448354942178~4999843447';
@@ -129,7 +131,7 @@ const Map<AppEnv, AdMobIds> admobEnvs = {
 //
 //   GOOGLE_IOS_CLIENT_ID=1234-abc.apps.googleusercontent.com
 //   GOOGLE_WEB_CLIENT_ID=1234-xyz.apps.googleusercontent.com
-//   APPLE_SERVICE_ID=com.habitquest.signin
+//   APPLE_SERVICE_ID=ro.csm.perseveo.signin
 //   APPLE_REDIRECT_URI=https://<your-site>/apple-callback
 //
 // The iOS client ID must ALSO be added natively, reversed, as a URL scheme in
@@ -165,7 +167,8 @@ class OAuthIds {
 /// one configured in the Supabase Google provider); the Apple values are
 /// still empty placeholders.
 const oauthPlaceholderIds = OAuthIds(
-  // iOS client (bundle com.vvs.habitquest). Its reversed form is the
+  // iOS client (created for the old bundle com.vvs.habitquest; its bundle ID
+  // must be changed to ro.csm.perseveo in Google Cloud). Its reversed form is the
   // URL scheme in ios/Runner/Info.plist; keep the two in sync.
   googleIosClientId:
       '1004491055558-g9e3c66039g0tpn16c2ovfvu7ts9pbv0.apps.googleusercontent.com',
@@ -176,7 +179,7 @@ const oauthPlaceholderIds = OAuthIds(
   googleWebClientId:
       '1004491055558-o1h2t0ncb5dsdna7l0hb1ci2rhk6aqnd.apps.googleusercontent.com',
   appleServiceId:
-      '', // TODO(you): e.g. com.habitquest.signin (only for Android/web)
+      '', // TODO(you): e.g. ro.csm.perseveo.signin (only for Android/web)
   appleRedirectUri:
       '', // TODO(you): Services ID return URL (only for Android/web)
 );

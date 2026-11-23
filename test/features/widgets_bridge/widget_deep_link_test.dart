@@ -78,7 +78,7 @@ void main() {
     expect(find.byType(QuotesScreen), findsOneWidget);
     expect(router.state.uri.path, AppRoutes.habitsQuotes);
 
-    // Header / "Open HabitQuest" link from Quotes: back to Habits.
+    // Header / "Open Perseveo" link from Quotes: back to Habits.
     await openPlatformLink(tester, WidgetConstants.openUri);
     expect(find.byType(QuotesScreen), findsNothing);
     expect(router.state.uri.path, AppRoutes.habits);

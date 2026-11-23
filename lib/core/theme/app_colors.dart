@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Brand colours for Habit Quest's playful look.
+/// Brand colours for Perseveo's playful look.
 abstract final class AppColors {
   static const grape = Color(0xFF7C4DFF); // primary
   static const sunshine = Color(0xFFFFC93C); // secondary / XP gold

@@ -1,4 +1,4 @@
-# Habit Quest 🌱⚔️
+# Perseveo 🌱⚔️
 
 A playful, gamified habit tracker for **iOS, Android and web**. Build habits,
 keep streaks alive, earn XP, level up and unlock achievements. It is
@@ -353,7 +353,7 @@ and `lib/features/settings/`.
 
 ## Advertising (AdMob)
 
-Habit Quest shows small Google AdMob banners on iOS and Android
+Perseveo shows small Google AdMob banners on iOS and Android
 (`google_mobile_ads`). **Web has no ads**, and neither do tests.
 
 ### Where ads appear
@@ -411,9 +411,13 @@ flutter run --dart-define=ADS_ENABLED=false   # no ads at all
 
 ### Real ads: status and remaining steps
 
-Done: the AdMob apps (iOS and Android, `com.vvs.habitquest`) and their two
-**Banner** units (*Habits list*, *Habit details*) exist, and their IDs are
-wired in as above. Still to do:
+Done: the AdMob apps (iOS and Android) and their two **Banner** units
+(*Habits list*, *Habit details*) exist, and their IDs are wired in as above.
+**Rename caveat:** those apps were registered for the old package
+`com.vvs.habitquest`. After the rename to `ro.csm.perseveo` (Perseveo), add
+new AdMob apps for `ro.csm.perseveo` (iOS and Android) and replace the app
+and unit IDs in `lib/core/config/env.dart`, `ios/Runner/Info.plist` and
+`android/app/src/main/AndroidManifest.xml`. Still to do:
 
 1. In AdMob, *Privacy & messaging*: create and publish the **GDPR**
    (European regulations) message for both apps, the **US state
@@ -539,7 +543,9 @@ that branch. GitHub Pages rebuilds in a minute or so.
 
 **Auth settings on the live project:** `site_url` is the success page, and the
 redirect allow-list holds both page URLs, the `auth-confirm` URL and
-`habitquest://auth-callback`.
+`habitquest://auth-callback` (the old scheme). After the rename,
+`perseveo://auth-callback` must be **added** to the live list (dashboard:
+Authentication > URL Configuration); `config.toml` already lists both.
 
 **Config push caveat.** `supabase config push` pushes the **whole**
 `config.toml` (API, DB, storage, all auth settings) and does **not** stop when
@@ -652,7 +658,7 @@ Edge Functions (contract in [supabase/API.md](supabase/API.md#quotes)).
 
 The Dart widget bridge (`lib/features/widgets_bridge/`, package
 `home_widget`) writes a snapshot of today's due habits and today's quote
-to shared storage (App Group `group.com.vvs.habitquest` on iOS,
+to shared storage (App Group `group.ro.csm.perseveo` on iOS,
 `HomeWidgetPreferences` on Android), refreshes the widgets, and applies
 check-offs made on a widget through `HabitService`, so XP, streaks and sync
 stay correct. Widget check-offs are queued by home_widget's background
@@ -663,13 +669,13 @@ it is running. It does nothing on web. The contract for the native widgets
 
 ### Android widgets
 
-Two widgets live in `android/app/src/main/kotlin/com/vvs/habitquest/widgets/`.
+Two widgets live in `android/app/src/main/kotlin/ro/csm/perseveo/widgets/`.
 Both read only the `hq_widget_snapshot` JSON from `HomeWidgetPreferences`:
 
 | Widget | Receiver | Content | Taps |
 |---|---|---|---|
-| **Today's habits** | `TodayHabitsWidgetReceiver` | Header ("Today's habits", done/total), then a scrollable list of today's due habits: emoji, name and a checkbox in the habit's colour (done rows are struck through) | Header → `habitquest://open`. Row/checkbox → check-off in the background, the app does not open |
-| **Daily quote** | `DailyQuoteWidgetReceiver` | "Quote of the day", the quote and its attribution, **signed in or not** | Anywhere → `habitquest://quotes` (signed out: the public quote screen) |
+| **Today's habits** | `TodayHabitsWidgetReceiver` | Header ("Today's habits", done/total), then a scrollable list of today's due habits: emoji, name and a checkbox in the habit's colour (done rows are struck through) | Header → `perseveo://open`. Row/checkbox → check-off in the background, the app does not open |
+| **Daily quote** | `DailyQuoteWidgetReceiver` | "Quote of the day", the quote and its attribution, **signed in or not** | Anywhere → `perseveo://quotes` (signed out: the public quote screen) |
 
 - **Why Jetpack Glance, not RemoteViews.** `home_widget` 0.10 already
   depends on `androidx.glance:glance-appwidget:1.2.0` (as an `api`
@@ -692,9 +698,9 @@ Both read only the `hq_widget_snapshot` JSON from `HomeWidgetPreferences`:
   start can take a second or two while the background Flutter engine starts.
   The whole row is the touch target, which is bigger than the 24 dp box.
 - **States.** `signedOut`, a missing snapshot or an unknown state shows
-  "Sign in to see today's habits" and **Open HabitQuest**. `noHabits` shows
-  "No habits today" and **Open HabitQuest**. Both open `habitquest://open`.
-  If there is no quote, the quote widget shows **Open HabitQuest**. If the
+  "Sign in to see today's habits" and **Open Perseveo**. `noHabits` shows
+  "No habits today" and **Open Perseveo**. Both open `perseveo://open`.
+  If there is no quote, the quote widget shows **Open Perseveo**. If the
   snapshot's `date` is before today, every habit is shown as not done.
 - **Refresh.** The app pushes (`HomeWidget.updateWidget` with the receiver
   names in `widget_constants.dart`). At local midnight, every `onUpdate`
@@ -715,7 +721,7 @@ Both read only the `hq_widget_snapshot` JSON from `HomeWidgetPreferences`:
   registers generated previews (`providePreview`, sample data only).
 
 To try them, run `flutter run` on a device or emulator. Long-press the home
-screen, open **Widgets**, then **Habit Quest**, and drag *Today's habits* or
+screen, open **Widgets**, then **Perseveo**, and drag *Today's habits* or
 *Daily quote* onto it. Sign in and add a habit to fill the list.
 
 **Verification status (2026-10-18).** `flutter build apk --debug` succeeds.
@@ -742,15 +748,15 @@ screenshotted either. Re-check both on a real phone or a faster emulator.
 
 The WidgetKit extension is the `HabitQuestWidgets` target in
 `ios/Runner.xcodeproj` (sources in `ios/HabitQuestWidgets/`, bundle id
-`com.vvs.habitquest.widgets`, deployment target iOS 15.0 like the app). It is
-embedded in Runner and shares the App Group `group.com.vvs.habitquest`
+`ro.csm.perseveo.widgets`, deployment target iOS 15.0 like the app). It is
+embedded in Runner and shares the App Group `group.ro.csm.perseveo`
 (`HabitQuestWidgets.entitlements` and `Runner/Runner.entitlements`). It only
 reads `hq_widget_snapshot`; it never writes to the group.
 
 | Widget (`kind`) | Sizes | Shows | Tap |
 |---|---|---|---|
-| Today's habits (`TodayHabitsWidget`) | small, medium, large | today's due habits (emoji, name, check button), done/total; "+N more" when they do not fit | check button: check-off (see below); elsewhere: `habitquest://open` |
-| Daily quote (`DailyQuoteWidget`) | small, medium; Lock Screen rectangular and inline (iOS 16+) | today's quote and attribution | `habitquest://quotes` |
+| Today's habits (`TodayHabitsWidget`) | small, medium, large | today's due habits (emoji, name, check button), done/total; "+N more" when they do not fit | check button: check-off (see below); elsewhere: `perseveo://open` |
+| Daily quote (`DailyQuoteWidget`) | small, medium; Lock Screen rectangular and inline (iOS 16+) | today's quote and attribution | `perseveo://quotes` |
 
 - **Check-off, iOS 17+:** the button runs `HabitToggleIntent`
   (`ios/Runner/HabitToggleIntent.swift`, a member of both Runner and the
@@ -760,11 +766,11 @@ reads `hq_widget_snapshot`; it never writes to the group.
   app. `AppDelegate` registers the plugins for that headless engine
   (`HomeWidgetBackgroundWorker.setPluginRegistrantCallback`).
 - **Check-off, iOS 15–16:** the button is a `Link` to
-  `habitquest://widget/toggle?habitId=…`, which opens the app and toggles the
+  `perseveo://widget/toggle?habitId=…`, which opens the app and toggles the
   habit there. Small widgets allow only one tap target below iOS 17, so a tap
   there opens the app.
 - **States:** `signedOut` (or no snapshot yet) and `noHabits` show an
-  "Open HabitQuest" prompt that opens the app; the quote widget shows the same
+  "Open Perseveo" prompt that opens the app; the quote widget shows the same
   prompt while there is no quote.
 - **Refresh:** each timeline has an entry now and one at the next local
   midnight (a snapshot from an earlier day is shown with every habit not
@@ -778,20 +784,20 @@ reads `hq_widget_snapshot`; it never writes to the group.
   the Pods and Flutter settings, so its version matches the app's.
 
 To try them: run the app on an iOS 17+ simulator, sign in, go to the Home
-Screen, long-press → Edit → Add Widget → Habit Quest, and add both widgets.
+Screen, long-press → Edit → Add Widget → Perseveo, and add both widgets.
 
 **Apple Developer portal (for a device or TestFlight build; the simulator
 needs none of this):**
 
-1. Identifiers → App Groups: register `group.com.vvs.habitquest` (if it is
+1. Identifiers → App Groups: register `group.ro.csm.perseveo` (if it is
    not there yet).
-2. Identifiers → App IDs: enable App Groups on `com.vvs.habitquest` and
+2. Identifiers → App IDs: enable App Groups on `ro.csm.perseveo` and
    assign the group (the App ID already has Sign in with Apple).
-3. Register a new App ID `com.vvs.habitquest.widgets` with the App Groups
+3. Register a new App ID `ro.csm.perseveo.widgets` with the App Groups
    capability and the same group.
 4. Provisioning: with automatic signing (team `9QMS59N2BZ`) Xcode creates the
    profiles once both App IDs exist. With manual signing, create a
-   development and an App Store profile for `com.vvs.habitquest.widgets` too,
+   development and an App Store profile for `ro.csm.perseveo.widgets` too,
    and regenerate the app's profiles after adding the App Group.
 
 ## Admin web console
@@ -890,15 +896,15 @@ In the [Google Cloud console](https://console.cloud.google.com/) (one
 project for the app):
 
 1. **APIs & Services → OAuth consent screen** (Google Auth Platform →
-   Branding / Audience): app name "Habit Quest", support email, logo,
+   Branding / Audience): app name "Perseveo", support email, logo,
    authorized domain `supabase.co` (plus your web domain), the scopes
    `openid`, `email`, `profile`. Publish it (or add test users while in
    Testing).
 2. **Credentials → Create credentials → OAuth client ID**, three times:
-   - **iOS**: bundle ID `com.vvs.habitquest`. Gives the *iOS client
+   - **iOS**: bundle ID `ro.csm.perseveo`. Gives the *iOS client
      ID* (`1234-abcd.apps.googleusercontent.com`) and its reversed form
      `com.googleusercontent.apps.1234-abcd` (shown as "iOS URL scheme").
-   - **Android**: package name `com.vvs.habitquest` and the
+   - **Android**: package name `ro.csm.perseveo` and the
      **SHA-1** of the signing certificate. Get it with
      `cd android && ./gradlew signingReport` (the `debug` variant for
      development) or
@@ -927,17 +933,17 @@ Needs a **paid Apple Developer Program** membership (team `9QMS59N2BZ` is
 set in the Xcode project).
 
 1. **Certificates, Identifiers & Profiles → Identifiers → App IDs**:
-   `com.vvs.habitquest`, enable the **Sign in with Apple**
+   `ro.csm.perseveo`, enable the **Sign in with Apple**
    capability. The app already ships `ios/Runner/Runner.entitlements`
    (`com.apple.developer.applesignin = Default`, wired via
    `CODE_SIGN_ENTITLEMENTS`); Xcode's automatic signing then picks a profile
    with the capability.
 2. Only for Android / web (Apple's web flow): **Identifiers → Services
-   IDs**, e.g. `com.habitquest.signin`; enable Sign in with Apple, primary
-   App ID `com.vvs.habitquest`, domain = your web domain, and a
+   IDs**, e.g. `ro.csm.perseveo.signin`; enable Sign in with Apple, primary
+   App ID `ro.csm.perseveo`, domain = your web domain, and a
    **Return URL**. On web the return URL is your site (the JS popup posts back
    to it). On Android it must be an HTTPS endpoint that redirects to
-   `intent://callback?<the posted params>#Intent;package=com.vvs.habitquest;scheme=signinwithapple;end`
+   `intent://callback?<the posted params>#Intent;package=ro.csm.perseveo;scheme=signinwithapple;end`
    (see the `sign_in_with_apple` package docs; the Android callback activity
    is already in `AndroidManifest.xml`). Without it, leave the Apple button
    hidden on Android.
@@ -953,8 +959,8 @@ set in the Xcode project).
   ID** and the **web client ID** (comma separated; plus any Android client
   IDs if you ever make tokens for them). Leave "Skip nonce check" off.
 - **Apple**: enable; *Client IDs* = the bundle ID
-  `com.vvs.habitquest` (native iOS tokens) and, if used, the Services
-  ID `com.habitquest.signin` (web flow tokens), comma separated; *Secret
+  `ro.csm.perseveo` (native iOS tokens) and, if used, the Services
+  ID `ro.csm.perseveo.signin` (web flow tokens), comma separated; *Secret
   Key* = the client secret generated from the Team ID, Key ID and `.p8`
   (the dashboard has a generator).
 
@@ -985,7 +991,7 @@ flutter run \
 
 ## Sync
 
-Habit Quest is **offline-first**: hive_ce on the device is the source of
+Perseveo is **offline-first**: hive_ce on the device is the source of
 truth, the UI only ever reads and writes hive, and it never waits for the
 network. When signed in and online, changes are exchanged with the Supabase
 Edge Functions in the background.
@@ -1311,7 +1317,7 @@ branch and run it: it sets a new build number and publishes again.
 | **Set version** | ubuntu-latest | Runs [`.github/scripts/bump_version.sh`](.github/scripts/bump_version.sh): reads `X.Y.Z` from the branch name and rewrites `version:` in `pubspec.yaml` to `X.Y.Z+BUILD`, where `BUILD = max(current build + 1, github.run_number)`, so it always goes up. Commits `chore(release): set version to X.Y.Z+BUILD` as `github-actions[bot]` on the release branch and pushes it. The push uses `GITHUB_TOKEN`, which never triggers workflows, and the job also skips bot and version commits, so it doesn't loop. |
 | **Open PR into main** | ubuntu-latest | `gh pr create` from the release branch into `main`, unless a PR for that branch is already open. |
 | **Analyze and test** | ubuntu-latest | `flutter pub get`, `flutter analyze`, `flutter test`. Both builds wait for this job and don't run if it fails. |
-| **Android → Play alpha** | ubuntu-latest | Java 17, Flutter 3.38.10. Writes the upload keystore and `android/key.properties` from secrets, then runs `flutter build appbundle --release` with `ANDROID_REQUIRE_RELEASE_SIGNING=true` (no debug-key fallback in CI). Checks that the bundle is not debug-signed, keeps it as a run artifact, and uploads it with `r0adkll/upload-google-play` to the **alpha** (closed testing) track of `com.vvs.habitquest`. |
+| **Android → Play alpha** | ubuntu-latest | Java 17, Flutter 3.38.10. Writes the upload keystore and `android/key.properties` from secrets, then runs `flutter build appbundle --release` with `ANDROID_REQUIRE_RELEASE_SIGNING=true` (no debug-key fallback in CI). Checks that the bundle is not debug-signed, keeps it as a run artifact, and uploads it with `r0adkll/upload-google-play` to the **alpha** (closed testing) track of `ro.csm.perseveo`. |
 | **iOS → TestFlight** | macos-26, Xcode 26.6 | Imports the distribution `.p12` into a temporary keychain. Installs the two App Store profiles, after checking each one's bundle ID, that it's an App Store profile, and its entitlements (app: Sign in with Apple + App Group; widget: App Group). Switches the `Runner` and `HabitQuestWidgets` Release configurations to manual signing with [`ios/scripts/ci_manual_signing.sh`](ios/scripts/ci_manual_signing.sh) (on the CI checkout only, never committed), fills the profile names into [`ios/ExportOptions.plist`](ios/ExportOptions.plist), and runs `flutter build ipa --release`. Uploads the IPA to TestFlight with `xcrun altool` and the App Store Connect API key. The keychain, profiles and key are always deleted at the end. |
 
 Both platforms get the same version: `X.Y.Z` becomes Android `versionName` and
@@ -1359,11 +1365,11 @@ Never commit any of these files.
 | `ANDROID_KEYSTORE_PASSWORD` | The keystore (store) password | The one you chose in `keytool`. `gh secret set ANDROID_KEYSTORE_PASSWORD` |
 | `ANDROID_KEY_ALIAS` | Alias of the key in the keystore | `upload` in the command above. `keytool -list -keystore upload-keystore.jks` shows it |
 | `ANDROID_KEY_PASSWORD` | The key password | Same as the store password unless you set a different one |
-| `PLAY_SERVICE_ACCOUNT_JSON` | JSON key of a Google Cloud service account with release access in Play Console, as **plain JSON (not base64)** | 1. Google Cloud Console → IAM & Admin → Service accounts: create one (any project) and add a JSON key. 2. Enable the *Google Play Android Developer API* in that project. 3. Play Console → *Users and permissions* → invite the service account's email, with access to Habit Quest and at least *Release to testing tracks* (plus *View app information*). 4. `gh secret set PLAY_SERVICE_ACCOUNT_JSON < service-account.json` |
+| `PLAY_SERVICE_ACCOUNT_JSON` | JSON key of a Google Cloud service account with release access in Play Console, as **plain JSON (not base64)** | 1. Google Cloud Console → IAM & Admin → Service accounts: create one (any project) and add a JSON key. 2. Enable the *Google Play Android Developer API* in that project. 3. Play Console → *Users and permissions* → invite the service account's email, with access to Perseveo and at least *Release to testing tracks* (plus *View app information*). 4. `gh secret set PLAY_SERVICE_ACCOUNT_JSON < service-account.json` |
 | `IOS_DIST_CERT_P12_BASE64` | The **Apple Distribution** certificate plus private key of team `9QMS59N2BZ`, exported as `.p12`, base64 | Keychain Access → *My Certificates* → right-click "Apple Distribution: …" → Export → `.p12` with a password. (No certificate yet: Xcode → Settings → Accounts → Manage Certificates → + → Apple Distribution.) Then `base64 -i dist.p12 \| gh secret set IOS_DIST_CERT_P12_BASE64` |
 | `IOS_DIST_CERT_PASSWORD` | The password you set when exporting the `.p12` | `gh secret set IOS_DIST_CERT_PASSWORD` |
-| `IOS_PROVISIONING_PROFILE_BASE64` | **App Store** provisioning profile for the app, `com.vvs.habitquest`, with that certificate, base64 | developer.apple.com → Certificates, IDs & Profiles → Profiles → + → *App Store Connect* → App ID `com.vvs.habitquest` → the distribution certificate → name it (e.g. *Habit Quest App Store*). The App ID must have **Sign in with Apple** and **App Groups** (`group.com.vvs.habitquest`) enabled *before* you create the profile. `base64 -i Habit_Quest_App_Store.mobileprovision \| gh secret set IOS_PROVISIONING_PROFILE_BASE64` |
-| `IOS_WIDGETS_PROVISIONING_PROFILE_BASE64` | **App Store** provisioning profile for the WidgetKit extension, `com.vvs.habitquest.widgets`, base64 | Same steps with App ID `com.vvs.habitquest.widgets` (it needs **App Groups** with `group.com.vvs.habitquest`). `base64 -i Habit_Quest_Widgets_App_Store.mobileprovision \| gh secret set IOS_WIDGETS_PROVISIONING_PROFILE_BASE64` |
+| `IOS_PROVISIONING_PROFILE_BASE64` | **App Store** provisioning profile for the app, `ro.csm.perseveo`, with that certificate, base64 | developer.apple.com → Certificates, IDs & Profiles → Profiles → + → *App Store Connect* → App ID `ro.csm.perseveo` → the distribution certificate → name it (e.g. *Perseveo App Store*). The App ID must have **Sign in with Apple** and **App Groups** (`group.ro.csm.perseveo`) enabled *before* you create the profile. `base64 -i Habit_Quest_App_Store.mobileprovision \| gh secret set IOS_PROVISIONING_PROFILE_BASE64` |
+| `IOS_WIDGETS_PROVISIONING_PROFILE_BASE64` | **App Store** provisioning profile for the WidgetKit extension, `ro.csm.perseveo.widgets`, base64 | Same steps with App ID `ro.csm.perseveo.widgets` (it needs **App Groups** with `group.ro.csm.perseveo`). `base64 -i Habit_Quest_Widgets_App_Store.mobileprovision \| gh secret set IOS_WIDGETS_PROVISIONING_PROFILE_BASE64` |
 | `ASC_KEY_ID` | App Store Connect API key ID (10 characters) | App Store Connect → *Users and Access* → *Integrations* → *App Store Connect API* → *Team Keys* → generate a key with the **App Manager** (or Admin) role. Copy its Key ID |
 | `ASC_ISSUER_ID` | The Issuer ID (a UUID) shown at the top of that page | Copy it from the page |
 | `ASC_PRIVATE_KEY_P8_BASE64` | The downloaded `AuthKey_<KEYID>.p8`, base64. Apple lets you download it **only once** | `base64 -i AuthKey_ABC123DEFG.p8 \| gh secret set ASC_PRIVATE_KEY_P8_BASE64` |
@@ -1393,7 +1399,7 @@ Optional repository **variable** (*Variables* tab, not a secret):
 
 **Google Play**
 
-1. Create the app in Play Console with package name `com.vvs.habitquest`,
+1. Create the app in Play Console with package name `ro.csm.perseveo`,
    and finish the required *App content* forms (privacy policy, ads: yes, data
    safety, content rating, target audience).
 2. Keep **Play App Signing** enabled (the default for new apps), with the
@@ -1409,7 +1415,7 @@ Optional repository **variable** (*Variables* tab, not a secret):
 4. In the alpha track, add testers (an email list or Google Group).
 5. Add the service account to Play Console (see `PLAY_SERVICE_ACCOUNT_JSON`).
 6. **Google sign-in**: in Google Cloud → *Credentials*, add Android OAuth
-   clients (package `com.vvs.habitquest`) for the **SHA-1 of the upload key**
+   clients (package `ro.csm.perseveo`) for the **SHA-1 of the upload key**
    (`keytool -list -v -keystore upload-keystore.jks -alias upload`) **and the
    SHA-1 of the Play app signing key** (Play Console → *Test and release →
    App integrity → App signing*). Builds installed from Play are signed with
@@ -1418,14 +1424,14 @@ Optional repository **variable** (*Variables* tab, not a secret):
 
 **Apple**
 
-1. In developer.apple.com, make sure the App IDs `com.vvs.habitquest` (Sign
-   in with Apple + App Groups) and `com.vvs.habitquest.widgets` (App Groups),
-   and the App Group `group.com.vvs.habitquest`, exist. Xcode's automatic
+1. In developer.apple.com, make sure the App IDs `ro.csm.perseveo` (Sign
+   in with Apple + App Groups) and `ro.csm.perseveo.widgets` (App Groups),
+   and the App Group `group.ro.csm.perseveo`, exist. Xcode's automatic
    signing usually created them already.
 2. Create an Apple Distribution certificate if the team has none, and the two
    App Store profiles (see the secrets table).
 3. Create the app in App Store Connect (*Apps → + → New App*, bundle ID
-   `com.vvs.habitquest`, SKU of your choice). TestFlight uploads fail until
+   `ro.csm.perseveo`, SKU of your choice). TestFlight uploads fail until
    the app record exists.
 4. Create the App Store Connect API key (see `ASC_*` above).
 5. In TestFlight, add internal testers. Each build also needs the export

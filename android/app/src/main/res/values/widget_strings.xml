@@ -15,5 +15,5 @@
     <string name="widget_quote_title">Quote of the day</string>
     <string name="widget_quote_empty">Today\'s quote appears here.</string>
     <!-- Shared -->
-    <string name="widget_open_app">Open HabitQuest</string>
+    <string name="widget_open_app">Open Perseveo</string>
 </resources>

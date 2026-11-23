@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex">
   <meta name="theme-color" content="#7c4dff">
-  <title>Link problem · Habit Quest</title>
+  <title>Link problem · Perseveo</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito:wght@400;700&display=swap" rel="stylesheet">
@@ -16,9 +16,9 @@
     <div class="mascot" id="mascot" aria-hidden="true">🦉</div>
     <h1 id="title">Hmm, that link didn't work</h1>
     <p id="message">This confirmation link isn't valid. It may have been used already or copied incompletely.</p>
-    <a class="pill" id="open-app" href="habitquest://auth-callback?status=error&amp;reason=invalid">📱 Open Habit Quest</a>
-    <p class="fallback">Button not working, or on a computer? <strong>Go back to Habit Quest and log in</strong>, or sign up again for a new confirmation link.</p>
-    <div class="brand">Habit Quest</div>
+    <a class="pill" id="open-app" href="perseveo://auth-callback?status=error&amp;reason=invalid">📱 Open Perseveo</a>
+    <p class="fallback">Button not working, or on a computer? <strong>Go back to Perseveo and log in</strong>, or sign up again for a new confirmation link.</p>
+    <div class="brand">Perseveo</div>
   </main>
   <script>
     (function () {
@@ -45,10 +45,10 @@
       document.getElementById("mascot").textContent = m.mascot;
       document.getElementById("title").textContent = m.title;
       document.getElementById("message").textContent = m.message;
-      // Pass the error to the app (habitquest:// deep link); without the
+      // Pass the error to the app (perseveo:// deep link); without the
       // app nothing happens and the text above remains.
       var link = document.getElementById("open-app");
-      link.href = "habitquest://auth-callback?status=error&reason=" + encodeURIComponent(reason);
+      link.href = "perseveo://auth-callback?status=error&reason=" + encodeURIComponent(reason);
       window.location.href = link.href;
     })();
   </script>

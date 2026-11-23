@@ -25,12 +25,12 @@ Following docs/WIDGETS.md: the snapshot was made stale with `run-as` (`date` and
 WidgetRefreshWorker jobs were forced:
 
 ```
-$ adb shell cmd jobscheduler run -f com.vvs.habitquest 3
-Could not find job 3 in package com.vvs.habitquest / user 0     # jobs are namespaced
-$ adb shell cmd jobscheduler run -f -n androidx.work.systemjobscheduler com.vvs.habitquest 3
+$ adb shell cmd jobscheduler run -f ro.csm.perseveo 3
+Could not find job 3 in package ro.csm.perseveo / user 0     # jobs are namespaced
+$ adb shell cmd jobscheduler run -f -n androidx.work.systemjobscheduler ro.csm.perseveo 3
 WM-WorkerWrapper: Status for 3fd44370-… is ENQUEUED; not doing any work and rescheduling for later execution
-$ adb shell cmd jobscheduler run -f -n androidx.work.systemjobscheduler com.vvs.habitquest 5
-WM-WorkerWrapper: Delaying execution for com.vvs.habitquest.widgets.WidgetRefreshWorker because it is being executed before schedule.
+$ adb shell cmd jobscheduler run -f -n androidx.work.systemjobscheduler ro.csm.perseveo 5
+WM-WorkerWrapper: Delaying execution for ro.csm.perseveo.widgets.WidgetRefreshWorker because it is being executed before schedule.
 ```
 
 WorkManager refuses a JobScheduler run before the work's own schedule, so a forced

@@ -161,7 +161,7 @@ void main() {
         'color': 0xFF4CC9F0,
         'colorHex': '#4CC9F0',
         'done': true,
-        'toggleUri': 'habitquest://widget/toggle?habitId=h+1',
+        'toggleUri': 'perseveo://widget/toggle?habitId=h+1',
       },
     ]);
     expect(json['quote'], {

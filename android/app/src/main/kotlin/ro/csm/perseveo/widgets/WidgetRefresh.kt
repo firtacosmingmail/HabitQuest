@@ -1,4 +1,4 @@
-package com.vvs.habitquest.widgets
+package ro.csm.perseveo.widgets
 
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
@@ -34,7 +34,7 @@ import java.util.concurrent.TimeUnit
  * when signed in; with no `Authorization` header at all when signed out, so
  * the Daily quote widget rolls over without a session too). So this schedules
  * WorkManager work that wakes the Dart side
- * through home_widget's background callback with `habitquest://widget/refresh`;
+ * through home_widget's background callback with `perseveo://widget/refresh`;
  * Dart (`widget_background_refresh.dart`) reuses the app's auth + quotes code,
  * rewrites the snapshot and refreshes both widgets. No HTTP or auth in Kotlin.
  *
@@ -57,7 +57,7 @@ object WidgetRefresh {
     private const val BACKOFF_MINUTES = 15L
 
     /** Must match `WidgetConstants.refreshUri` in Dart. */
-    const val REFRESH_URI = "habitquest://widget/refresh"
+    const val REFRESH_URI = "perseveo://widget/refresh"
 
     /** Written by Dart when a refresh finished (`{"id": ..., "outcome": ...}`). */
     const val STATUS_KEY = "hq_widget_refresh_status"

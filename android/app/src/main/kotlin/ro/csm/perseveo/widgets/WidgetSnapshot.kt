@@ -1,4 +1,4 @@
-package com.vvs.habitquest.widgets
+package ro.csm.perseveo.widgets
 
 import android.content.SharedPreferences
 import org.json.JSONArray
@@ -24,9 +24,9 @@ object WidgetContract {
     const val STATE_SIGNED_OUT = "signedOut"
     const val STATE_NO_HABITS = "noHabits"
 
-    const val OPEN_URI = "habitquest://open"
-    const val QUOTES_URI = "habitquest://quotes"
-    const val TOGGLE_URI_PREFIX = "habitquest://widget/toggle?habitId="
+    const val OPEN_URI = "perseveo://open"
+    const val QUOTES_URI = "perseveo://quotes"
+    const val TOGGLE_URI_PREFIX = "perseveo://widget/toggle?habitId="
 
     /** home_widget's `HomeWidgetBackgroundIntent` action (runs the Dart interactive callback). */
     const val BACKGROUND_ACTION = "es.antonborri.home_widget.action.BACKGROUND"

@@ -7,7 +7,7 @@
          user has not granted it (Android 14+ denies it by default). -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
     <application
-        android:label="Habit Quest"
+        android:label="Perseveo"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
@@ -31,22 +31,22 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-            <!-- Email confirmation deep link: habitquest://auth-callback?status=... -->
+            <!-- Email confirmation deep link: perseveo://auth-callback?status=... -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
-                <data android:scheme="habitquest" android:host="auth-callback"/>
+                <data android:scheme="perseveo" android:host="auth-callback"/>
             </intent-filter>
-            <!-- Home-screen widget links (docs/WIDGETS.md): habitquest://open,
-                 habitquest://quotes, habitquest://widget/toggle?habitId=... -->
+            <!-- Home-screen widget links (docs/WIDGETS.md): perseveo://open,
+                 perseveo://quotes, perseveo://widget/toggle?habitId=... -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
-                <data android:scheme="habitquest" android:host="open"/>
-                <data android:scheme="habitquest" android:host="quotes"/>
-                <data android:scheme="habitquest" android:host="widget"/>
+                <data android:scheme="perseveo" android:host="open"/>
+                <data android:scheme="perseveo" android:host="quotes"/>
+                <data android:scheme="perseveo" android:host="widget"/>
             </intent-filter>
             <meta-data
               android:name="flutter_deeplinking_enabled"
@@ -73,7 +73,7 @@
                 <action android:name="es.antonborri.home_widget.action.BACKGROUND"/>
             </intent-filter>
         </receiver>
-        <!-- Home-screen widgets (Jetpack Glance, com.vvs.habitquest.widgets).
+        <!-- Home-screen widgets (Jetpack Glance, ro.csm.perseveo.widgets).
              The class names are the ones in widget_constants.dart. -->
         <receiver
             android:name=".widgets.TodayHabitsWidgetReceiver"
@@ -109,7 +109,7 @@
                 <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED"/>
             </intent-filter>
         </receiver>
-        <!-- Google AdMob app ID: Habit Quest's real Android app ID, used for
+        <!-- Google AdMob app ID: Perseveo's real Android app ID, used for
              every build (debug builds still get test ads via the dev test
              unit IDs). Keep in sync with admobAndroidAppId in
              lib/core/config/env.dart (see README "Advertising (AdMob)"). -->

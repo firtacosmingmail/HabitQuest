@@ -215,7 +215,7 @@ jobs:
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
-          packageName: com.vvs.habitquest
+          packageName: ro.csm.perseveo
           releaseFiles: build/app/outputs/bundle/release/app-release.aab
           track: alpha
           releaseName: ${{ needs.version.outputs.version }}
@@ -236,8 +236,8 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 90
     env:
-      APP_BUNDLE_ID: com.vvs.habitquest
-      WIDGETS_BUNDLE_ID: com.vvs.habitquest.widgets
+      APP_BUNDLE_ID: ro.csm.perseveo
+      WIDGETS_BUNDLE_ID: ro.csm.perseveo.widgets
     steps:
       - name: Check out the versioned commit
         uses: actions/checkout@v4

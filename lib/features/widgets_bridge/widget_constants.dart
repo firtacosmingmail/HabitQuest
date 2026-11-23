@@ -11,7 +11,7 @@ abstract final class WidgetConstants {
   /// iOS App Group shared by Runner and the widget extension. On Android
   /// home_widget stores everything in the `HomeWidgetPreferences`
   /// SharedPreferences file instead (no group needed).
-  static const appGroupId = 'group.com.vvs.habitquest';
+  static const appGroupId = 'group.ro.csm.perseveo';
 
   /// Android SharedPreferences file home_widget writes to (read it with
   /// `HomeWidgetPlugin.getData(context)` or this name).
@@ -33,10 +33,10 @@ abstract final class WidgetConstants {
   /// Signed in, at least one habit due today.
   static const stateOk = 'ok';
 
-  /// Signed out: show an "Open HabitQuest" prompt.
+  /// Signed out: show an "Open Perseveo" prompt.
   static const stateSignedOut = 'signedOut';
 
-  /// Signed in but nothing is due today: show an "Open HabitQuest" prompt.
+  /// Signed in but nothing is due today: show an "Open Perseveo" prompt.
   static const stateNoHabits = 'noHabits';
 
   // Android ------------------------------------------------------------------
@@ -44,9 +44,9 @@ abstract final class WidgetConstants {
   /// Fully qualified class names of the Android `AppWidgetProvider`s (e.g.
   /// Glance `GlanceAppWidgetReceiver` subclasses) the app refreshes.
   static const androidTodayHabitsProvider =
-      'com.vvs.habitquest.widgets.TodayHabitsWidgetReceiver';
+      'ro.csm.perseveo.widgets.TodayHabitsWidgetReceiver';
   static const androidDailyQuoteProvider =
-      'com.vvs.habitquest.widgets.DailyQuoteWidgetReceiver';
+      'ro.csm.perseveo.widgets.DailyQuoteWidgetReceiver';
 
   static const androidProviders = [
     androidTodayHabitsProvider,
@@ -63,7 +63,7 @@ abstract final class WidgetConstants {
 
   // URIs -----------------------------------------------------------------------
 
-  static const urlScheme = 'habitquest';
+  static const urlScheme = 'perseveo';
 
   /// Host of every widget interaction URI.
   static const widgetHost = 'widget';
@@ -76,13 +76,13 @@ abstract final class WidgetConstants {
 
   /// Interactive check-off (background callback; also accepted when it
   /// opens the app). Append the habit id (URI-encoded).
-  static const toggleUriPrefix = 'habitquest://widget/toggle?habitId=';
+  static const toggleUriPrefix = 'perseveo://widget/toggle?habitId=';
 
   /// Opens the Quotes screen.
-  static const quotesUri = 'habitquest://quotes';
+  static const quotesUri = 'perseveo://quotes';
 
   /// Opens the app on the Habits tab.
-  static const openUri = 'habitquest://open';
+  static const openUri = 'perseveo://open';
 
   /// Host of [quotesUri].
   static const quotesHost = 'quotes';
@@ -98,7 +98,7 @@ abstract final class WidgetConstants {
 
   /// `IsolateNameServer` port the app registers so a background check-off
   /// can ask the running app to apply the queue at once.
-  static const appPortName = 'habitquest.widget_bridge';
+  static const appPortName = 'perseveo.widget_bridge';
 
   /// Message (first element of a `[refreshSignal, SendPort]` list) the
   /// background refresh sends on [appPortName]: "the app is alive, refresh
@@ -114,7 +114,7 @@ abstract final class WidgetConstants {
   /// app.
   static const refreshPath = '/refresh';
 
-  static const refreshUri = 'habitquest://widget/refresh';
+  static const refreshUri = 'perseveo://widget/refresh';
 
   /// Query parameter of [refreshUri]: the worker's request id, echoed in
   /// [refreshStatusKey] so the worker knows the outcome (and can retry).

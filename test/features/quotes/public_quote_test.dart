@@ -59,7 +59,7 @@ void main() {
       );
       // The widget URI maps to /habits/quotes first.
       expect(
-        widgetDeepLinkLocation(Uri.parse('habitquest://quotes')),
+        widgetDeepLinkLocation(Uri.parse('perseveo://quotes')),
         '/habits/quotes',
       );
     });

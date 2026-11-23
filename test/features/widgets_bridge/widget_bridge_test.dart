@@ -113,7 +113,7 @@ void main() {
     expect(stored().habits.last.done, isTrue);
   });
 
-  test('signed out: "Open HabitQuest" for habits, but the quote of the day',
+  test('signed out: "Open Perseveo" for habits, but the quote of the day',
       () async {
     final c = container(signedIn: false);
     await started(c);
@@ -194,7 +194,7 @@ void main() {
   group('widget links', () {
     test('toggleHabitId reads only check-off URIs', () {
       expect(toggleHabitId(Uri.parse(WidgetConstants.toggleUri('a b'))), 'a b');
-      expect(toggleHabitId(Uri.parse('habitquest://widget/toggle')), isNull);
+      expect(toggleHabitId(Uri.parse('perseveo://widget/toggle')), isNull);
       expect(toggleHabitId(Uri.parse(WidgetConstants.quotesUri)), isNull);
       expect(toggleHabitId(Uri.parse('https://x.y/widget/toggle?habitId=a')),
           isNull);
@@ -204,7 +204,7 @@ void main() {
       // Quotes stacked on Habits, so Back returns to Habits (replay bug).
       expect(widgetDeepLinkLocation(Uri.parse(WidgetConstants.quotesUri)),
           AppRoutes.habitsQuotes);
-      expect(widgetDeepLinkLocation(Uri.parse('habitquest://quotes/saved')),
+      expect(widgetDeepLinkLocation(Uri.parse('perseveo://quotes/saved')),
           AppRoutes.habitsSavedQuotes);
       expect(widgetDeepLinkLocation(Uri.parse(WidgetConstants.openUri)),
           AppRoutes.habits);
@@ -214,7 +214,7 @@ void main() {
       );
       expect(widgetDeepLinkLocation(Uri.parse('/habits')), isNull);
       expect(
-        widgetDeepLinkLocation(Uri.parse('habitquest://auth-callback')),
+        widgetDeepLinkLocation(Uri.parse('perseveo://auth-callback')),
         isNull,
       );
     });

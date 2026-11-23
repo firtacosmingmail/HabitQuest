@@ -7,7 +7,7 @@ name 30, subtitle 30, promotional text 170, description 4000, keywords 100.
 ## Name (11/30)
 
 ```
-Habit Quest
+Perseveo
 ```
 
 ## Subtitle (22/30)
@@ -29,7 +29,7 @@ Same text as the Play full description
 "Google or Apple" kept, and this line instead of the EU/UK ads sentence:
 
 ```
-Habit Quest is free and shows a few small, clearly labelled banner ads in the habit list and habit details. You decide whether the app may track you for ads; saying no still gives you the full app.
+Perseveo is free and shows a few small, clearly labelled banner ads in the habit list and habit details. You decide whether the app may track you for ads; saying no still gives you the full app.
 ```
 
 ## Keywords (94/100)

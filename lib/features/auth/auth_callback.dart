@@ -1,10 +1,10 @@
 import '../../core/router/app_routes.dart';
 
 /// The app's URL scheme (registered in Info.plist and AndroidManifest.xml).
-const appUrlScheme = 'habitquest';
+const appUrlScheme = 'perseveo';
 
 /// The deep link host the email confirmation pages open:
-/// `habitquest://auth-callback?status=confirmed|error&reason=...`.
+/// `perseveo://auth-callback?status=confirmed|error&reason=...`.
 const authCallbackHost = 'auth-callback';
 
 /// The outcome of an email confirmation, carried by the
@@ -83,7 +83,7 @@ class AuthCallbackResult {
   int get hashCode => Object.hash(confirmed, reason);
 }
 
-/// Maps the platform deep link `habitquest://auth-callback?...` (go_router
+/// Maps the platform deep link `perseveo://auth-callback?...` (go_router
 /// sees it with host `auth-callback` and path `/`) to the in-app location
 /// `/auth-callback?...`. Returns null for every other URI.
 String? deepLinkLocation(Uri uri) {

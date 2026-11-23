@@ -33,7 +33,7 @@ class AdminApp extends StatelessWidget {
       extensions: [b == Brightness.dark ? VizTokens.dark : VizTokens.light],
     );
     return MaterialApp(
-      title: 'HabitQuest Admin',
+      title: 'Perseveo Admin',
       debugShowCheckedModeBanner: false,
       theme: theme(Brightness.light),
       darkTheme: theme(Brightness.dark),
@@ -136,7 +136,7 @@ class NotAuthorisedScreen extends StatelessWidget {
               Text('Not authorised', style: text.headlineSmall),
               const SizedBox(height: 8),
               Text(
-                '${email ?? 'This account'} is not a HabitQuest admin. '
+                '${email ?? 'This account'} is not a Perseveo admin. '
                 'Ask an admin to add your email to QUOTE_ADMINS.',
                 textAlign: TextAlign.center,
               ),

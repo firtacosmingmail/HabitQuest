@@ -1,4 +1,4 @@
-package com.vvs.habitquest.widgets
+package ro.csm.perseveo.widgets
 
 import android.appwidget.AppWidgetManager
 import android.content.Context
@@ -40,7 +40,7 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextDecoration
 import androidx.glance.text.TextStyle
-import com.vvs.habitquest.R
+import ro.csm.perseveo.R
 import es.antonborri.home_widget.HomeWidgetGlanceState
 import es.antonborri.home_widget.HomeWidgetGlanceStateDefinition
 import es.antonborri.home_widget.HomeWidgetGlanceWidgetReceiver
@@ -221,7 +221,7 @@ private fun CheckBoxImage(habit: WidgetHabit) {
     }
 }
 
-/** The "Open HabitQuest" state (signed out, no snapshot yet, or nothing due today). */
+/** The "Open Perseveo" state (signed out, no snapshot yet, or nothing due today). */
 @Composable
 internal fun OpenAppPrompt(message: String, uri: String = WidgetContract.OPEN_URI) {
     val context = LocalContext.current

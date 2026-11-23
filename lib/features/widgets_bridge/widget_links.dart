@@ -1,5 +1,5 @@
-/// Widget URIs (`habitquest://widget/toggle?habitId=`, `habitquest://quotes`,
-/// `habitquest://open`) → in-app behaviour.
+/// Widget URIs (`perseveo://widget/toggle?habitId=`, `perseveo://quotes`,
+/// `perseveo://open`) → in-app behaviour.
 library;
 
 import '../../core/router/app_routes.dart';
@@ -18,7 +18,7 @@ String? toggleHabitId(Uri? uri) {
 }
 
 /// Whether [uri] is the background daily refresh
-/// (`habitquest://widget/refresh`, sent by Android's `WidgetRefreshWorker`).
+/// (`perseveo://widget/refresh`, sent by Android's `WidgetRefreshWorker`).
 bool isWidgetRefreshUri(Uri? uri) =>
     uri != null &&
     _isAppScheme(uri) &&

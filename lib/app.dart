@@ -23,7 +23,7 @@ class HabitQuestApp extends ConsumerWidget {
     // providers, in the middle of its own build.
     ref.listen(quotesUserIdProvider, (_, _) {});
     return MaterialApp.router(
-      title: 'Habit Quest',
+      title: 'Perseveo',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,

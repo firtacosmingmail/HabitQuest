@@ -34,13 +34,13 @@ import 'auth_redirect.dart';
 /// ([authRedirect]); [refreshListenable] should notify when it changes.
 /// Without it there is no gate (routing-only tests).
 ///
-/// The email confirmation deep link `habitquest://auth-callback?...` is
+/// The email confirmation deep link `perseveo://auth-callback?...` is
 /// mapped to `/auth-callback?...`. Signed out it lands on the login screen
 /// with the outcome; signed in, [onAuthCallback] is called (default: a
 /// snackbar on [appScaffoldMessengerKey]) and the user stays where they were.
 ///
-/// Home-screen widget links (`habitquest://quotes`, `habitquest://open`,
-/// `habitquest://widget/toggle?habitId=`) map to the Quotes screen / the
+/// Home-screen widget links (`perseveo://quotes`, `perseveo://open`,
+/// `perseveo://widget/toggle?habitId=`) map to the Quotes screen / the
 /// Habits tab (signed out, the auth gate sends the quotes link on to the
 /// public quote screen); for a check-off link [onWidgetToggle] is called with the
 /// habit id.

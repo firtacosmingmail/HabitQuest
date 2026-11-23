@@ -1,4 +1,4 @@
-// Renders the Habit Quest app icon PNGs in assets/icon/ from the same
+// Renders the Perseveo app icon PNGs in assets/icon/ from the same
 // geometry as the SVG master (assets/icon/icon.svg).
 //
 // macOS has no SVG rasteriser that keeps transparency (qlmanage paints on

@@ -1,15 +1,15 @@
 # First release checklist: Play closed testing (alpha) + TestFlight
 
-The one-time setup for the first Habit Quest release, in order. It is built
+The one-time setup for the first Perseveo release, in order. It is built
 from README → [Release CI](../README.md#release-ci) (*Secrets* and *One-time
 setup before the first release*), personalised for this repo:
 
 | | |
 |---|---|
 | GitHub repo | `firtacosmingmail/HabitQuest` |
-| Android package | `com.vvs.habitquest` |
-| iOS bundle IDs | `com.vvs.habitquest` (app), `com.vvs.habitquest.widgets` (widget extension) |
-| App Group | `group.com.vvs.habitquest` |
+| Android package | `ro.csm.perseveo` |
+| iOS bundle IDs | `ro.csm.perseveo` (app), `ro.csm.perseveo.widgets` (widget extension) |
+| App Group | `group.ro.csm.perseveo` |
 | Apple team | `9QMS59N2BZ` |
 | Supabase project | `fwikodmrfoorbstmkedx` |
 | Workflow | [`.github/workflows/release.yml`](../.github/workflows/release.yml), runs when a `release/VX.Y.Z` branch is created |
@@ -50,7 +50,7 @@ policy draft is [`confirm-pages/privacy.html`](../confirm-pages/privacy.html)
 ## 2. Android (Google Play)
 
 - [ ] **2.1 Generate the upload keystore** (you run this, on your Mac, outside
-  the repo; e.g. in `~/keys/habitquest/`). 🔐
+  the repo; e.g. in `~/keys/perseveo/`). 🔐
 
   ```sh
   keytool -genkeypair -v -keystore upload-keystore.jks -alias upload \
@@ -66,7 +66,7 @@ policy draft is [`confirm-pages/privacy.html`](../confirm-pages/privacy.html)
   gitignored):
 
   ```properties
-  storeFile=/Users/<you>/keys/habitquest/upload-keystore.jks
+  storeFile=/Users/<you>/keys/perseveo/upload-keystore.jks
   storePassword=...
   keyAlias=upload
   keyPassword=...
@@ -80,7 +80,7 @@ policy draft is [`confirm-pages/privacy.html`](../confirm-pages/privacy.html)
 
 - [ ] **2.4 Create the app in Play Console**: *Create app* → name **Habit
   Quest**, default language, **App** (not game), **Free**, accept the
-  declarations. Package name `com.vvs.habitquest` is fixed by the first upload
+  declarations. Package name `ro.csm.perseveo` is fixed by the first upload
   (2.8).
 - [ ] **2.5 Fill in *App content*** (Play Console → *Policy → App content*),
   using the drafts in `docs/store/`:
@@ -103,7 +103,7 @@ policy draft is [`confirm-pages/privacy.html`](../confirm-pages/privacy.html)
   from 2.1 is the **upload key**; Google holds the app signing key.
 - [ ] **2.7 Google sign-in on store builds: Android OAuth clients.** In Google
   Cloud → *APIs & Services → Credentials → Create credentials → OAuth client
-  ID → Android*, package `com.vvs.habitquest`, one client **per SHA-1**:
+  ID → Android*, package `ro.csm.perseveo`, one client **per SHA-1**:
   - [ ] the **upload key** SHA-1 (from 2.3; covers your locally built,
     side-loaded release builds);
   - [ ] the **Play app signing key** SHA-1: Play Console → *Test and release →
@@ -157,7 +157,7 @@ policy draft is [`confirm-pages/privacy.html`](../confirm-pages/privacy.html)
      `play-release`) → *Keys → Add key → JSON*. 🔐
   2. Enable the **Google Play Android Developer API** in that project.
   3. Play Console → *Users and permissions* → *Invite new users* → the
-     service account's email → app permissions for Habit Quest: **Release to
+     service account's email → app permissions for Perseveo: **Release to
      testing tracks** and **View app information**.
 - [ ] **2.11 Android secrets** (repo `firtacosmingmail/HabitQuest`):
 
@@ -176,11 +176,11 @@ policy draft is [`confirm-pages/privacy.html`](../confirm-pages/privacy.html)
 
 - [ ] **3.1 Identifiers** (developer.apple.com → *Certificates, IDs &
   Profiles*). Check they exist (Xcode's automatic signing usually made them):
-  - [ ] App ID `com.vvs.habitquest` with **Sign in with Apple** and **App
-    Groups** (`group.com.vvs.habitquest`) enabled.
-  - [ ] App ID `com.vvs.habitquest.widgets` with **App Groups**
-    (`group.com.vvs.habitquest`).
-  - [ ] App Group `group.com.vvs.habitquest`.
+  - [ ] App ID `ro.csm.perseveo` with **Sign in with Apple** and **App
+    Groups** (`group.ro.csm.perseveo`) enabled.
+  - [ ] App ID `ro.csm.perseveo.widgets` with **App Groups**
+    (`group.ro.csm.perseveo`).
+  - [ ] App Group `group.ro.csm.perseveo`.
 - [ ] **3.2 Apple Distribution certificate** (if the team has none): Xcode →
   *Settings → Accounts* → team `9QMS59N2BZ` → *Manage Certificates* → **+** →
   *Apple Distribution*. Then Keychain Access → *My Certificates* → right-click
@@ -188,12 +188,12 @@ policy draft is [`confirm-pages/privacy.html`](../confirm-pages/privacy.html)
 - [ ] **3.3 Two App Store provisioning profiles** (*Profiles → + → App Store
   Connect*), both with the certificate from 3.2, created **after** the
   capabilities in 3.1 are on:
-  - [ ] App ID `com.vvs.habitquest` → name e.g. *Habit Quest App Store*.
-  - [ ] App ID `com.vvs.habitquest.widgets` → name e.g. *Habit Quest Widgets
+  - [ ] App ID `ro.csm.perseveo` → name e.g. *Perseveo App Store*.
+  - [ ] App ID `ro.csm.perseveo.widgets` → name e.g. *Perseveo Widgets
     App Store*.
 - [ ] **3.4 Create the app in App Store Connect**: *Apps → + → New App* →
-  iOS, name **Habit Quest**, primary language, bundle ID `com.vvs.habitquest`,
-  SKU e.g. `habitquest-ios`, full access. TestFlight uploads fail until this
+  iOS, name **Perseveo**, primary language, bundle ID `ro.csm.perseveo`,
+  SKU e.g. `perseveo-ios`, full access. TestFlight uploads fail until this
   record exists.
 - [ ] **3.5 App Store Connect API key**: *Users and Access → Integrations →
   App Store Connect API → Team Keys* → generate, role **App Manager**. Note the

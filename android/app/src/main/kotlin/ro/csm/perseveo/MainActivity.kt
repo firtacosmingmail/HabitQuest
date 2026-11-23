@@ -1,12 +1,12 @@
-package com.vvs.habitquest
+package ro.csm.perseveo
 
 import android.content.Intent
 import android.os.Bundle
 import io.flutter.embedding.android.FlutterActivity
 
 /**
- * Home-screen widget links (`habitquest://open`, `habitquest://quotes`,
- * `habitquest://widget/...`, see docs/WIDGETS.md) must be handled exactly
+ * Home-screen widget links (`perseveo://open`, `perseveo://quotes`,
+ * `perseveo://widget/...`, see docs/WIDGETS.md) must be handled exactly
  * once.
  *
  * A widget tap that starts the app cold becomes the task's root intent, and
@@ -44,7 +44,7 @@ class MainActivity : FlutterActivity() {
     private fun isWidgetLink(intent: Intent): Boolean {
         val data = intent.data ?: return false
         return intent.action == Intent.ACTION_VIEW &&
-            data.scheme == "habitquest" &&
+            data.scheme == "perseveo" &&
             data.host in WIDGET_HOSTS
     }
 
