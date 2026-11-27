@@ -39,7 +39,7 @@ const kProjectPayloadPrefix = 'project:';
 
 enum ProjectNotificationKind { workSplit, deadline, taskDelivery }
 
-/// Notification id for a stable [key] (e.g. `split|<actionId>|2026-11-20`):
+/// Notification id for a stable [key] (e.g. `split|<timeBlockId>|2026-11-20`):
 /// `kProjectNotificationIdBase + fnv1a(key) & 0x3FFFFFFF`, i.e. always in
 /// `[2^30, 2^31)`, never in the habit range.
 int projectNotificationId(String key) =>
@@ -87,10 +87,11 @@ class ProjectNotification {
 
 /// Plans the Projects notifications as of [now] (local time).
 ///
-/// * Skips archived projects, targets marked done (their sessions,
-///   deadline and tasks) and plan tasks marked done.
-/// * Work split: at each session's start (sessions already marked
-///   attended are skipped).
+/// * Skips archived projects (their sessions, deadlines and tasks), goals
+///   marked done (their deadline and tasks) and plan tasks marked done.
+/// * Work split: at each session's start of every project time block
+///   (open-ended ones included; sessions already marked attended are
+///   skipped).
 /// * Deadline: 3 days before, 1 day before and on the deadline day, at
 ///   09:00.
 /// * Task delivery: the day before the delivery date, at 09:00.
@@ -125,18 +126,16 @@ List<ProjectNotification> planProjectNotifications(
       data,
       from: dateOnly(now),
       to: dateOnly(until),
-      includeDoneTargets: false,
       includeArchivedProjects: false,
     );
     for (final s in sessions) {
       if (s.attended || !inWindow(s.start)) continue;
-      final target = data.target(s.targetId)!;
       final project = data.project(s.projectId)!;
       final key = 'split|${s.key}';
       final seed = stableHash(key);
       final values = {
         'project': project.name,
-        'target': target.title,
+        'block': s.label ?? project.name,
         'time': '${s.startTime}',
       };
       out.add(
@@ -153,7 +152,7 @@ List<ProjectNotification> planProjectNotifications(
   }
 
   if (settings.deadlines) {
-    for (final t in data.targets) {
+    for (final t in data.goals) {
       if (t.isDone || !projectActive(t.projectId)) continue;
       final project = data.project(t.projectId)!;
       for (final daysBefore in kDeadlineReminderDays) {
@@ -161,7 +160,7 @@ List<ProjectNotification> planProjectNotifications(
         if (!inWindow(at)) continue;
         final key = 'deadline|${t.id}|$daysBefore';
         final seed = stableHash(key);
-        final values = {'project': project.name, 'target': t.title};
+        final values = {'project': project.name, 'goal': t.title};
         out.add(
           ProjectNotification(
             kind: ProjectNotificationKind.deadline,
@@ -180,17 +179,17 @@ List<ProjectNotification> planProjectNotifications(
     for (final task in data.planTasks) {
       final delivery = task.deliveryDate;
       if (task.done || delivery == null) continue;
-      final target = data.target(task.targetId);
-      if (target == null || target.isDone) continue;
-      if (!projectActive(target.projectId)) continue;
-      final project = data.project(target.projectId)!;
+      final goal = data.goal(task.goalId);
+      if (goal == null || goal.isDone) continue;
+      if (!projectActive(goal.projectId)) continue;
+      final project = data.project(goal.projectId)!;
       final at = morning(addDays(delivery, -kTaskDeliveryReminderDays));
       if (!inWindow(at)) continue;
       final key = 'task|${task.id}';
       final seed = stableHash(key);
       final values = {
         'project': project.name,
-        'target': target.title,
+        'goal': goal.title,
         'task': task.title,
       };
       out.add(

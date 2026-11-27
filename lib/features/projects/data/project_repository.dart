@@ -3,17 +3,19 @@ import 'dart:async';
 import '../../../data/repositories/watch.dart';
 import '../../../data/sync/change_recorder.dart';
 import '../models/consistent_action.dart';
+import '../models/goal.dart';
 import '../models/plan_task.dart';
 import '../models/project.dart';
 import '../models/projects_data.dart';
 import '../models/session_mark.dart';
-import '../models/target.dart';
+import '../models/time_block.dart';
 
-/// The five stored projects record kinds.
+/// The six stored projects record kinds.
 enum ProjectEntityKind {
   project(SyncEntityType.project),
-  target(SyncEntityType.target),
+  goal(SyncEntityType.goal),
   planTask(SyncEntityType.planTask),
+  timeBlock(SyncEntityType.timeBlock),
   consistentAction(SyncEntityType.consistentAction),
   sessionMark(SyncEntityType.sessionMark);
 
@@ -26,29 +28,32 @@ enum ProjectEntityKind {
 /// A batch of projects records to write (tombstones included).
 class ProjectRecords {
   final List<Project> projects;
-  final List<Target> targets;
+  final List<Goal> goals;
   final List<PlanTask> planTasks;
-  final List<ConsistentAction> actions;
+  final List<TimeBlock> timeBlocks;
+  final List<ConsistentAction> consistentActions;
   final List<SessionMark> sessionMarks;
 
   const ProjectRecords({
     this.projects = const [],
-    this.targets = const [],
+    this.goals = const [],
     this.planTasks = const [],
-    this.actions = const [],
+    this.timeBlocks = const [],
+    this.consistentActions = const [],
     this.sessionMarks = const [],
   });
 
   bool get isEmpty =>
       projects.isEmpty &&
-      targets.isEmpty &&
+      goals.isEmpty &&
       planTasks.isEmpty &&
-      actions.isEmpty &&
+      timeBlocks.isEmpty &&
+      consistentActions.isEmpty &&
       sessionMarks.isEmpty;
 }
 
-/// Persistence boundary for projects, targets, plan tasks, consistent
-/// actions and session marks.
+/// Persistence boundary for projects, goals, plan tasks, time blocks,
+/// consistent actions and session marks.
 ///
 /// Implementations: `HiveProjectRepository` (app) and
 /// `InMemoryProjectRepository` (tests). UI code goes through
@@ -66,17 +71,19 @@ abstract interface class ProjectRepository {
 
   /// Every record, tombstones included (sync).
   List<Project> getAllProjectRecords();
-  List<Target> getAllTargetRecords();
+  List<Goal> getAllGoalRecords();
   List<PlanTask> getAllPlanTaskRecords();
-  List<ConsistentAction> getAllActionRecords();
+  List<TimeBlock> getAllTimeBlockRecords();
+  List<ConsistentAction> getAllConsistentActionRecords();
   List<SessionMark> getAllSessionMarkRecords();
 
   /// Single records, tombstones included (`null` if unknown).
   Project? getProjectRecord(String id);
-  Target? getTargetRecord(String id);
+  Goal? getGoalRecord(String id);
   PlanTask? getPlanTaskRecord(String id);
-  ConsistentAction? getActionRecord(String id);
-  SessionMark? getSessionMarkRecord(String actionId, DateTime date);
+  TimeBlock? getTimeBlockRecord(String id);
+  ConsistentAction? getConsistentActionRecord(String id);
+  SessionMark? getSessionMarkRecord(String timeBlockId, DateTime date);
 
   /// Local write: inserts or replaces [records] (keyed by id / mark key)
   /// in one batch, records each one for sync, then emits once. The caller
@@ -103,9 +110,10 @@ abstract class CachedProjectRepository implements ProjectRepository {
   final ChangeRecorder? recorder;
 
   final Map<String, Project> projectRecords = {};
-  final Map<String, Target> targetRecords = {};
+  final Map<String, Goal> goalRecords = {};
   final Map<String, PlanTask> planTaskRecords = {};
-  final Map<String, ConsistentAction> actionRecords = {};
+  final Map<String, TimeBlock> timeBlockRecords = {};
+  final Map<String, ConsistentAction> consistentActionRecords = {};
   final Map<String, SessionMark> sessionMarkRecords = {};
 
   final _changes = StreamController<void>.broadcast(sync: true);
@@ -126,14 +134,17 @@ abstract class CachedProjectRepository implements ProjectRepository {
     for (final p in r.projects) {
       projectRecords[p.id] = p;
     }
-    for (final t in r.targets) {
-      targetRecords[t.id] = t;
+    for (final g in r.goals) {
+      goalRecords[g.id] = g;
     }
     for (final t in r.planTasks) {
       planTaskRecords[t.id] = t;
     }
-    for (final a in r.actions) {
-      actionRecords[a.id] = a;
+    for (final b in r.timeBlocks) {
+      timeBlockRecords[b.id] = b;
+    }
+    for (final a in r.consistentActions) {
+      consistentActionRecords[a.id] = a;
     }
     for (final m in r.sessionMarks) {
       sessionMarkRecords[m.key] = m;
@@ -144,9 +155,10 @@ abstract class CachedProjectRepository implements ProjectRepository {
   @override
   ProjectsData getData() => _cache ??= ProjectsData.fromRecords(
         projects: projectRecords.values,
-        targets: targetRecords.values,
+        goals: goalRecords.values,
         planTasks: planTaskRecords.values,
-        actions: actionRecords.values,
+        timeBlocks: timeBlockRecords.values,
+        consistentActions: consistentActionRecords.values,
         sessionMarks: sessionMarkRecords.values,
       );
 
@@ -156,12 +168,15 @@ abstract class CachedProjectRepository implements ProjectRepository {
   @override
   List<Project> getAllProjectRecords() => projectRecords.values.toList();
   @override
-  List<Target> getAllTargetRecords() => targetRecords.values.toList();
+  List<Goal> getAllGoalRecords() => goalRecords.values.toList();
   @override
   List<PlanTask> getAllPlanTaskRecords() => planTaskRecords.values.toList();
   @override
-  List<ConsistentAction> getAllActionRecords() =>
-      actionRecords.values.toList();
+  List<TimeBlock> getAllTimeBlockRecords() =>
+      timeBlockRecords.values.toList();
+  @override
+  List<ConsistentAction> getAllConsistentActionRecords() =>
+      consistentActionRecords.values.toList();
   @override
   List<SessionMark> getAllSessionMarkRecords() =>
       sessionMarkRecords.values.toList();
@@ -169,14 +184,17 @@ abstract class CachedProjectRepository implements ProjectRepository {
   @override
   Project? getProjectRecord(String id) => projectRecords[id];
   @override
-  Target? getTargetRecord(String id) => targetRecords[id];
+  Goal? getGoalRecord(String id) => goalRecords[id];
   @override
   PlanTask? getPlanTaskRecord(String id) => planTaskRecords[id];
   @override
-  ConsistentAction? getActionRecord(String id) => actionRecords[id];
+  TimeBlock? getTimeBlockRecord(String id) => timeBlockRecords[id];
   @override
-  SessionMark? getSessionMarkRecord(String actionId, DateTime date) =>
-      sessionMarkRecords[SessionMark.keyFor(actionId, date)];
+  ConsistentAction? getConsistentActionRecord(String id) =>
+      consistentActionRecords[id];
+  @override
+  SessionMark? getSessionMarkRecord(String timeBlockId, DateTime date) =>
+      sessionMarkRecords[SessionMark.keyFor(timeBlockId, date)];
 
   @override
   Future<void> save(ProjectRecords records) async {
@@ -202,17 +220,21 @@ abstract class CachedProjectRepository implements ProjectRepository {
       await persist(ProjectEntityKind.project,
           {for (final x in r.projects) x.id: x.toJson()});
     }
-    if (r.targets.isNotEmpty) {
-      await persist(ProjectEntityKind.target,
-          {for (final x in r.targets) x.id: x.toJson()});
+    if (r.goals.isNotEmpty) {
+      await persist(ProjectEntityKind.goal,
+          {for (final x in r.goals) x.id: x.toJson()});
     }
     if (r.planTasks.isNotEmpty) {
       await persist(ProjectEntityKind.planTask,
           {for (final x in r.planTasks) x.id: x.toJson()});
     }
-    if (r.actions.isNotEmpty) {
+    if (r.timeBlocks.isNotEmpty) {
+      await persist(ProjectEntityKind.timeBlock,
+          {for (final x in r.timeBlocks) x.id: x.toJson()});
+    }
+    if (r.consistentActions.isNotEmpty) {
       await persist(ProjectEntityKind.consistentAction,
-          {for (final x in r.actions) x.id: x.toJson()});
+          {for (final x in r.consistentActions) x.id: x.toJson()});
     }
     if (r.sessionMarks.isNotEmpty) {
       await persist(ProjectEntityKind.sessionMark,
@@ -225,13 +247,16 @@ abstract class CachedProjectRepository implements ProjectRepository {
     for (final x in r.projects) {
       yield (ProjectEntityKind.project, x.id);
     }
-    for (final x in r.targets) {
-      yield (ProjectEntityKind.target, x.id);
+    for (final x in r.goals) {
+      yield (ProjectEntityKind.goal, x.id);
     }
     for (final x in r.planTasks) {
       yield (ProjectEntityKind.planTask, x.id);
     }
-    for (final x in r.actions) {
+    for (final x in r.timeBlocks) {
+      yield (ProjectEntityKind.timeBlock, x.id);
+    }
+    for (final x in r.consistentActions) {
       yield (ProjectEntityKind.consistentAction, x.id);
     }
     for (final x in r.sessionMarks) {
@@ -242,9 +267,10 @@ abstract class CachedProjectRepository implements ProjectRepository {
   @override
   Future<void> clearAll() async {
     projectRecords.clear();
-    targetRecords.clear();
+    goalRecords.clear();
     planTaskRecords.clear();
-    actionRecords.clear();
+    timeBlockRecords.clear();
+    consistentActionRecords.clear();
     sessionMarkRecords.clear();
     await clearStorage();
     _changed();

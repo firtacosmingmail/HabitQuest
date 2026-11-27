@@ -2,9 +2,10 @@
  * `admin-stats`: read-only, aggregated usage statistics for the admin console
  * (see supabase/API.md).
  *
- * The database does the counting (public.admin_stats, migration
- * 20261114130000_admin_stats_projects.sql, which replaces the first version
- * of 20261017120000_admin_functions.sql) and returns sparse aggregates only:
+ * The database does the counting (public.admin_stats, latest version in
+ * migration 20261127120000_goals_time_blocks.sql, which replaces the ones of
+ * 20261114130000_admin_stats_projects.sql and 20261017120000_admin_functions.sql)
+ * and returns sparse aggregates only:
  * counts per day/week and histograms of values, never a user id, email or
  * habit name. This module validates the request, runs the admin check, fills
  * the daily series with zeros, derives the weekly sums and groups the
@@ -46,9 +47,11 @@ export interface RawStats {
     projects?: number;
     active_projects?: number;
     users_with_projects?: number;
-    targets?: number;
-    targets_done?: number;
+    goals?: number;
+    goals_done?: number;
     plan_tasks_done?: number;
+    time_blocks?: number;
+    consistent_actions?: number;
     sessions_attended?: number;
   };
   in_range: {
@@ -240,9 +243,11 @@ export function buildStats(raw: RawStats, from: string, to: string, now: Date) {
       projects: num(t?.projects),
       activeProjects: num(t?.active_projects),
       usersWithProjects: num(t?.users_with_projects),
-      targets: num(t?.targets),
-      targetsDone: num(t?.targets_done),
+      goals: num(t?.goals),
+      goalsDone: num(t?.goals_done),
       planTasksDone: num(t?.plan_tasks_done),
+      timeBlocks: num(t?.time_blocks),
+      consistentActions: num(t?.consistent_actions),
       sessionsAttended: num(t?.sessions_attended),
     },
     range: {

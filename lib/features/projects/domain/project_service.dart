@@ -7,11 +7,12 @@ import '../../../core/utils/stamps.dart';
 import '../data/project_repository.dart';
 import '../models/clock_time.dart';
 import '../models/consistent_action.dart';
+import '../models/goal.dart';
 import '../models/plan_task.dart';
 import '../models/project.dart';
 import '../models/projects_data.dart';
 import '../models/session_mark.dart';
-import '../models/target.dart';
+import '../models/time_block.dart';
 import 'overlap.dart';
 import 'project_events.dart';
 import 'sessions.dart';
@@ -21,8 +22,8 @@ import 'sessions.dart';
 /// through `projectServiceProvider` so events stay consistent.
 ///
 /// * Unknown / deleted ids throw [StateError]; invalid input throws
-///   [ArgumentError]; a clashing consistent action throws
-///   [ActionOverlapException] and nothing is saved.
+///   [ArgumentError]; a clashing time block throws
+///   [TimeBlockOverlapException] and nothing is saved.
 /// * Events fire after the repository write; no event when nothing changed.
 /// * Status is never changed automatically.
 class ProjectService {
@@ -99,31 +100,35 @@ class ProjectService {
   Future<Project> archiveProject(String id, {bool archived = true}) =>
       updateProject(_project(id).copyWith(archived: archived));
 
-  /// Soft-deletes the project and all of its targets, plan tasks and
-  /// consistent actions (session marks are hidden with their action).
+  /// Soft-deletes the project and all of its goals (with their plan tasks
+  /// and consistent actions) and time blocks (session marks are hidden
+  /// with their block).
   Future<void> deleteProject(String id) async {
     final p = _project(id);
     final d = data;
-    final targets = d.targetsOf(id);
+    final goals = d.goalsOf(id);
     await _deleteCascade(
       projects: [p],
-      targets: targets,
-      planTasks: [for (final t in targets) ...d.planTasksOf(t.id)],
-      actions: [for (final t in targets) ...d.actionsOf(t.id)],
+      goals: goals,
+      planTasks: [for (final g in goals) ...d.planTasksOf(g.id)],
+      consistentActions: [
+        for (final g in goals) ...d.consistentActionsOf(g.id),
+      ],
+      timeBlocks: d.timeBlocksOf(id),
     );
   }
 
-  // Targets ------------------------------------------------------------------
+  // Goals --------------------------------------------------------------------
 
-  Future<Target> createTarget({
+  Future<Goal> createGoal({
     required String projectId,
     required String title,
     required DateTime deadline,
-    TargetStatus status = TargetStatus.notStarted,
+    GoalStatus status = GoalStatus.notStarted,
   }) async {
     _project(projectId);
     final now = _now();
-    final t = Target(
+    final g = Goal(
       id: _newId(),
       projectId: projectId,
       title: _required(title, 'title'),
@@ -132,74 +137,59 @@ class ProjectService {
       createdAt: now,
       updatedAt: now.toUtc(),
     );
-    await _repository.save(ProjectRecords(targets: [t]));
-    _emit(ProjectChangeType.created, ProjectEntityKind.target, t);
-    return t;
+    await _repository.save(ProjectRecords(goals: [g]));
+    _emit(ProjectChangeType.created, ProjectEntityKind.goal, g);
+    return g;
   }
 
-  /// Saves an edited target (title, deadline, status).
-  ///
-  /// Throws [ActionOverlapException] when the change makes one of its
-  /// actions clash with another action that it did not clash with before
-  /// (a later deadline, or a status changed away from done).
-  Future<Target> updateTarget(Target edited) async {
-    final previous = _target(edited.id);
+  /// Saves an edited goal (title, deadline, status). The deadline does not
+  /// affect the project's time blocks.
+  Future<Goal> updateGoal(Goal edited) async {
+    final previous = _goal(edited.id);
     if (edited.projectId != previous.projectId) {
       throw ArgumentError.value(edited.projectId, 'projectId', 'cannot change');
     }
-    final t = edited.copyWith(
+    final g = edited.copyWith(
       title: _required(edited.title, 'title'),
       updatedAt: nextStamp(_now(), previous.updatedAt),
       deletedAt: () => null,
     );
-    if (t == previous) return previous;
-    if (t.deadline != previous.deadline || t.status != previous.status) {
-      final d = data;
-      for (final a in d.actionsOf(t.id)) {
-        final before = {
-          for (final c in findActionClashes(a, previous, d)) c.action.id,
-        };
-        final added = findActionClashes(a, t, d)
-            .where((c) => !before.contains(c.action.id))
-            .toList();
-        if (added.isNotEmpty) throw ActionOverlapException(a, added);
-      }
-    }
-    await _repository.save(ProjectRecords(targets: [t]));
-    _emit(ProjectChangeType.updated, ProjectEntityKind.target, t, previous);
-    return t;
+    if (g == previous) return previous;
+    await _repository.save(ProjectRecords(goals: [g]));
+    _emit(ProjectChangeType.updated, ProjectEntityKind.goal, g, previous);
+    return g;
   }
 
-  /// Sets the status (manual only). See [updateTarget] for overlaps.
-  Future<Target> setTargetStatus(String id, TargetStatus status) =>
-      updateTarget(_target(id).copyWith(status: status));
+  /// Sets the status (manual only).
+  Future<Goal> setGoalStatus(String id, GoalStatus status) =>
+      updateGoal(_goal(id).copyWith(status: status));
 
-  /// Soft-deletes the target, its plan tasks and its consistent actions.
-  Future<void> deleteTarget(String id) async {
-    final t = _target(id);
+  /// Soft-deletes the goal, its plan tasks and its consistent actions.
+  Future<void> deleteGoal(String id) async {
+    final g = _goal(id);
     final d = data;
     await _deleteCascade(
-      targets: [t],
+      goals: [g],
       planTasks: d.planTasksOf(id),
-      actions: d.actionsOf(id),
+      consistentActions: d.consistentActionsOf(id),
     );
   }
 
   // Plan tasks ---------------------------------------------------------------
 
-  /// Adds a task at the end of the target's plan.
+  /// Adds a task at the end of the goal's plan.
   Future<PlanTask> addPlanTask({
-    required String targetId,
+    required String goalId,
     required String title,
     DateTime? deliveryDate,
   }) async {
-    _target(targetId);
-    final existing = data.planTasksOf(targetId);
+    _goal(goalId);
+    final existing = data.planTasksOf(goalId);
     final position = existing.isEmpty ? 0 : existing.last.position + 1;
     final now = _now();
     final task = PlanTask(
       id: _newId(),
-      targetId: targetId,
+      goalId: goalId,
       title: _required(title, 'title'),
       deliveryDate: deliveryDate,
       position: position,
@@ -214,8 +204,8 @@ class ProjectService {
   /// Saves an edited task (title, delivery date, done, position).
   Future<PlanTask> updatePlanTask(PlanTask edited) async {
     final previous = _planTask(edited.id);
-    if (edited.targetId != previous.targetId) {
-      throw ArgumentError.value(edited.targetId, 'targetId', 'cannot change');
+    if (edited.goalId != previous.goalId) {
+      throw ArgumentError.value(edited.goalId, 'goalId', 'cannot change');
     }
     final task = edited.copyWith(
       title: _required(edited.title, 'title'),
@@ -231,15 +221,11 @@ class ProjectService {
   Future<PlanTask> setPlanTaskDone(String id, bool done) =>
       updatePlanTask(_planTask(id).copyWith(done: done));
 
-  /// Reorders a target's plan: [orderedIds] must be exactly its task ids.
-  Future<void> reorderPlanTasks(String targetId, List<String> orderedIds) async {
-    _target(targetId);
-    final tasks = {for (final t in data.planTasksOf(targetId)) t.id: t};
-    if (orderedIds.length != tasks.length ||
-        !orderedIds.every(tasks.containsKey)) {
-      throw ArgumentError.value(orderedIds, 'orderedIds',
-          'must list every task of the target exactly once');
-    }
+  /// Reorders a goal's plan: [orderedIds] must be exactly its task ids.
+  Future<void> reorderPlanTasks(String goalId, List<String> orderedIds) async {
+    _goal(goalId);
+    final tasks = {for (final t in data.planTasksOf(goalId)) t.id: t};
+    _checkOrder(orderedIds, tasks.keys, 'task');
     final changed = <(PlanTask, PlanTask)>[];
     for (var i = 0; i < orderedIds.length; i++) {
       final before = tasks[orderedIds[i]]!;
@@ -262,110 +248,199 @@ class ProjectService {
     await _deleteCascade(planTasks: [task]);
   }
 
-  // Consistent actions -------------------------------------------------------
+  // Consistent actions (text items of a goal) ---------------------------------
 
-  /// The actions that [action] would clash with if saved on [target]
-  /// (default: its stored target). For live validation in forms.
-  List<ActionClash> clashesFor(ConsistentAction action, {Target? target}) =>
-      findActionClashes(action, target ?? _target(action.targetId), data);
-
-  /// Creates a consistent action. Throws [ArgumentError] when the end is
-  /// not after the start, and [ActionOverlapException] (nothing saved) when
-  /// it overlaps another action.
-  Future<ConsistentAction> createAction({
-    required String targetId,
-    required ClockTime startTime,
-    required ClockTime endTime,
-    required ActionRecurrence recurrence,
-    DateTime? startDate,
+  /// Adds a consistent action at the end of the goal's list.
+  Future<ConsistentAction> addConsistentAction({
+    required String goalId,
+    required String text,
   }) async {
-    final target = _target(targetId);
+    _goal(goalId);
+    final existing = data.consistentActionsOf(goalId);
+    final order = existing.isEmpty ? 0 : existing.last.sortOrder + 1;
     final now = _now();
     final a = ConsistentAction(
       id: _newId(),
-      targetId: targetId,
-      startTime: startTime,
-      endTime: endTime,
-      recurrence: recurrence,
-      startDate: startDate,
+      goalId: goalId,
+      text: _required(text, 'text'),
+      sortOrder: order,
       createdAt: now,
       updatedAt: now.toUtc(),
     );
-    _checkOverlap(a, target);
-    await _repository.save(ProjectRecords(actions: [a]));
+    await _repository.save(ProjectRecords(consistentActions: [a]));
     _emit(ProjectChangeType.created, ProjectEntityKind.consistentAction, a);
     return a;
   }
 
-  /// Saves an edited action (times, recurrence, start date). Throws
-  /// [ActionOverlapException] (nothing saved) when it overlaps.
-  Future<ConsistentAction> updateAction(ConsistentAction edited) async {
-    final previous = _action(edited.id);
-    if (edited.targetId != previous.targetId) {
-      throw ArgumentError.value(edited.targetId, 'targetId', 'cannot change');
+  /// Saves an edited consistent action (text, sort order).
+  Future<ConsistentAction> updateConsistentAction(
+      ConsistentAction edited) async {
+    final previous = _consistentAction(edited.id);
+    if (edited.goalId != previous.goalId) {
+      throw ArgumentError.value(edited.goalId, 'goalId', 'cannot change');
     }
     final a = edited.copyWith(
+      text: _required(edited.text, 'text'),
       updatedAt: nextStamp(_now(), previous.updatedAt),
       deletedAt: () => null,
     );
     if (a == previous) return previous;
-    _checkOverlap(a, _target(a.targetId));
-    await _repository.save(ProjectRecords(actions: [a]));
+    await _repository.save(ProjectRecords(consistentActions: [a]));
     _emit(ProjectChangeType.updated, ProjectEntityKind.consistentAction, a,
         previous);
     return a;
   }
 
-  Future<void> deleteAction(String id) async {
-    final a = _action(id);
-    await _deleteCascade(actions: [a]);
+  /// Changes the text of a consistent action.
+  Future<ConsistentAction> editConsistentAction(String id, String text) =>
+      updateConsistentAction(_consistentAction(id).copyWith(text: text));
+
+  /// Reorders a goal's consistent actions: [orderedIds] must be exactly
+  /// its action ids.
+  Future<void> reorderConsistentActions(
+      String goalId, List<String> orderedIds) async {
+    _goal(goalId);
+    final items = {for (final a in data.consistentActionsOf(goalId)) a.id: a};
+    _checkOrder(orderedIds, items.keys, 'consistent action');
+    final changed = <(ConsistentAction, ConsistentAction)>[];
+    for (var i = 0; i < orderedIds.length; i++) {
+      final before = items[orderedIds[i]]!;
+      if (before.sortOrder == i) continue;
+      changed.add((
+        before.copyWith(
+            sortOrder: i, updatedAt: nextStamp(_now(), before.updatedAt)),
+        before,
+      ));
+    }
+    if (changed.isEmpty) return;
+    await _repository.save(
+        ProjectRecords(consistentActions: [for (final c in changed) c.$1]));
+    for (final (a, before) in changed) {
+      _emit(ProjectChangeType.updated, ProjectEntityKind.consistentAction, a,
+          before);
+    }
+  }
+
+  Future<void> deleteConsistentAction(String id) async {
+    final a = _consistentAction(id);
+    await _deleteCascade(consistentActions: [a]);
+  }
+
+  // Time blocks (of a project) -----------------------------------------------
+
+  /// The blocks (any project) that [block] would clash with if saved. For
+  /// live validation in forms.
+  List<TimeBlockClash> clashesFor(TimeBlock block) =>
+      findTimeBlockClashes(block, data);
+
+  /// Creates a time block on a project. Throws [ArgumentError] when the
+  /// end is not after the start (or the end date is before the start
+  /// date), and [TimeBlockOverlapException] (nothing saved) when it
+  /// overlaps another block of any project.
+  Future<TimeBlock> createTimeBlock({
+    required String projectId,
+    String? label,
+    required ClockTime startTime,
+    required ClockTime endTime,
+    required BlockRecurrence recurrence,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    _project(projectId);
+    final now = _now();
+    final b = TimeBlock(
+      id: _newId(),
+      projectId: projectId,
+      label: label,
+      startTime: startTime,
+      endTime: endTime,
+      recurrence: recurrence,
+      startDate: startDate,
+      endDate: endDate,
+      createdAt: now,
+      updatedAt: now.toUtc(),
+    );
+    _checkOverlap(b);
+    await _repository.save(ProjectRecords(timeBlocks: [b]));
+    _emit(ProjectChangeType.created, ProjectEntityKind.timeBlock, b);
+    return b;
+  }
+
+  /// Saves an edited block (label, times, recurrence, start / end date).
+  /// Throws [TimeBlockOverlapException] (nothing saved) when the new
+  /// schedule overlaps; a label-only edit is never refused.
+  Future<TimeBlock> updateTimeBlock(TimeBlock edited) async {
+    final previous = _timeBlock(edited.id);
+    if (edited.projectId != previous.projectId) {
+      throw ArgumentError.value(edited.projectId, 'projectId', 'cannot change');
+    }
+    final b = edited.copyWith(
+      updatedAt: nextStamp(_now(), previous.updatedAt),
+      deletedAt: () => null,
+    );
+    if (b == previous) return previous;
+    // A label-only edit cannot add a clash; skipping the check lets the user
+    // rename a block that already clashes (merged or migrated data).
+    final scheduleChanged = b.startTime != previous.startTime ||
+        b.endTime != previous.endTime ||
+        b.recurrence != previous.recurrence ||
+        b.startDate != previous.startDate ||
+        b.endDate != previous.endDate;
+    if (scheduleChanged) _checkOverlap(b);
+    await _repository.save(ProjectRecords(timeBlocks: [b]));
+    _emit(ProjectChangeType.updated, ProjectEntityKind.timeBlock, b, previous);
+    return b;
+  }
+
+  Future<void> deleteTimeBlock(String id) async {
+    final b = _timeBlock(id);
+    await _deleteCascade(timeBlocks: [b]);
   }
 
   // Sessions -----------------------------------------------------------------
 
-  bool isAttended(String actionId, DateTime date) =>
-      data.isAttended(actionId, date);
+  bool isAttended(String timeBlockId, DateTime date) =>
+      data.isAttended(timeBlockId, date);
 
-  /// Marks the session of [actionId] on [date] attended (or not). No-op
+  /// Marks the session of [timeBlockId] on [date] attended (or not). No-op
   /// (no event) when unchanged. Throws [ArgumentError] for a future date
-  /// or a day without a session of that action, [StateError] for an
-  /// unknown action.
+  /// or a day without a session of that block, [StateError] for an
+  /// unknown block.
   Future<void> setSessionAttended(
-    String actionId,
+    String timeBlockId,
     DateTime date,
     bool attended,
   ) async {
-    final a = _action(actionId);
-    final t = _target(a.targetId);
+    final b = _timeBlock(timeBlockId);
     final d = dateOnly(date);
     if (d.isAfter(today)) {
       throw ArgumentError.value(date, 'date', 'cannot attend a future session');
     }
-    if (!hasSessionOn(a, deadline: t.deadline, date: d)) {
-      throw ArgumentError.value(date, 'date', 'no session of $actionId that day');
+    if (!hasSessionOn(b, date: d)) {
+      throw ArgumentError.value(
+          date, 'date', 'no session of $timeBlockId that day');
     }
-    if (isAttended(actionId, d) == attended) return;
-    final current = _repository.getSessionMarkRecord(actionId, d);
+    if (isAttended(timeBlockId, d) == attended) return;
+    final current = _repository.getSessionMarkRecord(timeBlockId, d);
     final mark = SessionMark(
-      actionId: actionId,
+      timeBlockId: timeBlockId,
       date: d,
       attended: attended,
       updatedAt: nextStamp(_now(), current?.updatedAt),
     );
     await _repository.save(ProjectRecords(sessionMarks: [mark]));
     _attendance.add(SessionAttendanceEvent(
-      actionId: actionId,
-      targetId: t.id,
-      projectId: t.projectId,
+      timeBlockId: timeBlockId,
+      projectId: b.projectId,
       date: d,
       attended: attended,
     ));
   }
 
   /// Flips the attended mark; returns the new state.
-  Future<bool> toggleSessionAttended(String actionId, DateTime date) async {
-    final next = !isAttended(actionId, date);
-    await setSessionAttended(actionId, date, next);
+  Future<bool> toggleSessionAttended(String timeBlockId, DateTime date) async {
+    final next = !isAttended(timeBlockId, date);
+    await setSessionAttended(timeBlockId, date, next);
     return next;
   }
 
@@ -381,7 +456,7 @@ class ProjectService {
     final before = data;
     final marksBefore = {
       for (final m in records.sessionMarks)
-        m.key: _repository.getSessionMarkRecord(m.actionId, m.date),
+        m.key: _repository.getSessionMarkRecord(m.timeBlockId, m.date),
     };
     await _repository.applyRemote(records);
     void announce(ProjectEntityKind kind, String id, Object record,
@@ -409,17 +484,20 @@ class ProjectService {
       announce(ProjectEntityKind.project, r.id, r, r.isDeleted,
           before.project(r.id));
     }
-    for (final r in records.targets) {
-      announce(ProjectEntityKind.target, r.id, r, r.isDeleted,
-          before.target(r.id));
+    for (final r in records.goals) {
+      announce(ProjectEntityKind.goal, r.id, r, r.isDeleted, before.goal(r.id));
     }
     for (final r in records.planTasks) {
       announce(ProjectEntityKind.planTask, r.id, r, r.isDeleted,
           before.planTask(r.id));
     }
-    for (final r in records.actions) {
+    for (final r in records.timeBlocks) {
+      announce(ProjectEntityKind.timeBlock, r.id, r, r.isDeleted,
+          before.timeBlock(r.id));
+    }
+    for (final r in records.consistentActions) {
       announce(ProjectEntityKind.consistentAction, r.id, r, r.isDeleted,
-          before.action(r.id));
+          before.consistentAction(r.id));
     }
     for (final m in records.sessionMarks) {
       final previous = marksBefore[m.key];
@@ -441,30 +519,18 @@ class ProjectService {
   Future<void> clearLocalData() async {
     final d = data;
     await _repository.clearAll();
-    for (final a in d.actions) {
-      _remoteChanges.add(ProjectChangeEvent(
-          type: ProjectChangeType.deleted,
-          kind: ProjectEntityKind.consistentAction,
-          record: a));
+    void gone(ProjectEntityKind kind, Iterable<Object> records) {
+      for (final r in records) {
+        _remoteChanges.add(ProjectChangeEvent(
+            type: ProjectChangeType.deleted, kind: kind, record: r));
+      }
     }
-    for (final t in d.planTasks) {
-      _remoteChanges.add(ProjectChangeEvent(
-          type: ProjectChangeType.deleted,
-          kind: ProjectEntityKind.planTask,
-          record: t));
-    }
-    for (final t in d.targets) {
-      _remoteChanges.add(ProjectChangeEvent(
-          type: ProjectChangeType.deleted,
-          kind: ProjectEntityKind.target,
-          record: t));
-    }
-    for (final p in d.projects) {
-      _remoteChanges.add(ProjectChangeEvent(
-          type: ProjectChangeType.deleted,
-          kind: ProjectEntityKind.project,
-          record: p));
-    }
+
+    gone(ProjectEntityKind.timeBlock, d.timeBlocks);
+    gone(ProjectEntityKind.consistentAction, d.consistentActions);
+    gone(ProjectEntityKind.planTask, d.planTasks);
+    gone(ProjectEntityKind.goal, d.goals);
+    gone(ProjectEntityKind.project, d.projects);
   }
 
   Future<void> dispose() async {
@@ -475,60 +541,76 @@ class ProjectService {
 
   // Helpers ------------------------------------------------------------------
 
-  void _checkOverlap(ConsistentAction a, Target target) {
-    final clashes = findActionClashes(a, target, data);
-    if (clashes.isNotEmpty) throw ActionOverlapException(a, clashes);
+  void _checkOverlap(TimeBlock b) {
+    final clashes = findTimeBlockClashes(b, data);
+    if (clashes.isNotEmpty) throw TimeBlockOverlapException(b, clashes);
   }
 
+  static void _checkOrder(
+      List<String> orderedIds, Iterable<String> ids, String what) {
+    final set = ids.toSet();
+    if (orderedIds.length != set.length ||
+        orderedIds.toSet().length != set.length ||
+        !orderedIds.every(set.contains)) {
+      throw ArgumentError.value(orderedIds, 'orderedIds',
+          'must list every $what of the goal exactly once');
+    }
+  }
+
+  /// Tombstones the records in one write, then emits one `deleted` event
+  /// per record, children first.
   Future<void> _deleteCascade({
     List<Project> projects = const [],
-    List<Target> targets = const [],
+    List<Goal> goals = const [],
     List<PlanTask> planTasks = const [],
-    List<ConsistentAction> actions = const [],
+    List<ConsistentAction> consistentActions = const [],
+    List<TimeBlock> timeBlocks = const [],
   }) async {
     final now = _now();
+    DateTime stamp(DateTime previous) => nextStamp(now, previous);
     final dp = [
       for (final x in projects)
         x.copyWith(
-            updatedAt: nextStamp(now, x.updatedAt),
-            deletedAt: () => nextStamp(now, x.updatedAt)),
+            updatedAt: stamp(x.updatedAt), deletedAt: () => stamp(x.updatedAt)),
     ];
-    final dt = [
-      for (final x in targets)
+    final dg = [
+      for (final x in goals)
         x.copyWith(
-            updatedAt: nextStamp(now, x.updatedAt),
-            deletedAt: () => nextStamp(now, x.updatedAt)),
+            updatedAt: stamp(x.updatedAt), deletedAt: () => stamp(x.updatedAt)),
     ];
     final dk = [
       for (final x in planTasks)
         x.copyWith(
-            updatedAt: nextStamp(now, x.updatedAt),
-            deletedAt: () => nextStamp(now, x.updatedAt)),
+            updatedAt: stamp(x.updatedAt), deletedAt: () => stamp(x.updatedAt)),
     ];
-    final da = [
-      for (final x in actions)
+    final dc = [
+      for (final x in consistentActions)
         x.copyWith(
-            updatedAt: nextStamp(now, x.updatedAt),
-            deletedAt: () => nextStamp(now, x.updatedAt)),
+            updatedAt: stamp(x.updatedAt), deletedAt: () => stamp(x.updatedAt)),
+    ];
+    final db = [
+      for (final x in timeBlocks)
+        x.copyWith(
+            updatedAt: stamp(x.updatedAt), deletedAt: () => stamp(x.updatedAt)),
     ];
     await _repository.save(ProjectRecords(
-        projects: dp, targets: dt, planTasks: dk, actions: da));
-    for (var i = 0; i < da.length; i++) {
-      _emit(ProjectChangeType.deleted, ProjectEntityKind.consistentAction,
-          da[i], actions[i]);
+      projects: dp,
+      goals: dg,
+      planTasks: dk,
+      consistentActions: dc,
+      timeBlocks: db,
+    ));
+    void emitAll(ProjectEntityKind kind, List<Object> after, List<Object> before) {
+      for (var i = 0; i < after.length; i++) {
+        _emit(ProjectChangeType.deleted, kind, after[i], before[i]);
+      }
     }
-    for (var i = 0; i < dk.length; i++) {
-      _emit(ProjectChangeType.deleted, ProjectEntityKind.planTask, dk[i],
-          planTasks[i]);
-    }
-    for (var i = 0; i < dt.length; i++) {
-      _emit(ProjectChangeType.deleted, ProjectEntityKind.target, dt[i],
-          targets[i]);
-    }
-    for (var i = 0; i < dp.length; i++) {
-      _emit(ProjectChangeType.deleted, ProjectEntityKind.project, dp[i],
-          projects[i]);
-    }
+
+    emitAll(ProjectEntityKind.timeBlock, db, timeBlocks);
+    emitAll(ProjectEntityKind.consistentAction, dc, consistentActions);
+    emitAll(ProjectEntityKind.planTask, dk, planTasks);
+    emitAll(ProjectEntityKind.goal, dg, goals);
+    emitAll(ProjectEntityKind.project, dp, projects);
   }
 
   void _emit(ProjectChangeType type, ProjectEntityKind kind, Object record,
@@ -546,11 +628,15 @@ class ProjectService {
   Project _project(String id) =>
       data.project(id) ?? (throw StateError('Unknown project: $id'));
 
-  Target _target(String id) =>
-      data.target(id) ?? (throw StateError('Unknown target: $id'));
+  Goal _goal(String id) =>
+      data.goal(id) ?? (throw StateError('Unknown goal: $id'));
 
-  ConsistentAction _action(String id) =>
-      data.action(id) ?? (throw StateError('Unknown action: $id'));
+  TimeBlock _timeBlock(String id) =>
+      data.timeBlock(id) ?? (throw StateError('Unknown time block: $id'));
+
+  ConsistentAction _consistentAction(String id) =>
+      data.consistentAction(id) ??
+      (throw StateError('Unknown consistent action: $id'));
 
   PlanTask _planTask(String id) =>
       data.planTask(id) ?? (throw StateError('Unknown plan task: $id'));

@@ -192,7 +192,9 @@ Locked badges show a hint on the Quest tab.
 
 **Anti-toggle-exploit**: every XP grant goes into a ledger, keyed by what
 earned it (`habit + date` for a check-in, `date` for a Perfect Day,
-`task:<id>`, `session:<action>|<date>` and `target:<id>` for projects).
+`task:<id>`, `session:<timeBlockId>|<date>` and `target:<goalId>` for
+projects; the `target:` prefix predates the goals rename and is kept so old
+ledgers stay valid).
 Un-checking a habit takes back exactly the XP that check-in earned, and the
 Perfect Day bonus if that day is no longer perfect. Turning a check-in (or a
 plan task, session or target status) on and off any number of times
@@ -997,11 +999,13 @@ network. When signed in and online, changes are exchanged with the Supabase
 Edge Functions in the background.
 
 What syncs: habits, check-ins, the game state, and the **Projects** records
-(projects, targets, plan tasks, consistent actions and session marks; see
-docs/PROJECTS.md and supabase/API.md "Projects"). Projects follow exactly the
-same rules as habits below. The Projects backend (tables and the five
-functions) is **live** on `fwikodmrfoorbstmkedx` since **2026-11-18** (see
-[Backend](#backend-supabase) "Deploy status").
+(projects, goals, plan tasks, time blocks, consistent actions and session
+marks; see docs/PROJECTS.md and supabase/API.md "Projects"). Projects follow
+exactly the same rules as habits below. The first Projects backend (targets)
+is **live** on `fwikodmrfoorbstmkedx` since **2026-11-18**; the goals / time
+blocks rework (migration `20261127120000_goals_time_blocks.sql`, functions
+`goals` and `time-blocks`, new `consistent-actions`) is **not deployed yet**
+(see [Backend](#backend-supabase) "Deploy status").
 
 ### Local model
 
@@ -1014,15 +1018,19 @@ functions) is **live** on `fwikodmrfoorbstmkedx` since **2026-11-18** (see
   from every read, so the UI, recurrence, streaks, the game and reminders
   never see them. Un-checking keeps the check-in record with
   `completed: false` so the un-check syncs too.
-- **Projects** records (`Project`, `Target`, `PlanTask`,
+- **Projects** records (`Project`, `Goal`, `PlanTask`, `TimeBlock`,
   `ConsistentAction`, `SessionMark`) carry the same `updatedAt` /
-  `deletedAt`. Deleting a project, target or task tombstones it **and its
-  children** (the server does not cascade soft deletes); un-marking a
+  `deletedAt`. Deleting a project, goal, task, time block or consistent
+  action tombstones it **and its children** (the server does not cascade soft deletes); un-marking a
   session keeps the mark with `attended: false`.
 - **Upgrading**: data written by the previous version is still readable.
   Habits without `updatedAt` default to their `createdAt`; the old boolean
   check-ins are migrated once, on first launch, to records stamped with the
-  migration time.
+  migration time. Projects data written before the goals / time blocks
+  rework (`project_targets`, `project_actions`) is converted once on launch
+  (`migrateHiveProjectsStorage`, docs/PROJECTS.md "Local data migration"),
+  including the pending sync queue entries; the Projects pull cursors are
+  reset so the next sync is a full pull of the renamed resources.
 
 ### Sync queue
 
@@ -1056,8 +1064,8 @@ sync time.
 1. **Push** parents before children, because the server rejects a child
    whose parent it does not know (`409 habit_not_found` /
    `parent_not_found`; a tombstoned parent counts): habits → check-ins,
-   then projects → targets → plan tasks → consistent actions → session
-   marks. Through the batch endpoints (≤ 500 per call).
+   then projects → goals and time blocks → plan tasks, consistent
+   actions and session marks. Through the batch endpoints (≤ 500 per call).
    An entry is dropped once the server acknowledges it, whether it was
    applied or refused because the server has something newer (the pull
    brings that). If a batch is refused for a validation reason, its items
@@ -1086,7 +1094,7 @@ sync time.
    on `ProjectService.remoteChanges`, which refreshes the Projects screens
    and the calendar (through `projectsDataProvider`) and reschedules the
    project notifications. Records the app cannot read (e.g. a newer
-   schema) are skipped. The server does not check that consistent actions
+   schema) are skipped. The server does not check that time blocks
    overlap, so data merged from two offline devices may contain a clash; the
    app shows it and only blocks *new* local saves that clash.
 3. **Game state**: GET, merge (below), PUT back if the merged state differs
@@ -1466,15 +1474,15 @@ supabase/
     _shared/                  # cors, errors, auth, validation, mapping, LWW, stores
     auth-register|auth-login|auth-refresh|auth-logout/
     habits/ check-ins/ game-state/
-    projects/ targets/ plan-tasks/ consistent-actions/ session-marks/
+    projects/ goals/ time-blocks/ plan-tasks/ consistent-actions/ session-marks/
     profile/ auth-change-password/ account-delete/
     tests/                    # Deno unit tests + e2e_smoke.ts
   .env.example                # placeholders only, never commit real keys
 ```
 
 Tables `profiles` (created by a trigger on sign-up), `habits`, `check_ins`,
-`game_state` and the Projects tables (`projects`, `targets`, `plan_tasks`,
-`consistent_actions`, `session_marks`) each belong to `auth.uid()` and have row-level security with
+`game_state` and the Projects tables (`projects`, `goals`, `plan_tasks`,
+`time_blocks`, `consistent_actions`, `session_marks`) each belong to `auth.uid()` and have row-level security with
 select/insert/update/delete policies. The functions create their Supabase
 client with the anon key plus the caller's JWT, so RLS applies to every query;
 the service-role key is used only by `account-delete` (for
@@ -1505,7 +1513,7 @@ supabase db push                                    # applies supabase/migration
 | Function | verify_jwt | Why |
 |---|---|---|
 | `auth-register`, `auth-login`, `auth-refresh`, `auth-oauth` | off | called without a user token |
-| `auth-logout`, `habits`, `check-ins`, `game-state`, `projects`, `targets`, `plan-tasks`, `consistent-actions`, `session-marks`, `profile`, `auth-change-password`, `account-delete` | off | the function validates the bearer token itself (`supabase.auth.getUser`) so a bad token gets the contract's `401 {"error":{"code":"unauthorized"}}` body instead of the gateway's own format; data is still only reachable with the user's JWT through RLS |
+| `auth-logout`, `habits`, `check-ins`, `game-state`, `projects`, `goals`, `time-blocks`, `plan-tasks`, `consistent-actions`, `session-marks`, `profile`, `auth-change-password`, `account-delete` | off | the function validates the bearer token itself (`supabase.auth.getUser`) so a bad token gets the contract's `401 {"error":{"code":"unauthorized"}}` body instead of the gateway's own format; data is still only reachable with the user's JWT through RLS |
 
 ```sh
 supabase functions deploy auth-register --no-verify-jwt
@@ -1517,9 +1525,30 @@ supabase functions deploy habits        --no-verify-jwt
 supabase functions deploy check-ins     --no-verify-jwt
 supabase functions deploy game-state    --no-verify-jwt
 supabase functions deploy profile auth-change-password account-delete --no-verify-jwt
-supabase functions deploy projects targets plan-tasks consistent-actions session-marks --no-verify-jwt
+supabase functions deploy projects goals time-blocks plan-tasks consistent-actions session-marks --no-verify-jwt
 # or all at once (uses config.toml): supabase functions deploy
 ```
+
+**Pending deploy (Projects rework: goals, project time blocks, text
+consistent actions): NOT deployed yet.** Migration
+`20261127120000_goals_time_blocks.sql` renames `targets` → `goals`, turns
+`consistent_actions` into project `time_blocks` (back-filled), re-points
+`session_marks` and creates the new `consistent_actions` table. Deploy the
+database and the functions back to back (between the two steps the old
+functions fail), then delete the old `targets` function:
+
+```sh
+supabase migration list                 # only 20261127120000 must be pending
+supabase db push --dry-run              # must list only 20261127120000_goals_time_blocks.sql
+supabase db push
+supabase functions deploy projects goals time-blocks plan-tasks consistent-actions session-marks admin-stats account-delete --no-verify-jwt
+supabase functions delete targets
+```
+
+Risks: app builds from before the rework call `/targets` (gone) and the old
+shapes of `/consistent-actions`, `/plan-tasks` and `/session-marks`, so their
+Projects sync fails (habits keep syncing) until they update. The new app
+resets its Projects pull cursors on first launch (one full pull).
 
 **Deploy status (Projects): live since 2026-11-18.** On
 `fwikodmrfoorbstmkedx`: migrations `20261114120000_projects.sql` and

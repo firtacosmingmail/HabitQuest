@@ -1,14 +1,14 @@
 import '../../../core/utils/dates.dart';
 import 'json.dart';
 
-/// The user's "attended" mark on one session (one consistent action on one
-/// calendar day). Mirrors `CheckIn`: keyed by `(actionId, date)` so two
+/// The user's "attended" mark on one session (one time block on one
+/// calendar day). Mirrors `CheckIn`: keyed by `(timeBlockId, date)` so two
 /// devices marking the same session converge on one record, and un-marking
 /// keeps the record with `attended: false` and a fresh [updatedAt] so the
 /// change syncs.
 class SessionMark {
-  /// The `ConsistentAction.id`.
-  final String actionId;
+  /// The `TimeBlock.id`.
+  final String timeBlockId;
 
   /// Date-only (local) of the session.
   final DateTime date;
@@ -21,7 +21,7 @@ class SessionMark {
   final DateTime? deletedAt;
 
   SessionMark({
-    required this.actionId,
+    required this.timeBlockId,
     required DateTime date,
     required this.attended,
     required DateTime updatedAt,
@@ -30,11 +30,11 @@ class SessionMark {
         updatedAt = updatedAt.toUtc(),
         deletedAt = deletedAt?.toUtc();
 
-  /// Storage / sync queue key: `actionId|yyyy-MM-dd`.
-  static String keyFor(String actionId, DateTime date) =>
-      '$actionId|${dateKey(date)}';
+  /// Storage / sync queue key: `timeBlockId|yyyy-MM-dd`.
+  static String keyFor(String timeBlockId, DateTime date) =>
+      '$timeBlockId|${dateKey(date)}';
 
-  String get key => keyFor(actionId, date);
+  String get key => keyFor(timeBlockId, date);
 
   /// Counts as attended (attended and not a tombstone).
   bool get isAttended => attended && deletedAt == null;
@@ -45,7 +45,7 @@ class SessionMark {
     DateTime? Function()? deletedAt,
   }) =>
       SessionMark(
-        actionId: actionId,
+        timeBlockId: timeBlockId,
         date: date,
         attended: attended ?? this.attended,
         updatedAt: updatedAt ?? this.updatedAt,
@@ -53,7 +53,7 @@ class SessionMark {
       );
 
   Map<String, dynamic> toJson() => {
-        'actionId': actionId,
+        'timeBlockId': timeBlockId,
         'date': dateKey(date),
         'attended': attended,
         'updatedAt': formatTimestamp(updatedAt),
@@ -61,7 +61,7 @@ class SessionMark {
       };
 
   factory SessionMark.fromJson(Map<String, dynamic> json) => SessionMark(
-        actionId: json['actionId'] as String,
+        timeBlockId: json['timeBlockId'] as String,
         date: parseDateKey(json['date'] as String),
         attended: json['attended'] as bool? ?? true,
         updatedAt: DateTime.parse(json['updatedAt'] as String),
@@ -71,7 +71,7 @@ class SessionMark {
   @override
   bool operator ==(Object other) =>
       other is SessionMark &&
-      other.actionId == actionId &&
+      other.timeBlockId == timeBlockId &&
       other.date == date &&
       other.attended == attended &&
       other.updatedAt == updatedAt &&
@@ -79,7 +79,7 @@ class SessionMark {
 
   @override
   int get hashCode =>
-      Object.hash(actionId, date, attended, updatedAt, deletedAt);
+      Object.hash(timeBlockId, date, attended, updatedAt, deletedAt);
 
   @override
   String toString() => 'SessionMark($key, ${attended ? 'attended' : 'not'})';

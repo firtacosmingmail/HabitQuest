@@ -1,41 +1,48 @@
 import 'consistent_action.dart';
+import 'goal.dart';
 import 'plan_task.dart';
 import 'project.dart';
 import 'session_mark.dart';
-import 'target.dart';
+import 'time_block.dart';
 
 /// An immutable snapshot of every VISIBLE projects record.
 ///
 /// Visibility cascades: a record is hidden when it or any ancestor is
-/// deleted (project → target → plan task / consistent action → session
-/// mark). Archived projects stay visible (filter on `Project.archived`).
+/// deleted (project → goal → plan task / consistent action; project → time
+/// block → session mark). Archived projects stay visible (filter on
+/// `Project.archived`).
 ///
-/// Lists are sorted: projects and targets by `createdAt` (then id), plan
-/// tasks by `position` (then `createdAt`, id), actions by `createdAt`.
+/// Lists are sorted: projects, goals and time blocks by `createdAt` (then
+/// id), plan tasks by `position` and consistent actions by `sortOrder`
+/// (then `createdAt`, id).
 class ProjectsData {
   final List<Project> projects;
-  final List<Target> targets;
+  final List<Goal> goals;
   final List<PlanTask> planTasks;
-  final List<ConsistentAction> actions;
+  final List<TimeBlock> timeBlocks;
+  final List<ConsistentAction> consistentActions;
 
   /// Visible session marks by `SessionMark.key` (any `attended` value).
   final Map<String, SessionMark> sessionMarks;
 
   final Map<String, Project> _projectsById;
-  final Map<String, Target> _targetsById;
-  final Map<String, ConsistentAction> _actionsById;
+  final Map<String, Goal> _goalsById;
+  final Map<String, TimeBlock> _timeBlocksById;
   final Map<String, PlanTask> _planTasksById;
+  final Map<String, ConsistentAction> _consistentActionsById;
 
   ProjectsData._(
     this.projects,
-    this.targets,
+    this.goals,
     this.planTasks,
-    this.actions,
+    this.timeBlocks,
+    this.consistentActions,
     this.sessionMarks,
   )   : _projectsById = {for (final p in projects) p.id: p},
-        _targetsById = {for (final t in targets) t.id: t},
-        _actionsById = {for (final a in actions) a.id: a},
-        _planTasksById = {for (final t in planTasks) t.id: t};
+        _goalsById = {for (final g in goals) g.id: g},
+        _timeBlocksById = {for (final b in timeBlocks) b.id: b},
+        _planTasksById = {for (final t in planTasks) t.id: t},
+        _consistentActionsById = {for (final a in consistentActions) a.id: a};
 
   static final empty = ProjectsData.fromRecords();
 
@@ -43,40 +50,49 @@ class ProjectsData {
   /// records are dropped.
   factory ProjectsData.fromRecords({
     Iterable<Project> projects = const [],
-    Iterable<Target> targets = const [],
+    Iterable<Goal> goals = const [],
     Iterable<PlanTask> planTasks = const [],
-    Iterable<ConsistentAction> actions = const [],
+    Iterable<TimeBlock> timeBlocks = const [],
+    Iterable<ConsistentAction> consistentActions = const [],
     Iterable<SessionMark> sessionMarks = const [],
   }) {
     final ps = projects.where((p) => !p.isDeleted).toList()
       ..sort((a, b) => _byCreated(a.createdAt, a.id, b.createdAt, b.id));
     final pIds = {for (final p in ps) p.id};
-    final ts = targets
-        .where((t) => !t.isDeleted && pIds.contains(t.projectId))
+    final gs = goals
+        .where((g) => !g.isDeleted && pIds.contains(g.projectId))
         .toList()
       ..sort((a, b) => _byCreated(a.createdAt, a.id, b.createdAt, b.id));
-    final tIds = {for (final t in ts) t.id};
+    final gIds = {for (final g in gs) g.id};
     final tasks = planTasks
-        .where((t) => !t.isDeleted && tIds.contains(t.targetId))
+        .where((t) => !t.isDeleted && gIds.contains(t.goalId))
         .toList()
       ..sort((a, b) {
         final c = a.position.compareTo(b.position);
         return c != 0 ? c : _byCreated(a.createdAt, a.id, b.createdAt, b.id);
       });
-    final as = actions
-        .where((a) => !a.isDeleted && tIds.contains(a.targetId))
+    final cas = consistentActions
+        .where((a) => !a.isDeleted && gIds.contains(a.goalId))
+        .toList()
+      ..sort((a, b) {
+        final c = a.sortOrder.compareTo(b.sortOrder);
+        return c != 0 ? c : _byCreated(a.createdAt, a.id, b.createdAt, b.id);
+      });
+    final bs = timeBlocks
+        .where((b) => !b.isDeleted && pIds.contains(b.projectId))
         .toList()
       ..sort((a, b) => _byCreated(a.createdAt, a.id, b.createdAt, b.id));
-    final aIds = {for (final a in as) a.id};
+    final bIds = {for (final b in bs) b.id};
     final marks = {
       for (final m in sessionMarks)
-        if (m.deletedAt == null && aIds.contains(m.actionId)) m.key: m,
+        if (m.deletedAt == null && bIds.contains(m.timeBlockId)) m.key: m,
     };
     return ProjectsData._(
       List.unmodifiable(ps),
-      List.unmodifiable(ts),
+      List.unmodifiable(gs),
       List.unmodifiable(tasks),
-      List.unmodifiable(as),
+      List.unmodifiable(bs),
+      List.unmodifiable(cas),
       Map.unmodifiable(marks),
     );
   }
@@ -87,23 +103,28 @@ class ProjectsData {
   }
 
   Project? project(String id) => _projectsById[id];
-  Target? target(String id) => _targetsById[id];
-  ConsistentAction? action(String id) => _actionsById[id];
+  Goal? goal(String id) => _goalsById[id];
+  TimeBlock? timeBlock(String id) => _timeBlocksById[id];
   PlanTask? planTask(String id) => _planTasksById[id];
+  ConsistentAction? consistentAction(String id) => _consistentActionsById[id];
 
-  /// Visible targets by id.
-  Map<String, Target> get targetsById => _targetsById;
+  /// Visible goals by id.
+  Map<String, Goal> get goalsById => _goalsById;
 
-  List<Target> targetsOf(String projectId) =>
-      targets.where((t) => t.projectId == projectId).toList();
+  List<Goal> goalsOf(String projectId) =>
+      goals.where((g) => g.projectId == projectId).toList();
 
-  List<PlanTask> planTasksOf(String targetId) =>
-      planTasks.where((t) => t.targetId == targetId).toList();
+  List<PlanTask> planTasksOf(String goalId) =>
+      planTasks.where((t) => t.goalId == goalId).toList();
 
-  List<ConsistentAction> actionsOf(String targetId) =>
-      actions.where((a) => a.targetId == targetId).toList();
+  List<ConsistentAction> consistentActionsOf(String goalId) =>
+      consistentActions.where((a) => a.goalId == goalId).toList();
 
-  /// Whether the session of [actionId] on [date] is marked attended.
-  bool isAttended(String actionId, DateTime date) =>
-      sessionMarks[SessionMark.keyFor(actionId, date)]?.isAttended ?? false;
+  List<TimeBlock> timeBlocksOf(String projectId) =>
+      timeBlocks.where((b) => b.projectId == projectId).toList();
+
+  /// Whether the session of [timeBlockId] on [date] is marked attended.
+  bool isAttended(String timeBlockId, DateTime date) =>
+      sessionMarks[SessionMark.keyFor(timeBlockId, date)]?.isAttended ??
+      false;
 }

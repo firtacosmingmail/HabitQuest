@@ -195,8 +195,9 @@ check("game-state older → not applied", r.body.applied === false, r);
 
 // Projects (docs/PROJECTS.md): parent-first, LWW, filters, session marks.
 const P = crypto.randomUUID();
-const T = crypto.randomUUID();
+const G = crypto.randomUUID();
 const K = crypto.randomUUID();
+const B = crypto.randomUUID();
 const A = crypto.randomUUID();
 const ts = (d: string) => `2026-11-${d}T08:00:00.000Z`;
 const project = {
@@ -207,8 +208,8 @@ const project = {
   updatedAt: ts("01"),
   deletedAt: null,
 };
-const target = {
-  id: T,
+const goal = {
+  id: G,
   projectId: P,
   title: "5 videos",
   deadline: "2026-11-30",
@@ -219,7 +220,7 @@ const target = {
 };
 const task = {
   id: K,
-  targetId: T,
+  goalId: G,
   title: "5 scripts",
   deliveryDate: "2026-11-10",
   done: false,
@@ -228,20 +229,31 @@ const task = {
   updatedAt: ts("01"),
   deletedAt: null,
 };
-const action = {
-  id: A,
-  targetId: T,
+const block = {
+  id: B,
+  projectId: P,
+  label: "Deep work",
   startTime: "10:00",
   endTime: "13:00",
   recurrence: { type: "weekly", weekdays: [1, 2, 3, 4, 5] },
-  startDate: null,
+  startDate: "2026-11-02",
+  endDate: null,
   createdAt: ts("01"),
   updatedAt: ts("01"),
   deletedAt: null,
 };
-const markId = `${A}|2026-11-16`;
+const action = {
+  id: A,
+  goalId: G,
+  text: "Write 500 words",
+  sortOrder: 0,
+  createdAt: ts("01"),
+  updatedAt: ts("01"),
+  deletedAt: null,
+};
+const markId = `${B}|2026-11-16`;
 const mark = {
-  actionId: A,
+  timeBlockId: B,
   date: "2026-11-16",
   attended: true,
   updatedAt: ts("02"),
@@ -250,10 +262,19 @@ const mark = {
 
 r = await call("GET", "projects");
 check("projects: no token → 401", r.status === 401 && r.body?.error?.code === "unauthorized", r);
-r = await call("PUT", `targets/${T}`, { token: t, body: target });
+r = await call("GET", "targets", { token: t });
+check("targets function is gone → 404", r.status === 404, r);
+r = await call("PUT", `goals/${G}`, { token: t, body: goal });
 check(
-  "target before its project → 409 parent_not_found",
+  "goal before its project → 409 parent_not_found",
   r.status === 409 && r.body?.error?.code === "parent_not_found",
+  r,
+);
+r = await call("PUT", `time-blocks/${B}`, { token: t, body: block });
+check(
+  "time block before its project → 409 parent_not_found",
+  r.status === 409 && r.body?.error?.code === "parent_not_found" &&
+    String(r.body?.error?.message).includes("project"),
   r,
 );
 r = await call("PUT", `projects/${P}`, { token: t, body: project });
@@ -273,42 +294,79 @@ check(
   r.body.applied === false && r.body.item.name === project.name,
   r,
 );
-r = await call("POST", "targets/batch", { token: t, body: { items: [target] } });
+r = await call("PUT", `consistent-actions/${A}`, { token: t, body: action });
 check(
-  "targets batch echoes contract JSON",
-  r.status === 200 && JSON.stringify(r.body.results[0].item) === JSON.stringify(target),
+  "consistent action before its goal → 409 parent_not_found",
+  r.status === 409 && String(r.body?.error?.message).includes("goal"),
+  r,
+);
+r = await call("POST", "goals/batch", { token: t, body: { items: [goal] } });
+check(
+  "goals batch echoes contract JSON",
+  r.status === 200 && JSON.stringify(r.body.results[0].item) === JSON.stringify(goal),
   r,
 );
 r = await call("PUT", `plan-tasks/${K}`, { token: t, body: task });
 check("PUT plan task", r.status === 200 && JSON.stringify(r.body.item) === JSON.stringify(task), r);
-r = await call("PUT", `consistent-actions/${A}`, { token: t, body: action });
+r = await call("PUT", `time-blocks/${B}`, { token: t, body: block });
 check(
-  "PUT consistent action (recurrence jsonb round-trip)",
-  r.status === 200 && JSON.stringify(r.body.item) === JSON.stringify(action),
+  "PUT time block (label, recurrence jsonb, dates round-trip)",
+  r.status === 200 && JSON.stringify(r.body.item) === JSON.stringify(block),
   r,
 );
-r = await call("PUT", `consistent-actions/${crypto.randomUUID()}`, {
+r = await call("PUT", `time-blocks/${B}`, {
   token: t,
-  body: { ...action, id: undefined, endTime: "09:00" },
+  body: { ...block, label: null, endDate: "2026-12-31", updatedAt: ts("03") },
 });
 check(
-  "action end before start → 400",
+  "time block label null + endDate",
+  r.status === 200 && r.body.item.label === null && r.body.item.endDate === "2026-12-31",
+  r,
+);
+r = await call("PUT", `time-blocks/${crypto.randomUUID()}`, {
+  token: t,
+  body: { ...block, id: undefined, endTime: "09:00" },
+});
+check(
+  "block end before start → 400",
   r.status === 400 && r.body.error.code === "invalid_input",
   r,
 );
-r = await call("PUT", `consistent-actions/${crypto.randomUUID()}`, {
+r = await call("PUT", `time-blocks/${crypto.randomUUID()}`, {
   token: t,
-  body: { ...action, id: undefined, startTime: "11:00", endTime: "12:00" },
+  body: { ...block, id: undefined, endDate: "2026-11-01" },
+});
+check("block endDate before startDate → 400", r.status === 400, r);
+r = await call("PUT", `time-blocks/${crypto.randomUUID()}`, {
+  token: t,
+  body: { ...block, id: undefined, startTime: "11:00", endTime: "12:00" },
 });
 check(
-  "overlapping action is accepted (overlap is an app rule)",
+  "overlapping block is accepted (overlap is an app rule)",
   r.status === 200 && r.body.applied,
   r,
 );
+r = await call("PUT", `consistent-actions/${A}`, { token: t, body: action });
+check(
+  "PUT consistent action (text item) echoes contract JSON",
+  r.status === 200 && JSON.stringify(r.body.item) === JSON.stringify(action),
+  r,
+);
+r = await call("POST", "consistent-actions/batch", {
+  token: t,
+  body: { items: [{ ...action, id: crypto.randomUUID(), text: "Edit", sortOrder: 1 }] },
+});
+check("consistent actions batch", r.status === 200 && r.body.results[0].applied, r);
+r = await call("PUT", `consistent-actions/${A}`, {
+  token: t,
+  body: { ...action, text: "x".repeat(501), updatedAt: ts("04") },
+});
+check("consistent action text > 500 → 400", r.status === 400, r);
 r = await call("PUT", `session-marks/${encodeURIComponent(markId)}`, { token: t, body: mark });
 check(
   "PUT session mark (derived id)",
-  r.status === 200 && r.body.item.id === markId && r.body.item.attended === true,
+  r.status === 200 && r.body.item.id === markId && r.body.item.attended === true &&
+    r.body.item.timeBlockId === B,
   r,
 );
 r = await call("POST", "session-marks/batch", {
@@ -320,14 +378,37 @@ check(
   r.status === 200 && r.body.results[0].id === markId && r.body.results[0].item.attended === false,
   r,
 );
+r = await call("PUT", `session-marks/${encodeURIComponent(`${G}|2026-11-16`)}`, {
+  token: t,
+  body: { ...mark, timeBlockId: G },
+});
+check(
+  "session mark of an unknown time block → 409",
+  r.status === 409 && String(r.body?.error?.message).includes("time block"),
+  r,
+);
 r = await call("GET", `session-marks/${encodeURIComponent(markId)}`, { token: t });
 check("GET session mark by key", r.status === 200 && r.body.attended === false, r);
-r = await call("GET", `session-marks?actionId=${A}`, { token: t });
-check("session-marks actionId filter", r.status === 200 && r.body.items.length === 1, r);
-r = await call("GET", `targets?projectId=${P}`, { token: t });
-check("targets projectId filter", r.status === 200 && r.body.items.length === 1, r);
-r = await call("GET", `plan-tasks?targetId=${T}`, { token: t });
-check("plan-tasks targetId filter", r.status === 200 && r.body.items.length === 1, r);
+r = await call("DELETE", `session-marks/${encodeURIComponent(markId)}?updatedAt=${ts("04")}`, {
+  token: t,
+});
+check("DELETE session mark → tombstone", r.status === 200 && r.body.item.deletedAt === ts("04"), r);
+r = await call("GET", `session-marks?timeBlockId=${B}`, { token: t });
+check("session-marks timeBlockId filter", r.status === 200 && r.body.items.length === 1, r);
+r = await call("GET", `goals?projectId=${P}`, { token: t });
+check("goals projectId filter", r.status === 200 && r.body.items.length === 1, r);
+r = await call("GET", `time-blocks?projectId=${P}`, { token: t });
+check("time-blocks projectId filter", r.status === 200 && r.body.items.length === 2, r);
+r = await call("GET", `plan-tasks?goalId=${G}`, { token: t });
+check("plan-tasks goalId filter", r.status === 200 && r.body.items.length === 1, r);
+r = await call("GET", `consistent-actions?goalId=${G}`, { token: t });
+check("consistent-actions goalId filter", r.status === 200 && r.body.items.length === 2, r);
+r = await call("DELETE", `consistent-actions/${A}?updatedAt=${ts("05")}`, { token: t });
+check("DELETE consistent action → tombstone", r.status === 200 && r.body.applied, r);
+r = await call("DELETE", `time-blocks/${B}?updatedAt=${ts("05")}`, { token: t });
+check("DELETE time block → tombstone", r.status === 200 && r.body.applied, r);
+r = await call("DELETE", `goals/${G}?updatedAt=${ts("05")}`, { token: t });
+check("DELETE goal → tombstone", r.status === 200 && r.body.item.deletedAt === ts("05"), r);
 r = await call("DELETE", `projects/${P}?updatedAt=${ts("05")}`, { token: t });
 check("DELETE project → tombstone", r.status === 200 && r.body.item.deletedAt === ts("05"), r);
 r = await call("GET", `projects?since=${encodeURIComponent(pCursor)}`, { token: t });
@@ -352,15 +433,29 @@ r = await call("PUT", "habits/h1", { token: t2, body: habit });
 check("RLS: same id for other user is a separate row", r.body.applied === true, r);
 r = await call("GET", "game-state", { token: t2 });
 check("RLS: other user has no game state", r.body.item === null, r);
-for (const f of ["projects", "targets", "plan-tasks", "consistent-actions", "session-marks"]) {
+for (
+  const f of [
+    "projects",
+    "goals",
+    "time-blocks",
+    "plan-tasks",
+    "consistent-actions",
+    "session-marks",
+  ]
+) {
   r = await call("GET", f, { token: t2 });
   check(`RLS: other user sees no ${f}`, r.status === 200 && r.body.items.length === 0, r);
 }
-r = await call("PUT", `targets/${crypto.randomUUID()}`, {
+r = await call("PUT", `goals/${crypto.randomUUID()}`, {
   token: t2,
-  body: { ...target, id: undefined },
+  body: { ...goal, id: undefined },
 });
-check("RLS: other user cannot attach to user 1's project", r.status === 409, r);
+check("RLS: other user cannot attach a goal to user 1's project", r.status === 409, r);
+r = await call("PUT", `time-blocks/${crypto.randomUUID()}`, {
+  token: t2,
+  body: { ...block, id: undefined },
+});
+check("RLS: other user cannot attach a time block to user 1's project", r.status === 409, r);
 
 // account-delete removes the Projects rows too (explicit deletes + FK cascade).
 r = await call("POST", "auth-register", {
@@ -368,8 +463,10 @@ r = await call("POST", "auth-register", {
 });
 const t3 = r.body.session.accessToken;
 await call("PUT", `projects/${P}`, { token: t3, body: project });
-await call("PUT", `targets/${T}`, { token: t3, body: target });
+await call("PUT", `goals/${G}`, { token: t3, body: goal });
+await call("PUT", `plan-tasks/${K}`, { token: t3, body: task });
 await call("PUT", `consistent-actions/${A}`, { token: t3, body: action });
+await call("PUT", `time-blocks/${B}`, { token: t3, body: block });
 r = await call("PUT", `session-marks/${encodeURIComponent(markId)}`, { token: t3, body: mark });
 check("user 3 has a full project tree", r.status === 200 && r.body.applied, r);
 r = await call("POST", "account-delete", { token: t3, body: { confirm: "DELETE" } });

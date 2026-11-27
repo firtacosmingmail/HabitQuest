@@ -5,31 +5,39 @@ import 'package:hive_ce/hive.dart';
 
 import '../../../data/sync/change_recorder.dart';
 import '../models/consistent_action.dart';
+import '../models/goal.dart';
 import '../models/plan_task.dart';
 import '../models/project.dart';
 import '../models/session_mark.dart';
-import '../models/target.dart';
+import '../models/time_block.dart';
 import 'project_repository.dart';
 
-/// [ProjectRepository] backed by five hive_ce boxes of JSON strings (no
+/// [ProjectRepository] backed by six hive_ce boxes of JSON strings (no
 /// adapters / code generation), one per [ProjectEntityKind]:
 ///
 /// | box | key | value |
 /// |---|---|---|
 /// | `projects` | `id` | `Project.toJson()` |
-/// | `project_targets` | `id` | `Target.toJson()` |
+/// | `project_goals` | `id` | `Goal.toJson()` |
 /// | `project_plan_tasks` | `id` | `PlanTask.toJson()` |
-/// | `project_actions` | `id` | `ConsistentAction.toJson()` |
-/// | `project_session_marks` | `actionId\|yyyy-MM-dd` | `SessionMark.toJson()` |
+/// | `project_time_blocks` | `id` | `TimeBlock.toJson()` |
+/// | `project_consistent_actions` | `id` | `ConsistentAction.toJson()` |
+/// | `project_session_marks` | `timeBlockId\|yyyy-MM-dd` | `SessionMark.toJson()` |
+///
+/// Data written before the rework (boxes `project_targets` and
+/// `project_actions`) is converted once by `migrateProjectsStorage` (see
+/// `projects_storage_migration.dart`), which `main.dart` runs before
+/// [open].
 ///
 /// Tombstones are stored too. Unreadable entries are skipped (logged).
 /// Call `Hive.initFlutter()` (app) or `Hive.init(path)` (tests) first.
 class HiveProjectRepository extends CachedProjectRepository {
   static const boxNames = {
     ProjectEntityKind.project: 'projects',
-    ProjectEntityKind.target: 'project_targets',
+    ProjectEntityKind.goal: 'project_goals',
     ProjectEntityKind.planTask: 'project_plan_tasks',
-    ProjectEntityKind.consistentAction: 'project_actions',
+    ProjectEntityKind.timeBlock: 'project_time_blocks',
+    ProjectEntityKind.consistentAction: 'project_consistent_actions',
     ProjectEntityKind.sessionMark: 'project_session_marks',
   };
 
@@ -72,10 +80,11 @@ class HiveProjectRepository extends CachedProjectRepository {
 
     cacheRecords(ProjectRecords(
       projects: read(ProjectEntityKind.project, Project.fromJson),
-      targets: read(ProjectEntityKind.target, Target.fromJson),
+      goals: read(ProjectEntityKind.goal, Goal.fromJson),
       planTasks: read(ProjectEntityKind.planTask, PlanTask.fromJson),
-      actions:
-          read(ProjectEntityKind.consistentAction, ConsistentAction.fromJson),
+      timeBlocks: read(ProjectEntityKind.timeBlock, TimeBlock.fromJson),
+      consistentActions: read(
+          ProjectEntityKind.consistentAction, ConsistentAction.fromJson),
       sessionMarks: read(ProjectEntityKind.sessionMark, SessionMark.fromJson),
     ));
   }

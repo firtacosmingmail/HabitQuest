@@ -500,7 +500,10 @@ verify_jwt = false
 [functions.projects]
 verify_jwt = false
 
-[functions.targets]
+[functions.goals]
+verify_jwt = false
+
+[functions.time-blocks]
 verify_jwt = false
 
 [functions.plan-tasks]

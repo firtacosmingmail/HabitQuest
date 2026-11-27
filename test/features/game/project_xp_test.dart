@@ -11,7 +11,7 @@ import 'package:habit_quest/features/projects/data/project_repository.dart';
 import 'package:habit_quest/features/projects/domain/project_service.dart';
 import 'package:habit_quest/features/projects/models/plan_task.dart';
 import 'package:habit_quest/features/projects/models/session_mark.dart';
-import 'package:habit_quest/features/projects/models/target.dart';
+import 'package:habit_quest/features/projects/models/goal.dart';
 
 import '../projects/helpers.dart';
 
@@ -20,22 +20,19 @@ DateTime d(int y, int m, int day) => DateTime(y, m, day);
 /// Friday 13 Nov 2026, 10:00.
 final clock = DateTime(2026, 11, 13, 10);
 
-/// Mon–Fri.
-const monFri = {1, 2, 3, 4, 5};
-
-/// p1 → t1 (deadline 30 Nov) with plan tasks k1, k2 and a Mon–Fri action a1
-/// starting 2 Nov (so sessions exist on past weekdays).
-ProjectRecords seed({TargetStatus t1Status = TargetStatus.notStarted}) =>
+/// p1 → goal t1 (deadline 30 Nov) with plan tasks k1, k2, and a Mon–Fri
+/// project time block a1 starting 2 Nov (so sessions exist on past weekdays).
+ProjectRecords seed({GoalStatus t1Status = GoalStatus.notStarted}) =>
     ProjectRecords(
       projects: [project('p1')],
-      targets: [target('t1', deadline: d(2026, 11, 30), status: t1Status)],
+      goals: [goal('t1', deadline: d(2026, 11, 30), status: t1Status)],
       planTasks: [task('k1', 0), task('k2', 1)],
-      actions: [weekly('a1', days: monFri, startDate: d(2026, 11, 2))],
+      timeBlocks: [weekly('a1', days: monFri, startDate: d(2026, 11, 2))],
     );
 
 PlanTask task(String id, int position, {bool done = false}) => PlanTask(
   id: id,
-  targetId: 't1',
+  goalId: 't1',
   title: 'Task $id',
   done: done,
   position: position,
@@ -94,12 +91,12 @@ void main() {
     test('amounts', () {
       expect(GameRules.planTaskXp, 10);
       expect(GameRules.sessionXp, 15);
-      expect(GameRules.targetDoneXp, 50);
+      expect(GameRules.goalDoneXp, 50);
     });
 
     test('keys and the session key parser', () {
       expect(GameState.planTaskKey('k1'), 'task:k1');
-      expect(GameState.targetKey('t1'), 'target:t1');
+      expect(GameState.goalKey('t1'), 'target:t1');
       final key = GameState.sessionKey('a|1', d(2026, 11, 3));
       expect(key, 'session:a|1|2026-11-03');
       expect(GameState.parseSessionKey(key), ('a|1', d(2026, 11, 3)));
@@ -115,7 +112,7 @@ void main() {
       expect(a.xp, 71);
       expect(a.projectXp, 60);
       expect(a.planTasksDone, 1);
-      expect(a.targetsDone, 1);
+      expect(a.goalsDone, 1);
       expect(GameState.fromJson(a.toJson()), a);
       expect(a.toJson()['projects'], {'task:k1': 10, 'target:t1': 50});
       // Older states have no `projects` key.
@@ -205,43 +202,87 @@ void main() {
       await h.run((s) => s.setSessionAttended('a1', d(2026, 11, 13), true));
       expect(h.xp, 30);
       expect(h.engine.state.sessionsAttended, 2);
+      expect(h.engine.state.projectLedger, {
+        'session:a1|2026-11-12': 15,
+        'session:a1|2026-11-13': 15,
+      });
     });
 
-    test('deleting the action removes the XP of all its sessions', () async {
-      final h = Harness(records: seed());
-      await h.run((s) => s.setSessionAttended('a1', d(2026, 11, 11), true));
-      await h.run((s) => s.setSessionAttended('a1', d(2026, 11, 12), true));
-      await h.run((s) => s.deleteAction('a1'));
-      expect(h.xp, 0);
-      expect(h.eventsOf<XpLost>().single.amount, 30);
-    });
+    test(
+      'a labelled block of another project earns for that project',
+      () async {
+        final h = Harness(
+          records: ProjectRecords(
+            projects: [project('p1'), project('p2')],
+            timeBlocks: [
+              weekly(
+                'b2',
+                projectId: 'p2',
+                label: 'Editing',
+                days: monFri,
+                start: '14:00',
+                end: '15:00',
+                startDate: d(2026, 11, 2),
+              ),
+            ],
+          ),
+        );
+        await h.run((s) => s.setSessionAttended('b2', d(2026, 11, 12), true));
+        expect(h.xp, 15);
+        expect(h.eventsOf<XpGained>().single.projectId, 'p2');
+        expect(h.engine.state.projectLedger, {'session:b2|2026-11-12': 15});
+      },
+    );
+
+    test(
+      'deleting the time block removes the XP of all its sessions',
+      () async {
+        final h = Harness(records: seed());
+        await h.run((s) => s.setSessionAttended('a1', d(2026, 11, 11), true));
+        await h.run((s) => s.setSessionAttended('a1', d(2026, 11, 12), true));
+        await h.run((s) => s.deleteTimeBlock('a1'));
+        expect(h.xp, 0);
+        final lost = h.eventsOf<XpLost>().single;
+        expect(lost.amount, 30);
+        expect(lost.reason, XpReason.projectItemDeleted);
+        expect(lost.projectId, 'p1');
+        expect(h.engine.state.projectLedger, isEmpty);
+      },
+    );
   });
 
-  group('targets', () {
+  group('goals', () {
     test('done grants 50 XP; back from done takes it back', () async {
       final h = Harness(records: seed());
-      await h.run((s) => s.setTargetStatus('t1', TargetStatus.inProgress));
+      await h.run((s) => s.setGoalStatus('t1', GoalStatus.inProgress));
       expect(h.xp, 0);
-      await h.run((s) => s.setTargetStatus('t1', TargetStatus.done));
+      await h.run((s) => s.setGoalStatus('t1', GoalStatus.done));
       expect(h.xp, 50);
-      expect(h.eventsOf<XpGained>().single.reason, XpReason.target);
+      expect(h.eventsOf<XpGained>().single.reason, XpReason.goal);
 
-      await h.run((s) => s.setTargetStatus('t1', TargetStatus.inProgress));
+      await h.run((s) => s.setGoalStatus('t1', GoalStatus.inProgress));
       expect(h.xp, 0);
-      await h.run((s) => s.setTargetStatus('t1', TargetStatus.done));
-      await h.run((s) => s.setTargetStatus('t1', TargetStatus.notStarted));
-      await h.run((s) => s.setTargetStatus('t1', TargetStatus.done));
+      await h.run((s) => s.setGoalStatus('t1', GoalStatus.done));
+      await h.run((s) => s.setGoalStatus('t1', GoalStatus.notStarted));
+      await h.run((s) => s.setGoalStatus('t1', GoalStatus.done));
       expect(h.xp, 50);
     });
 
-    test('a target created as done earns too', () async {
+    test('the ledger keeps the legacy target: key for goals', () async {
+      final h = Harness(records: seed());
+      await h.run((s) => s.setGoalStatus('t1', GoalStatus.done));
+      expect(h.engine.state.projectLedger, {'target:t1': 50});
+      expect(h.engine.state.goalsDone, 1);
+    });
+
+    test('a goal created as done earns too', () async {
       final h = Harness(records: ProjectRecords(projects: [project('p1')]));
       await h.run(
-        (s) => s.createTarget(
+        (s) => s.createGoal(
           projectId: 'p1',
           title: 'Ship',
           deadline: d(2026, 12, 1),
-          status: TargetStatus.done,
+          status: GoalStatus.done,
         ),
       );
       expect(h.xp, 50);
@@ -251,7 +292,7 @@ void main() {
       final h = Harness(records: seed());
       await h.run((s) => s.setPlanTaskDone('k1', true));
       await h.run((s) => s.setSessionAttended('a1', d(2026, 11, 12), true));
-      await h.run((s) => s.setTargetStatus('t1', TargetStatus.done));
+      await h.run((s) => s.setGoalStatus('t1', GoalStatus.done));
       expect(h.xp, 75);
       await h.run((s) => s.deleteProject('p1'));
       expect(h.xp, 0);
@@ -260,32 +301,37 @@ void main() {
 
     test('archiving a project keeps its XP', () async {
       final h = Harness(records: seed());
-      await h.run((s) => s.setTargetStatus('t1', TargetStatus.done));
+      await h.run((s) => s.setGoalStatus('t1', GoalStatus.done));
       await h.run((s) => s.archiveProject('p1'));
       expect(h.xp, 50);
     });
   });
 
   group('achievements', () {
-    test('first task, first target and a completed project', () async {
+    test('stored goal achievement ids are unchanged', () {
+      expect(AchievementIds.firstGoalDone, 'first_target_done');
+      expect(AchievementIds.goals5, 'targets_5');
+    });
+
+    test('first task, first goal and a completed project', () async {
       final h = Harness(records: seed());
       await h.run((s) => s.setPlanTaskDone('k1', true));
       expect(h.unlocked(AchievementIds.firstPlanTask), isTrue);
-      expect(h.unlocked(AchievementIds.firstTargetDone), isFalse);
+      expect(h.unlocked(AchievementIds.firstGoalDone), isFalse);
 
-      // A second, unfinished target: the project is not complete yet.
+      // A second, unfinished goal: the project is not complete yet.
       await h.run(
-        (s) => s.createTarget(
+        (s) => s.createGoal(
           projectId: 'p1',
           title: 'Second',
           deadline: d(2026, 12, 20),
         ),
       );
-      await h.run((s) => s.setTargetStatus('t1', TargetStatus.done));
-      expect(h.unlocked(AchievementIds.firstTargetDone), isTrue);
+      await h.run((s) => s.setGoalStatus('t1', GoalStatus.done));
+      expect(h.unlocked(AchievementIds.firstGoalDone), isTrue);
       expect(h.unlocked(AchievementIds.projectComplete), isFalse);
 
-      await h.run((s) => s.setTargetStatus('new1', TargetStatus.done));
+      await h.run((s) => s.setGoalStatus('new1', GoalStatus.done));
       expect(h.unlocked(AchievementIds.projectComplete), isTrue);
       final names = h
           .eventsOf<AchievementUnlocked>()
@@ -293,41 +339,40 @@ void main() {
           .toList();
       expect(names, [
         AchievementIds.firstPlanTask,
-        AchievementIds.firstTargetDone,
+        AchievementIds.firstGoalDone,
         AchievementIds.projectComplete,
       ]);
     });
 
     test('achievements stay unlocked after undo and fire only once', () async {
       final h = Harness(records: seed());
-      await h.run((s) => s.setTargetStatus('t1', TargetStatus.done));
-      await h.run((s) => s.setTargetStatus('t1', TargetStatus.inProgress));
-      await h.run((s) => s.setTargetStatus('t1', TargetStatus.done));
-      expect(h.unlocked(AchievementIds.firstTargetDone), isTrue);
+      await h.run((s) => s.setGoalStatus('t1', GoalStatus.done));
+      await h.run((s) => s.setGoalStatus('t1', GoalStatus.inProgress));
+      await h.run((s) => s.setGoalStatus('t1', GoalStatus.done));
+      expect(h.unlocked(AchievementIds.firstGoalDone), isTrue);
       expect(
         h.eventsOf<AchievementUnlocked>().where(
-          (e) => e.achievement.id == AchievementIds.firstTargetDone,
+          (e) => e.achievement.id == AchievementIds.firstGoalDone,
         ),
         hasLength(1),
       );
     });
 
-    test('5 targets done unlocks Sharpshooter', () async {
+    test('5 goals done unlocks Sharpshooter', () async {
       final h = Harness(
         records: ProjectRecords(
           projects: [project('p1')],
-          targets: [
-            for (var i = 1; i <= 5; i++)
-              target('t$i', deadline: d(2026, 12, i)),
+          goals: [
+            for (var i = 1; i <= 5; i++) goal('t$i', deadline: d(2026, 12, i)),
           ],
         ),
       );
       for (var i = 1; i <= 4; i++) {
-        await h.run((s) => s.setTargetStatus('t$i', TargetStatus.done));
+        await h.run((s) => s.setGoalStatus('t$i', GoalStatus.done));
       }
-      expect(h.unlocked(AchievementIds.targets5), isFalse);
-      await h.run((s) => s.setTargetStatus('t5', TargetStatus.done));
-      expect(h.unlocked(AchievementIds.targets5), isTrue);
+      expect(h.unlocked(AchievementIds.goals5), isFalse);
+      await h.run((s) => s.setGoalStatus('t5', GoalStatus.done));
+      expect(h.unlocked(AchievementIds.goals5), isTrue);
       expect(h.xp, 250);
     });
 
@@ -359,17 +404,15 @@ void main() {
   });
 
   group('sync reconciliation', () {
-    test('a pulled done task / target / attended session gets its base XP '
+    test('a pulled done task / goal / attended session gets its base XP '
         'silently, once', () async {
       final h = Harness(records: seed());
       final pulled = ProjectRecords(
-        targets: [
-          target('t1', deadline: d(2026, 11, 30), status: TargetStatus.done),
-        ],
+        goals: [goal('t1', deadline: d(2026, 11, 30), status: GoalStatus.done)],
         planTasks: [task('k1', 0, done: true)],
         sessionMarks: [
           SessionMark(
-            actionId: 'a1',
+            timeBlockId: 'a1',
             date: d(2026, 11, 12),
             attended: true,
             updatedAt: clock,
@@ -381,7 +424,7 @@ void main() {
       await pumpEventQueue();
       expect(h.xp, 75);
       expect(h.events, isEmpty);
-      expect(h.unlocked(AchievementIds.firstTargetDone), isTrue);
+      expect(h.unlocked(AchievementIds.firstGoalDone), isTrue);
 
       // Pulled again (cursor overlap) or merged with the same server state:
       // still counted once.
@@ -406,7 +449,7 @@ void main() {
     test('undone or deleted on another device: the grant is dropped', () async {
       final h = Harness(records: seed());
       await h.run((s) => s.setPlanTaskDone('k1', true));
-      await h.run((s) => s.setTargetStatus('t1', TargetStatus.done));
+      await h.run((s) => s.setGoalStatus('t1', GoalStatus.done));
       await h.run((s) => s.setSessionAttended('a1', d(2026, 11, 12), true));
       expect(h.xp, 75);
 
@@ -414,16 +457,16 @@ void main() {
       await h.projects.applyRemote(
         ProjectRecords(
           planTasks: [task('k1', 0).copyWith(updatedAt: later)],
-          targets: [
-            target(
+          goals: [
+            goal(
               't1',
               deadline: d(2026, 11, 30),
-              status: TargetStatus.inProgress,
+              status: GoalStatus.inProgress,
             ).copyWith(updatedAt: later),
           ],
           sessionMarks: [
             SessionMark(
-              actionId: 'a1',
+              timeBlockId: 'a1',
               date: d(2026, 11, 12),
               attended: false,
               updatedAt: later,
@@ -454,7 +497,7 @@ void main() {
             projectLedger: {
               'task:other': 10,
               'target:other': 50,
-              'session:otherAction|2026-11-12': 15,
+              'session:otherBlock|2026-11-12': 15,
             },
           ),
         );

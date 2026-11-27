@@ -13,11 +13,12 @@ import 'domain/project_events.dart';
 import 'domain/project_service.dart';
 import 'domain/sessions.dart';
 import 'models/consistent_action.dart';
+import 'models/goal.dart';
 import 'models/plan_task.dart';
 import 'models/project.dart';
 import 'models/projects_data.dart';
 import 'models/session.dart';
-import 'models/target.dart';
+import 'models/time_block.dart';
 
 /// Storage. Must be overridden (see `main.dart` / tests).
 final projectRepositoryProvider = Provider<ProjectRepository>(
@@ -64,50 +65,63 @@ final projectByIdProvider = Provider.family<AsyncValue<Project?>, String>(
   (ref, id) => ref.watch(projectsDataProvider).whenData((d) => d.project(id)),
 );
 
-/// A project's targets, oldest first.
-final targetsOfProjectProvider =
-    Provider.family<AsyncValue<List<Target>>, String>(
+/// A project's goals, oldest first.
+final goalsOfProjectProvider =
+    Provider.family<AsyncValue<List<Goal>>, String>(
   (ref, projectId) =>
-      ref.watch(projectsDataProvider).whenData((d) => d.targetsOf(projectId)),
+      ref.watch(projectsDataProvider).whenData((d) => d.goalsOf(projectId)),
 );
 
-final targetByIdProvider = Provider.family<AsyncValue<Target?>, String>(
-  (ref, id) => ref.watch(projectsDataProvider).whenData((d) => d.target(id)),
+final goalByIdProvider = Provider.family<AsyncValue<Goal?>, String>(
+  (ref, id) => ref.watch(projectsDataProvider).whenData((d) => d.goal(id)),
 );
 
-/// A target's plan, in `position` order.
-final planTasksOfTargetProvider =
+/// A goal's plan, in `position` order.
+final planTasksOfGoalProvider =
     Provider.family<AsyncValue<List<PlanTask>>, String>(
-  (ref, targetId) =>
-      ref.watch(projectsDataProvider).whenData((d) => d.planTasksOf(targetId)),
+  (ref, goalId) =>
+      ref.watch(projectsDataProvider).whenData((d) => d.planTasksOf(goalId)),
 );
 
-/// A target's consistent actions, oldest first.
-final actionsOfTargetProvider =
+/// A goal's consistent actions (text items), in `sortOrder` order.
+final consistentActionsOfGoalProvider =
     Provider.family<AsyncValue<List<ConsistentAction>>, String>(
-  (ref, targetId) =>
-      ref.watch(projectsDataProvider).whenData((d) => d.actionsOf(targetId)),
+  (ref, goalId) => ref
+      .watch(projectsDataProvider)
+      .whenData((d) => d.consistentActionsOf(goalId)),
+);
+
+/// A project's time blocks, oldest first.
+final timeBlocksOfProjectProvider =
+    Provider.family<AsyncValue<List<TimeBlock>>, String>(
+  (ref, projectId) =>
+      ref.watch(projectsDataProvider).whenData((d) => d.timeBlocksOf(projectId)),
+);
+
+final timeBlockByIdProvider = Provider.family<AsyncValue<TimeBlock?>, String>(
+  (ref, id) =>
+      ref.watch(projectsDataProvider).whenData((d) => d.timeBlock(id)),
 );
 
 /// Plan progress for display only (never drives the status).
 final planProgressProvider =
-    Provider.family<({int done, int total}), String>((ref, targetId) {
-  final tasks = ref.watch(planTasksOfTargetProvider(targetId)).value ?? [];
+    Provider.family<({int done, int total}), String>((ref, goalId) {
+  final tasks = ref.watch(planTasksOfGoalProvider(goalId)).value ?? [];
   return (done: tasks.where((t) => t.done).length, total: tasks.length);
 });
 
 /// A date range for [sessionsProvider]; bounds are normalised to dates
-/// and inclusive. Optional [projectId] / [targetId] narrow the result.
+/// and inclusive. Optional [projectId] / [timeBlockId] narrow the result.
 typedef SessionQuery = ({
   DateTime from,
   DateTime to,
   String? projectId,
-  String? targetId,
+  String? timeBlockId,
 });
 
-/// Every session in the query's range (all projects, done targets and
-/// archived projects included), with attended marks, sorted by date and
-/// start time. Pass `dateOnly(...)` bounds so the family key is stable.
+/// Every session in the query's range (all projects, archived included),
+/// with attended marks, sorted by date and start time. Pass
+/// `dateOnly(...)` bounds so the family key is stable.
 final sessionsProvider =
     Provider.family<AsyncValue<List<Session>>, SessionQuery>((ref, q) {
   return ref.watch(projectsDataProvider).whenData((d) {
@@ -115,7 +129,7 @@ final sessionsProvider =
     return all
         .where((s) =>
             (q.projectId == null || s.projectId == q.projectId) &&
-            (q.targetId == null || s.targetId == q.targetId))
+            (q.timeBlockId == null || s.timeBlockId == q.timeBlockId))
         .toList();
   });
 });
@@ -124,7 +138,7 @@ final sessionsProvider =
 final todaySessionsProvider = Provider<AsyncValue<List<Session>>>((ref) {
   final today = ref.watch(todayProvider);
   return ref.watch(sessionsProvider(
-      (from: today, to: today, projectId: null, targetId: null)));
+      (from: today, to: today, projectId: null, timeBlockId: null)));
 });
 
 /// Local projects changes (after persistence).

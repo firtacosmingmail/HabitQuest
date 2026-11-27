@@ -5,19 +5,20 @@
  * `yyyy-MM-dd` dates, `400 invalid_input` on any problem.
  *
  * Ids are UUIDs, accepted in any case and lower-cased (Postgres `uuid`
- * returns them lower case). The overlap rule between consistent actions is an
- * app rule and is NOT checked here.
+ * returns them lower case). The overlap rule between time blocks is an app
+ * rule and is NOT checked here.
  */
 import { invalidInput } from "./errors.ts";
 import type {
-  ActionRecurrence,
+  BlockRecurrence,
   ConsistentAction,
+  Goal,
+  GoalStatus,
   JsonObject,
   PlanTask,
   Project,
   SessionMark,
-  Target,
-  TargetStatus,
+  TimeBlock,
 } from "./types.ts";
 import {
   isDate,
@@ -29,10 +30,14 @@ import {
   toIsoMillis,
 } from "./validation.ts";
 
-export const TARGET_STATUSES: readonly TargetStatus[] = ["notStarted", "inProgress", "done"];
-/** Postgres `integer` range for plan task positions. */
+export const GOAL_STATUSES: readonly GoalStatus[] = ["notStarted", "inProgress", "done"];
+/** Postgres `integer` range (plan task positions, consistent action sort orders). */
 export const MIN_POSITION = -2147483648;
 export const MAX_POSITION = 2147483647;
+/** Max length of a time block label (like names and titles). */
+export const MAX_LABEL_LENGTH = MAX_NAME_LENGTH;
+/** Max length of a consistent action's text. */
+export const MAX_ACTION_TEXT_LENGTH = 500;
 
 function timestamp(body: JsonObject, field: string): string {
   const v = body[field];
@@ -67,13 +72,32 @@ function optionalDate(body: JsonObject, field: string): string | null {
   return v;
 }
 
-/** Non-blank string, at most MAX_NAME_LENGTH characters (stored as sent). */
-function text(body: JsonObject, field: string): string {
+/** Non-blank string, at most [max] characters (stored as sent). */
+function text(body: JsonObject, field: string, max = MAX_NAME_LENGTH): string {
   const v = body[field];
   if (typeof v !== "string") throw invalidInput(`${field} must be a string`);
   if (v.trim() === "") throw invalidInput(`${field} must not be blank`);
-  if ([...v].length > MAX_NAME_LENGTH) {
-    throw invalidInput(`${field} must be at most ${MAX_NAME_LENGTH} characters`);
+  if ([...v].length > max) {
+    throw invalidInput(`${field} must be at most ${max} characters`);
+  }
+  return v;
+}
+
+/** null when absent or null, else a non-blank string of at most [max] characters. */
+function optionalText(body: JsonObject, field: string, max: number): string | null {
+  const v = body[field];
+  if (v === undefined || v === null) return null;
+  if (typeof v !== "string") throw invalidInput(`${field} must be a string or null`);
+  return text(body, field, max);
+}
+
+/** A 32-bit integer (Postgres `integer`), [fallback] when absent. */
+function int32(body: JsonObject, field: string, fallback: number): number {
+  const v = body[field] ?? fallback;
+  if (
+    typeof v !== "number" || !Number.isInteger(v) || v < MIN_POSITION || v > MAX_POSITION
+  ) {
+    throw invalidInput(`${field} must be a 32-bit integer`);
   }
   return v;
 }
@@ -121,18 +145,18 @@ export function validateProject(body: unknown, pathId?: string): Project {
   };
 }
 
-export function validateTarget(body: unknown, pathId?: string): Target {
-  const b = requireObject(body, "Target");
+export function validateGoal(body: unknown, pathId?: string): Goal {
+  const b = requireObject(body, "Goal");
   const status = b.status ?? "notStarted";
-  if (!TARGET_STATUSES.includes(status as TargetStatus)) {
-    throw invalidInput(`status must be one of ${TARGET_STATUSES.join(", ")}`);
+  if (!GOAL_STATUSES.includes(status as GoalStatus)) {
+    throw invalidInput(`status must be one of ${GOAL_STATUSES.join(", ")}`);
   }
   return {
     id: resolveUuid(b, pathId),
     projectId: uuidField(b, "projectId"),
     title: text(b, "title"),
     deadline: date(b, "deadline"),
-    status: status as TargetStatus,
+    status: status as GoalStatus,
     createdAt: timestamp(b, "createdAt"),
     updatedAt: timestamp(b, "updatedAt"),
     deletedAt: optionalTimestamp(b, "deletedAt"),
@@ -141,16 +165,10 @@ export function validateTarget(body: unknown, pathId?: string): Target {
 
 export function validatePlanTask(body: unknown, pathId?: string): PlanTask {
   const b = requireObject(body, "PlanTask");
-  const position = b.position ?? 0;
-  if (
-    typeof position !== "number" || !Number.isInteger(position) ||
-    position < MIN_POSITION || position > MAX_POSITION
-  ) {
-    throw invalidInput("position must be a 32-bit integer");
-  }
+  const position = int32(b, "position", 0);
   return {
     id: resolveUuid(b, pathId),
-    targetId: uuidField(b, "targetId"),
+    goalId: uuidField(b, "goalId"),
     title: text(b, "title"),
     deliveryDate: optionalDate(b, "deliveryDate"),
     done: bool(b, "done", false),
@@ -182,7 +200,7 @@ function dayList(v: unknown, field: string, min: number, max: number): number[] 
  * `{"type":"monthly","monthDays":[1..31]}`. Stored normalised (other keys
  * dropped).
  */
-export function validateRecurrence(v: unknown): ActionRecurrence {
+export function validateRecurrence(v: unknown): BlockRecurrence {
   if (!isPlainObject(v)) throw invalidInput("recurrence must be a JSON object");
   switch (v.type) {
     case "weekly":
@@ -194,59 +212,79 @@ export function validateRecurrence(v: unknown): ActionRecurrence {
   }
 }
 
-export function validateConsistentAction(body: unknown, pathId?: string): ConsistentAction {
-  const b = requireObject(body, "ConsistentAction");
+export function validateTimeBlock(body: unknown, pathId?: string): TimeBlock {
+  const b = requireObject(body, "TimeBlock");
   const { startTime, endTime } = b;
   if (!isReminderTime(startTime)) throw invalidInput('startTime must be "HH:mm"');
   if (!isReminderTime(endTime)) throw invalidInput('endTime must be "HH:mm"');
   if (endTime <= startTime) {
     throw invalidInput("endTime must be after startTime (no block across midnight)");
   }
+  const startDate = optionalDate(b, "startDate");
+  const endDate = optionalDate(b, "endDate");
+  if (startDate !== null && endDate !== null && endDate < startDate) {
+    throw invalidInput("endDate must not be before startDate");
+  }
   return {
     id: resolveUuid(b, pathId),
-    targetId: uuidField(b, "targetId"),
+    projectId: uuidField(b, "projectId"),
+    label: optionalText(b, "label", MAX_LABEL_LENGTH),
     startTime,
     endTime,
     recurrence: validateRecurrence(b.recurrence),
-    startDate: optionalDate(b, "startDate"),
+    startDate,
+    endDate,
     createdAt: timestamp(b, "createdAt"),
     updatedAt: timestamp(b, "updatedAt"),
     deletedAt: optionalTimestamp(b, "deletedAt"),
   };
 }
 
-/** The key of a session mark: `<actionId>|<yyyy-MM-dd>` (lower-case uuid). */
-export function sessionMarkId(actionId: string, date: string): string {
-  return `${actionId.toLowerCase()}|${date}`;
+export function validateConsistentAction(body: unknown, pathId?: string): ConsistentAction {
+  const b = requireObject(body, "ConsistentAction");
+  return {
+    id: resolveUuid(b, pathId),
+    goalId: uuidField(b, "goalId"),
+    text: text(b, "text", MAX_ACTION_TEXT_LENGTH),
+    sortOrder: int32(b, "sortOrder", 0),
+    createdAt: timestamp(b, "createdAt"),
+    updatedAt: timestamp(b, "updatedAt"),
+    deletedAt: optionalTimestamp(b, "deletedAt"),
+  };
 }
 
-/** Splits `<actionId>|<yyyy-MM-dd>` or throws 400. */
-export function parseSessionMarkId(id: string): { actionId: string; date: string } {
+/** The key of a session mark: `<timeBlockId>|<yyyy-MM-dd>` (lower-case uuid). */
+export function sessionMarkId(timeBlockId: string, date: string): string {
+  return `${timeBlockId.toLowerCase()}|${date}`;
+}
+
+/** Splits `<timeBlockId>|<yyyy-MM-dd>` or throws 400. */
+export function parseSessionMarkId(id: string): { timeBlockId: string; date: string } {
   const i = id.lastIndexOf("|");
-  const actionId = i < 0 ? "" : id.slice(0, i);
+  const timeBlockId = i < 0 ? "" : id.slice(0, i);
   const d = i < 0 ? "" : id.slice(i + 1);
-  if (!isUuid(actionId) || !isDate(d)) {
-    throw invalidInput('id must be "<actionId>|<yyyy-MM-dd>"');
+  if (!isUuid(timeBlockId) || !isDate(d)) {
+    throw invalidInput('id must be "<timeBlockId>|<yyyy-MM-dd>"');
   }
-  return { actionId: actionId.toLowerCase(), date: d };
+  return { timeBlockId: timeBlockId.toLowerCase(), date: d };
 }
 
 export function validateSessionMark(body: unknown, pathId?: string): SessionMark {
   const b = requireObject(body, "SessionMark");
-  const actionId = uuidField(b, "actionId");
+  const timeBlockId = uuidField(b, "timeBlockId");
   const d = date(b, "date");
-  const expected = sessionMarkId(actionId, d);
+  const expected = sessionMarkId(timeBlockId, d);
   for (const given of [b.id, pathId]) {
     if (given === undefined) continue;
     if (typeof given !== "string") throw invalidInput("id must be a string");
     const key = parseSessionMarkId(given);
-    if (sessionMarkId(key.actionId, key.date) !== expected) {
-      throw invalidInput(`id must be "<actionId>|<date>" (expected "${expected}")`);
+    if (sessionMarkId(key.timeBlockId, key.date) !== expected) {
+      throw invalidInput(`id must be "<timeBlockId>|<date>" (expected "${expected}")`);
     }
   }
   return {
     id: expected,
-    actionId,
+    timeBlockId,
     date: d,
     attended: bool(b, "attended"),
     updatedAt: timestamp(b, "updatedAt"),

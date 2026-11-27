@@ -4,42 +4,54 @@ import { ApiError, mapDbError } from "../_shared/errors.ts";
 import { withHttp } from "../_shared/http.ts";
 import {
   consistentActionsSpec,
+  goalsSpec,
   handleResource,
   planTasksSpec,
   projectsSpec,
   sessionMarksSpec,
-  targetsSpec,
+  timeBlocksSpec,
 } from "../_shared/resource.ts";
 import {
   consistentActionToRow,
+  goalToRow,
   planTaskToRow,
   projectToRow,
   rowToConsistentAction,
+  rowToGoal,
   rowToPlanTask,
   rowToProject,
   rowToSessionMark,
-  rowToTarget,
+  rowToTimeBlock,
   sessionMarkToRow,
-  targetToRow,
+  timeBlockToRow,
 } from "../_shared/projects_mapping.ts";
 import {
   parseSessionMarkId,
   sessionMarkId,
   validateConsistentAction,
+  validateGoal,
   validatePlanTask,
   validateProject,
   validateRecurrence,
   validateSessionMark,
-  validateTarget,
+  validateTimeBlock,
 } from "../_shared/projects_validation.ts";
-import type { ConsistentAction, PlanTask, Project, SessionMark, Target } from "../_shared/types.ts";
+import type {
+  ConsistentAction,
+  Goal,
+  PlanTask,
+  Project,
+  SessionMark,
+  TimeBlock,
+} from "../_shared/types.ts";
 import { MemoryStore, req } from "./fakes.ts";
 
 const P = "7b0e1c2d-3e4f-4a5b-8c6d-7e8f9a0b1c2d";
 const P2 = "7b0e1c2d-3e4f-4a5b-8c6d-000000000002";
-const T = "c41a1c2d-3e4f-4a5b-8c6d-7e8f9a0b1c2d";
+const G = "c41a1c2d-3e4f-4a5b-8c6d-7e8f9a0b1c2d";
 const K = "e9d21c2d-3e4f-4a5b-8c6d-7e8f9a0b1c2d";
-const A = "5f3c1c2d-3e4f-4a5b-8c6d-7e8f9a0b1c2d";
+const B = "5f3c1c2d-3e4f-4a5b-8c6d-7e8f9a0b1c2d";
+const A = "a11c1c2d-3e4f-4a5b-8c6d-7e8f9a0b1c2d";
 const created = "2026-11-01T08:00:00.000Z";
 const updated = "2026-11-02T08:00:00.000Z";
 const later = "2026-11-03T08:00:00.000Z";
@@ -53,8 +65,8 @@ export const projectBody = (o: Record<string, unknown> = {}) => ({
   deletedAt: null,
   ...o,
 });
-export const targetBody = (o: Record<string, unknown> = {}) => ({
-  id: T,
+export const goalBody = (o: Record<string, unknown> = {}) => ({
+  id: G,
   projectId: P,
   title: "5 videos",
   deadline: "2026-11-30",
@@ -66,7 +78,7 @@ export const targetBody = (o: Record<string, unknown> = {}) => ({
 });
 export const planTaskBody = (o: Record<string, unknown> = {}) => ({
   id: K,
-  targetId: T,
+  goalId: G,
   title: "5 scripts",
   deliveryDate: "2026-11-10",
   done: false,
@@ -76,20 +88,32 @@ export const planTaskBody = (o: Record<string, unknown> = {}) => ({
   deletedAt: null,
   ...o,
 });
-export const actionBody = (o: Record<string, unknown> = {}) => ({
-  id: A,
-  targetId: T,
+export const blockBody = (o: Record<string, unknown> = {}) => ({
+  id: B,
+  projectId: P,
+  label: "Deep work",
   startTime: "10:00",
   endTime: "13:00",
   recurrence: { type: "weekly" as const, weekdays: [1, 2, 3, 4, 5] },
   startDate: null,
+  endDate: null,
+  createdAt: created,
+  updatedAt: updated,
+  deletedAt: null,
+  ...o,
+});
+export const actionBody = (o: Record<string, unknown> = {}) => ({
+  id: A,
+  goalId: G,
+  text: "Write 500 words",
+  sortOrder: 0,
   createdAt: created,
   updatedAt: updated,
   deletedAt: null,
   ...o,
 });
 export const markBody = (o: Record<string, unknown> = {}) => ({
-  actionId: A,
+  timeBlockId: B,
   date: "2026-11-16",
   attended: true,
   updatedAt: updated,
@@ -135,33 +159,38 @@ Deno.test("validateProject rejects bad input", () => {
   rejects(() => validateProject(projectBody({ deletedAt: 5 })), "deletedAt");
 });
 
-Deno.test("validateTarget: statuses, deadline, projectId", () => {
-  assertEquals(validateTarget(targetBody()), targetBody());
-  assertEquals(validateTarget(targetBody({ status: undefined })).status, "notStarted");
+Deno.test("validateGoal: statuses, deadline, projectId", () => {
+  assertEquals(validateGoal(goalBody()), goalBody());
+  assertEquals(validateGoal(goalBody({ status: undefined })).status, "notStarted");
   for (const s of ["notStarted", "inProgress", "done"]) {
-    assertEquals(validateTarget(targetBody({ status: s })).status, s);
+    assertEquals(validateGoal(goalBody({ status: s })).status, s);
   }
-  assertEquals(validateTarget(targetBody({ projectId: P.toUpperCase() })).projectId, P);
-  rejects(() => validateTarget(targetBody({ status: "finished" })), "status");
-  rejects(() => validateTarget(targetBody({ deadline: "2026-02-30" })), "deadline");
-  rejects(() => validateTarget(targetBody({ deadline: null })), "deadline");
-  rejects(() => validateTarget(targetBody({ projectId: "p1" })), "projectId");
-  rejects(() => validateTarget(targetBody({ title: "" })), "title");
+  assertEquals(validateGoal(goalBody({ projectId: P.toUpperCase() })).projectId, P);
+  rejects(() => validateGoal([]), "Goal");
+  rejects(() => validateGoal(goalBody({ status: "finished" })), "status");
+  rejects(() => validateGoal(goalBody({ deadline: "2026-02-30" })), "deadline");
+  rejects(() => validateGoal(goalBody({ deadline: null })), "deadline");
+  rejects(() => validateGoal(goalBody({ projectId: "p1" })), "projectId");
+  rejects(() => validateGoal(goalBody({ title: "" })), "title");
+  rejects(() => validateGoal(goalBody({ title: "x".repeat(201) })), "200");
 });
 
-Deno.test("validatePlanTask: optional deliveryDate, defaults, position range", () => {
+Deno.test("validatePlanTask: goalId, optional deliveryDate, defaults, position range", () => {
   assertEquals(validatePlanTask(planTaskBody()), planTaskBody());
   const t = validatePlanTask(
     planTaskBody({ deliveryDate: undefined, done: undefined, position: undefined }),
   );
   assertEquals([t.deliveryDate, t.done, t.position], [null, false, 0]);
   assertEquals(validatePlanTask(planTaskBody({ position: -3 })).position, -3);
+  assertEquals(validatePlanTask(planTaskBody({ goalId: G.toUpperCase() })).goalId, G);
   rejects(() => validatePlanTask(planTaskBody({ position: 1.5 })), "position");
   rejects(() => validatePlanTask(planTaskBody({ position: 2 ** 31 })), "position");
   rejects(() => validatePlanTask(planTaskBody({ position: "1" })), "position");
   rejects(() => validatePlanTask(planTaskBody({ deliveryDate: "10/11/2026" })), "deliveryDate");
   rejects(() => validatePlanTask(planTaskBody({ done: 1 })), "done");
-  rejects(() => validatePlanTask(planTaskBody({ targetId: undefined })), "targetId");
+  rejects(() => validatePlanTask(planTaskBody({ goalId: undefined })), "goalId");
+  // The old field name is not accepted any more.
+  rejects(() => validatePlanTask(planTaskBody({ goalId: undefined, targetId: G })), "goalId");
 });
 
 Deno.test("validateRecurrence: weekly / monthly shapes", () => {
@@ -185,43 +214,88 @@ Deno.test("validateRecurrence: weekly / monthly shapes", () => {
   rejects(() => validateRecurrence({ type: "monthly", monthDays: ["1"] }), "1..31");
 });
 
-Deno.test("validateConsistentAction: times, recurrence, startDate (no overlap check)", () => {
-  assertEquals(validateConsistentAction(actionBody()), actionBody());
+Deno.test("validateTimeBlock: times, recurrence, label, start/end dates (no overlap check)", () => {
+  assertEquals(validateTimeBlock(blockBody()), blockBody());
+  assertEquals(validateTimeBlock(blockBody({ projectId: P.toUpperCase() })).projectId, P);
+  // label: null / absent → null; stored as sent otherwise.
+  assertEquals(validateTimeBlock(blockBody({ label: null })).label, null);
+  assertEquals(validateTimeBlock(blockBody({ label: undefined })).label, null);
+  assertEquals(validateTimeBlock(blockBody({ label: " Gym " })).label, " Gym ");
+  assertEquals(validateTimeBlock(blockBody({ label: "x".repeat(200) })).label?.length, 200);
+  rejects(() => validateTimeBlock(blockBody({ label: "" })), "label");
+  rejects(() => validateTimeBlock(blockBody({ label: "   " })), "blank");
+  rejects(() => validateTimeBlock(blockBody({ label: "x".repeat(201) })), "200");
+  rejects(() => validateTimeBlock(blockBody({ label: 5 })), "label");
+  // start / end dates: both optional, open-ended when endDate is null.
+  const b = validateTimeBlock(blockBody({ startDate: "2026-11-05", endDate: undefined }));
+  assertEquals([b.startDate, b.endDate], ["2026-11-05", null]);
+  assertEquals(validateTimeBlock(blockBody({ endDate: "2026-12-31" })).endDate, "2026-12-31");
   assertEquals(
-    validateConsistentAction(actionBody({ startDate: "2026-11-05" })).startDate,
+    validateTimeBlock(blockBody({ startDate: "2026-11-05", endDate: "2026-11-05" })).endDate,
     "2026-11-05",
   );
-  assertEquals(validateConsistentAction(actionBody({ startDate: undefined })).startDate, null);
-  rejects(() => validateConsistentAction(actionBody({ startTime: "9:00" })), "startTime");
-  rejects(() => validateConsistentAction(actionBody({ endTime: "24:00" })), "endTime");
-  rejects(() => validateConsistentAction(actionBody({ endTime: "10:00" })), "after");
   rejects(
-    () => validateConsistentAction(actionBody({ startTime: "23:00", endTime: "01:00" })),
-    "after",
+    () => validateTimeBlock(blockBody({ startDate: "2026-11-05", endDate: "2026-11-04" })),
+    "endDate",
   );
-  rejects(() => validateConsistentAction(actionBody({ recurrence: undefined })), "recurrence");
-  rejects(() => validateConsistentAction(actionBody({ startDate: "soon" })), "startDate");
+  rejects(() => validateTimeBlock(blockBody({ endDate: "soon" })), "endDate");
+  rejects(() => validateTimeBlock(blockBody({ startDate: "soon" })), "startDate");
+  // times
+  rejects(() => validateTimeBlock(blockBody({ startTime: "9:00" })), "startTime");
+  rejects(() => validateTimeBlock(blockBody({ endTime: "24:00" })), "endTime");
+  rejects(() => validateTimeBlock(blockBody({ endTime: "10:00" })), "after");
+  rejects(() => validateTimeBlock(blockBody({ startTime: "23:00", endTime: "01:00" })), "after");
+  rejects(() => validateTimeBlock(blockBody({ recurrence: undefined })), "recurrence");
+  rejects(() => validateTimeBlock(blockBody({ projectId: undefined })), "projectId");
+  rejects(() => validateTimeBlock([]), "TimeBlock");
+});
+
+Deno.test("validateConsistentAction: text, sortOrder, goalId", () => {
+  assertEquals(validateConsistentAction(actionBody()), actionBody());
+  assertEquals(validateConsistentAction(actionBody({ sortOrder: undefined })).sortOrder, 0);
+  assertEquals(validateConsistentAction(actionBody({ sortOrder: -7 })).sortOrder, -7);
+  assertEquals(
+    validateConsistentAction(actionBody({ sortOrder: 2 ** 31 - 1 })).sortOrder,
+    2 ** 31 - 1,
+  );
+  assertEquals(validateConsistentAction(actionBody({ goalId: G.toUpperCase() })).goalId, G);
+  assertEquals(validateConsistentAction(actionBody({ text: "x".repeat(500) })).text.length, 500);
+  assertEquals(validateConsistentAction(actionBody({ text: " a " })).text, " a ");
+  rejects(() => validateConsistentAction(actionBody({ text: "x".repeat(501) })), "500");
+  rejects(() => validateConsistentAction(actionBody({ text: "  " })), "blank");
+  rejects(() => validateConsistentAction(actionBody({ text: undefined })), "text");
+  rejects(() => validateConsistentAction(actionBody({ text: 1 })), "text");
+  rejects(() => validateConsistentAction(actionBody({ sortOrder: 0.5 })), "sortOrder");
+  rejects(() => validateConsistentAction(actionBody({ sortOrder: 2 ** 31 })), "sortOrder");
+  rejects(() => validateConsistentAction(actionBody({ sortOrder: "1" })), "sortOrder");
+  rejects(() => validateConsistentAction(actionBody({ goalId: "g1" })), "goalId");
+  rejects(() => validateConsistentAction(actionBody({ createdAt: undefined })), "createdAt");
+  rejects(() => validateConsistentAction(actionBody(), A.replace(/d$/, "e")), "does not match");
 });
 
 Deno.test("validateSessionMark: derived id, path id, mismatches", () => {
-  const id = `${A}|2026-11-16`;
+  const id = `${B}|2026-11-16`;
   assertEquals(validateSessionMark(markBody()), { id, ...markBody() });
   assertEquals(validateSessionMark(markBody({ id })).id, id);
-  assertEquals(validateSessionMark(markBody(), `${A.toUpperCase()}|2026-11-16`).id, id);
-  assertEquals(validateSessionMark(markBody({ actionId: A.toUpperCase() })).actionId, A);
-  rejects(() => validateSessionMark(markBody(), `${A}|2026-11-17`), "expected");
-  rejects(() => validateSessionMark(markBody({ id: `${A}_2026-11-16` })), "actionId");
+  assertEquals(validateSessionMark(markBody(), `${B.toUpperCase()}|2026-11-16`).id, id);
+  assertEquals(validateSessionMark(markBody({ timeBlockId: B.toUpperCase() })).timeBlockId, B);
+  rejects(() => validateSessionMark(markBody(), `${B}|2026-11-17`), "expected");
+  rejects(() => validateSessionMark(markBody({ id: `${B}_2026-11-16` })), "timeBlockId");
   rejects(() => validateSessionMark(markBody({ id: 7 })), "string");
   rejects(() => validateSessionMark(markBody({ attended: undefined })), "attended");
   rejects(() => validateSessionMark(markBody({ date: "2026-13-01" })), "date");
-  rejects(() => validateSessionMark(markBody({ actionId: "a1" })), "actionId");
+  rejects(() => validateSessionMark(markBody({ timeBlockId: "a1" })), "timeBlockId");
+  rejects(
+    () => validateSessionMark(markBody({ timeBlockId: undefined, actionId: B })),
+    "timeBlockId",
+  );
 });
 
 Deno.test("session mark ids", () => {
-  assertEquals(sessionMarkId(A.toUpperCase(), "2026-11-16"), `${A}|2026-11-16`);
-  assertEquals(parseSessionMarkId(`${A}|2026-11-16`), { actionId: A, date: "2026-11-16" });
-  rejects(() => parseSessionMarkId(A));
-  rejects(() => parseSessionMarkId(`${A}|2026-02-30`));
+  assertEquals(sessionMarkId(B.toUpperCase(), "2026-11-16"), `${B}|2026-11-16`);
+  assertEquals(parseSessionMarkId(`${B}|2026-11-16`), { timeBlockId: B, date: "2026-11-16" });
+  rejects(() => parseSessionMarkId(B));
+  rejects(() => parseSessionMarkId(`${B}|2026-02-30`));
   rejects(() => parseSessionMarkId(`x|2026-11-16`));
 });
 
@@ -244,8 +318,8 @@ Deno.test("mapping: rows from Postgres (to_jsonb) → contract JSON", () => {
     projectBody({ createdAt: "2026-11-01T08:00:00.123Z" }),
   );
   assertEquals(
-    rowToTarget({
-      id: T,
+    rowToGoal({
+      id: G,
       project_id: P,
       title: "5 videos",
       deadline: "2026-11-30",
@@ -254,12 +328,12 @@ Deno.test("mapping: rows from Postgres (to_jsonb) → contract JSON", () => {
       updated_at: pgTs,
       deleted_at: "2026-11-05T10:00:00+00:00",
     }),
-    targetBody({ deletedAt: "2026-11-05T10:00:00.000Z" }),
+    goalBody({ deletedAt: "2026-11-05T10:00:00.000Z" }),
   );
   assertEquals(
     rowToPlanTask({
       id: K,
-      target_id: T,
+      goal_id: G,
       title: "5 scripts",
       delivery_date: "2026-11-10",
       done: false,
@@ -271,28 +345,62 @@ Deno.test("mapping: rows from Postgres (to_jsonb) → contract JSON", () => {
     planTaskBody(),
   );
   assertEquals(
-    rowToConsistentAction({
-      id: A,
-      target_id: T,
+    rowToTimeBlock({
+      user_id: "u",
+      id: B,
+      project_id: P,
+      label: "Deep work",
+      start_time: "10:00",
+      end_time: "13:00",
+      recurrence: { type: "weekly" as const, weekdays: [1, 2, 3, 4, 5] },
+      start_date: "2026-11-02",
+      end_date: "2026-12-31",
+      created_at: created,
+      updated_at: pgTs,
+      deleted_at: null,
+      server_updated_at: pgTs,
+    }),
+    blockBody({ startDate: "2026-11-02", endDate: "2026-12-31" }),
+  );
+  assertEquals(
+    rowToTimeBlock({
+      id: B,
+      project_id: P,
+      label: null,
       start_time: "10:00",
       end_time: "13:00",
       recurrence: { type: "weekly" as const, weekdays: [1, 2, 3, 4, 5] },
       start_date: null,
+      end_date: null,
       created_at: created,
       updated_at: pgTs,
       deleted_at: null,
+    }),
+    blockBody({ label: null }),
+  );
+  assertEquals(
+    rowToConsistentAction({
+      user_id: "u",
+      id: A,
+      goal_id: G,
+      text: "Write 500 words",
+      sort_order: 0,
+      created_at: created,
+      updated_at: pgTs,
+      deleted_at: null,
+      server_updated_at: pgTs,
     }),
     actionBody(),
   );
   assertEquals(
     rowToSessionMark({
-      action_id: A,
+      time_block_id: B,
       date: "2026-11-16",
       attended: true,
       updated_at: pgTs,
       deleted_at: null,
     }),
-    { id: `${A}|2026-11-16`, ...markBody() },
+    { id: `${B}|2026-11-16`, ...markBody() },
   );
 });
 
@@ -300,18 +408,45 @@ Deno.test("mapping: contract JSON → snake_case rows round-trip", () => {
   const p = validateProject(projectBody());
   assertEquals(rowToProject(projectToRow(p)), p);
   assertEquals(projectToRow(p).created_at, created);
-  const t = validateTarget(targetBody());
-  assertEquals(targetToRow(t).project_id, P);
-  assertEquals(rowToTarget(targetToRow(t)), t);
+  const g = validateGoal(goalBody());
+  assertEquals(goalToRow(g).project_id, P);
+  assertEquals(rowToGoal(goalToRow(g)), g);
   const k = validatePlanTask(planTaskBody());
   assertEquals(planTaskToRow(k).delivery_date, "2026-11-10");
+  assertEquals(planTaskToRow(k).goal_id, G);
   assertEquals(rowToPlanTask(planTaskToRow(k)), k);
-  const a = validateConsistentAction(actionBody({ startDate: "2026-11-02" }));
-  assertEquals(consistentActionToRow(a).start_time, "10:00");
+  const b = validateTimeBlock(blockBody({ startDate: "2026-11-02", endDate: "2026-11-30" }));
+  assertEquals(timeBlockToRow(b), {
+    id: B,
+    project_id: P,
+    label: "Deep work",
+    start_time: "10:00",
+    end_time: "13:00",
+    recurrence: { type: "weekly", weekdays: [1, 2, 3, 4, 5] },
+    start_date: "2026-11-02",
+    end_date: "2026-11-30",
+    created_at: created,
+    updated_at: updated,
+    deleted_at: null,
+  });
+  assertEquals(rowToTimeBlock(timeBlockToRow(b)), b);
+  const open = validateTimeBlock(blockBody({ label: null }));
+  assertEquals([timeBlockToRow(open).label, timeBlockToRow(open).end_date], [null, null]);
+  assertEquals(rowToTimeBlock(timeBlockToRow(open)), open);
+  const a = validateConsistentAction(actionBody({ sortOrder: 3 }));
+  assertEquals(consistentActionToRow(a), {
+    id: A,
+    goal_id: G,
+    text: "Write 500 words",
+    sort_order: 3,
+    created_at: created,
+    updated_at: updated,
+    deleted_at: null,
+  });
   assertEquals(rowToConsistentAction(consistentActionToRow(a)), a);
   const m = validateSessionMark(markBody());
   assertEquals(sessionMarkToRow(m), {
-    action_id: A,
+    time_block_id: B,
     date: "2026-11-16",
     attended: true,
     updated_at: updated,
@@ -343,27 +478,33 @@ function mustExist<P extends { id: string; updatedAt: string; deletedAt: string 
 
 function setup() {
   const projects = new MemoryStore<Project>();
-  const targets = new MemoryStore<Target>(
-    mustExist(projects, "project", (t: Target) => t.projectId),
-    (t) => t.projectId,
+  const goals = new MemoryStore<Goal>(
+    mustExist(projects, "project", (g: Goal) => g.projectId),
+    (g) => g.projectId,
+  );
+  const blocks = new MemoryStore<TimeBlock>(
+    mustExist(projects, "project", (b: TimeBlock) => b.projectId),
+    (b) => b.projectId,
   );
   const tasks = new MemoryStore<PlanTask>(
-    mustExist(targets, "target", (k: PlanTask) => k.targetId),
-    (k) => k.targetId,
+    mustExist(goals, "goal", (k: PlanTask) => k.goalId),
+    (k) => k.goalId,
   );
   const actions = new MemoryStore<ConsistentAction>(
-    mustExist(targets, "target", (a: ConsistentAction) => a.targetId),
-    (a) => a.targetId,
+    mustExist(goals, "goal", (a: ConsistentAction) => a.goalId),
+    (a) => a.goalId,
   );
   const marks = new MemoryStore<SessionMark>(
-    mustExist(actions, "action", (m: SessionMark) => m.actionId),
-    (m) => m.actionId,
+    mustExist(blocks, "time block", (m: SessionMark) => m.timeBlockId),
+    (m) => m.timeBlockId,
   );
   return {
     projects,
+    actions,
     marks,
     p: withHttp((r) => handleResource(r, projectsSpec, projects)),
-    t: withHttp((r) => handleResource(r, targetsSpec, targets)),
+    g: withHttp((r) => handleResource(r, goalsSpec, goals)),
+    b: withHttp((r) => handleResource(r, timeBlocksSpec, blocks)),
     k: withHttp((r) => handleResource(r, planTasksSpec, tasks)),
     a: withHttp((r) => handleResource(r, consistentActionsSpec, actions)),
     m: withHttp((r) => handleResource(r, sessionMarksSpec, marks)),
@@ -428,51 +569,107 @@ Deno.test("projects: batch, invalid batch writes nothing, routes and methods", a
   assertEquals((await p(req("OPTIONS", "projects"))).status, 200);
 });
 
-Deno.test("children: parent must exist (409 parent_not_found), parent filters", async () => {
-  const { p, t, k, a, m } = setup();
-  let res = await t(req("PUT", `targets/${T}`, targetBody()));
+Deno.test("goals and time blocks need their project; projectId filters", async () => {
+  const { p, g, b } = setup();
+  let res = await g(req("PUT", `goals/${G}`, goalBody()));
+  assertEquals([res.status, (await res.json()).error.code], [409, "parent_not_found"]);
+  res = await b(req("PUT", `time-blocks/${B}`, blockBody()));
   assertEquals([res.status, (await res.json()).error.code], [409, "parent_not_found"]);
 
   await p(req("PUT", `projects/${P}`, projectBody()));
   await p(req("PUT", `projects/${P2}`, projectBody({ id: P2 })));
-  res = await t(req("PUT", `targets/${T}`, targetBody()));
-  assertEquals((await res.json()).applied, true);
-  const T2 = T.replace(/d$/, "e");
-  await t(req("POST", "targets", targetBody({ id: T2, projectId: P2 })));
+  res = await g(req("PUT", `goals/${G}`, goalBody()));
+  assertEquals(await res.json(), { item: goalBody(), applied: true });
+  const G2 = G.replace(/d$/, "e");
+  await g(req("POST", "goals", goalBody({ id: G2, projectId: P2 })));
+  res = await g(req("GET", `goals?projectId=${P2.toUpperCase()}`));
+  assertEquals((await res.json()).items.map((i: Goal) => i.id), [G2]);
+  assertEquals((await g(req("GET", "goals?projectId=bad"))).status, 400);
 
-  res = await t(req("GET", `targets?projectId=${P2.toUpperCase()}`));
-  assertEquals((await res.json()).items.map((i: Target) => i.id), [T2]);
-  assertEquals((await t(req("GET", "targets?projectId=bad"))).status, 400);
+  res = await b(req("POST", "time-blocks/batch", { items: [blockBody()] }));
+  assertEquals((await res.json()).results[0].item, blockBody());
+  const B2 = B.replace(/d$/, "e");
+  res = await b(req("PUT", `time-blocks/${B2}`, blockBody({ id: B2, projectId: P2, label: null })));
+  assertEquals((await res.json()).item.label, null);
+  res = await b(req("PUT", `time-blocks/${B}`, blockBody({ endTime: "09:00" })));
+  assertEquals(res.status, 400);
+  res = await b(req(
+    "PUT",
+    `time-blocks/${B}`,
+    blockBody({
+      startDate: "2026-11-10",
+      endDate: "2026-11-09",
+      updatedAt: later,
+    }),
+  ));
+  assertEquals(res.status, 400);
+  res = await b(
+    req("PUT", `time-blocks/${B}`, blockBody({ endDate: "2026-12-31", updatedAt: later })),
+  );
+  assertEquals((await res.json()).item.endDate, "2026-12-31");
+  res = await b(req("GET", `time-blocks?projectId=${P}`));
+  assertEquals((await res.json()).items.map((i: TimeBlock) => i.id), [B]);
+  assertEquals((await b(req("GET", "time-blocks?projectId=bad"))).status, 400);
+  res = await b(req("GET", `time-blocks/${B.toUpperCase()}`));
+  assertEquals((await res.json()).endDate, "2026-12-31");
+  res = await b(req("DELETE", `time-blocks/${B2}?updatedAt=${later}`));
+  assertEquals((await res.json()).item.deletedAt, later);
+});
 
-  res = await k(req("PUT", `plan-tasks/${K}`, planTaskBody({ targetId: P })));
-  assertEquals((await res.json()).error.code, "parent_not_found");
+Deno.test("plan tasks and consistent actions need their goal; goalId filters", async () => {
+  const { p, g, k, a, actions } = setup();
+  await p(req("PUT", `projects/${P}`, projectBody()));
+  let res = await k(req("PUT", `plan-tasks/${K}`, planTaskBody()));
+  assertEquals([res.status, (await res.json()).error.code], [409, "parent_not_found"]);
+  res = await a(req("PUT", `consistent-actions/${A}`, actionBody()));
+  assertEquals([res.status, (await res.json()).error.code], [409, "parent_not_found"]);
+
+  await g(req("PUT", `goals/${G}`, goalBody()));
   res = await k(req("PUT", `plan-tasks/${K}`, planTaskBody()));
   assertEquals(await res.json(), { item: planTaskBody(), applied: true });
-  res = await k(req("GET", `plan-tasks?targetId=${T2}`));
-  assertEquals((await res.json()).items, []);
-
-  res = await a(req("POST", "consistent-actions/batch", { items: [actionBody()] }));
-  assertEquals((await res.json()).results[0].item, actionBody());
-  res = await a(req("PUT", `consistent-actions/${A}`, actionBody({ endTime: "09:00" })));
-  assertEquals(res.status, 400);
-  res = await a(req("GET", `consistent-actions?targetId=${T}`));
+  res = await k(req("GET", `plan-tasks?goalId=${G}`));
   assertEquals((await res.json()).items.length, 1);
+  res = await k(req("GET", `plan-tasks?goalId=${G.replace(/d$/, "e")}`));
+  assertEquals((await res.json()).items, []);
+  assertEquals((await k(req("GET", "plan-tasks?goalId=x"))).status, 400);
 
-  res = await m(req("PUT", `session-marks/${A}%7C2026-11-16`, markBody({ actionId: T })));
-  assertEquals(res.status, 400); // path id does not match the body
-  res = await m(req("POST", "session-marks", markBody({ actionId: T, date: "2026-11-17" })));
-  assertEquals((await res.json()).error.code, "parent_not_found");
+  const A2 = A.replace(/d$/, "e");
+  res = await a(req("POST", "consistent-actions/batch", {
+    items: [actionBody(), actionBody({ id: A2, text: "Edit one video", sortOrder: 1 })],
+  }));
+  const { results } = await res.json();
+  assertEquals(results.map((r: { id: string }) => r.id), [A, A2]);
+  assertEquals(results[0].item, actionBody());
+  res = await a(req("POST", "consistent-actions/batch", {
+    items: [actionBody({ updatedAt: later }), actionBody({ id: A2, text: "" })],
+  }));
+  assertEquals(res.status, 400);
+  assertEquals(actions.rows.get(A)?.item.updatedAt, updated); // nothing written
+  res = await a(
+    req("PUT", `consistent-actions/${A}`, actionBody({ text: "older", updatedAt: created })),
+  );
+  assertEquals((await res.json()).applied, false);
+  res = await a(req("GET", `consistent-actions?goalId=${G.toUpperCase()}`));
+  assertEquals((await res.json()).items.map((i: ConsistentAction) => i.id), [A, A2]);
+  assertEquals((await a(req("GET", "consistent-actions?goalId=x"))).status, 400);
+  res = await a(req("DELETE", `consistent-actions/${A2}?updatedAt=${later}`));
+  const del = await res.json();
+  assertEquals([del.applied, del.item.deletedAt, del.item.text], [true, later, "Edit one video"]);
+  assertEquals((await a(req("GET", `consistent-actions/${A}`))).status, 200);
 });
 
 Deno.test("session-marks: composite id in the path, LWW un-mark, tombstone", async () => {
-  const { p, t, a, m, marks } = setup();
+  const { p, b, m, marks } = setup();
   await p(req("PUT", `projects/${P}`, projectBody()));
-  await t(req("PUT", `targets/${T}`, targetBody()));
-  await a(req("PUT", `consistent-actions/${A}`, actionBody()));
-  const id = `${A}|2026-11-16`;
+  let res = await m(req("POST", "session-marks", markBody()));
+  assertEquals((await res.json()).error.code, "parent_not_found");
+  await b(req("PUT", `time-blocks/${B}`, blockBody()));
+  const id = `${B}|2026-11-16`;
   const path = `session-marks/${encodeURIComponent(id)}`;
 
-  let res = await m(req("PUT", path, markBody()));
+  res = await m(req("PUT", `session-marks/${B}%7C2026-11-16`, markBody({ timeBlockId: P })));
+  assertEquals(res.status, 400); // path id does not match the body
+  res = await m(req("PUT", path, markBody()));
   assertEquals(await res.json(), { item: { id, ...markBody() }, applied: true });
   assert(marks.rows.has(id));
 
@@ -480,18 +677,21 @@ Deno.test("session-marks: composite id in the path, LWW un-mark, tombstone", asy
     items: [markBody({ attended: false, updatedAt: later }), markBody({ date: "2026-11-17" })],
   }));
   const { results } = await res.json();
-  assertEquals(results.map((r: { id: string }) => r.id), [id, `${A}|2026-11-17`]);
+  assertEquals(results.map((r: { id: string }) => r.id), [id, `${B}|2026-11-17`]);
   assertEquals(results[0].item.attended, false);
 
-  res = await m(req("GET", `session-marks/${A.toUpperCase()}%7C2026-11-16`));
+  res = await m(req("GET", `session-marks/${B.toUpperCase()}%7C2026-11-16`));
   assertEquals((await res.json()).attended, false);
-  res = await m(req("GET", `session-marks/${A}%7C2026-11-18`));
+  res = await m(req("GET", `session-marks/${B}%7C2026-11-18`));
   assertEquals(res.status, 404);
-  res = await m(req("GET", `session-marks/${A}_2026-11-16`));
+  res = await m(req("GET", `session-marks/${B}_2026-11-16`));
   assertEquals(res.status, 400);
 
-  res = await m(req("GET", `session-marks?actionId=${A}`));
+  res = await m(req("GET", `session-marks?timeBlockId=${B}`));
   assertEquals((await res.json()).items.length, 2);
+  res = await m(req("GET", `session-marks?timeBlockId=${P}`));
+  assertEquals((await res.json()).items.length, 0);
+  assertEquals((await m(req("GET", "session-marks?timeBlockId=x"))).status, 400);
 
   const at = "2026-11-20T00:00:00.000Z";
   res = await m(req("DELETE", `${path}?updatedAt=${at}`));

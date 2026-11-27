@@ -12,14 +12,15 @@ import 'package:habit_quest/features/projects/models/consistent_action.dart';
 import 'package:habit_quest/features/projects/models/plan_task.dart';
 import 'package:habit_quest/features/projects/models/project.dart';
 import 'package:habit_quest/features/projects/models/session_mark.dart';
-import 'package:habit_quest/features/projects/models/target.dart';
+import 'package:habit_quest/features/projects/models/time_block.dart';
+import 'package:habit_quest/features/projects/models/goal.dart';
 import 'package:habit_quest/features/sync/remote_mapping.dart';
 import 'package:habit_quest/features/sync/sync_engine.dart';
 
 import 'sync_harness.dart';
 
-/// Projects sync (projects, targets, plan tasks, consistent actions,
-/// session marks), mirroring `sync_engine_test.dart` with the same fakes.
+/// Projects sync (projects, goals, time blocks, plan tasks, consistent
+/// actions, session marks), mirroring `sync_engine_test.dart` with the same fakes.
 void main() {
   late TestClock clock;
   late FakeHabitQuestApi server;
@@ -34,32 +35,41 @@ void main() {
 
   Device device(String name) => Device(name, clock: clock, api: server);
 
-  /// A project → target → plan task + weekday action, with today's session
-  /// marked attended (when [attend]).
+  /// A project with a weekday time block and a goal → plan task +
+  /// consistent action, with today's session marked attended (when
+  /// [attend]).
   Future<
-    ({Project project, Target target, PlanTask task, ConsistentAction action})
+    ({
+      Project project,
+      Goal goal,
+      PlanTask task,
+      TimeBlock block,
+      ConsistentAction action,
+    })
   >
   seed(Device dev, {bool attend = true}) async {
     clock.advance();
     final p = await dev.projects.createProject(name: 'Content');
-    final t = await dev.projects.createTarget(
+    final g = await dev.projects.createGoal(
       projectId: p.id,
       title: '5 videos',
       deadline: DateTime(2026, 1, 31),
     );
-    final task = await dev.projects.addPlanTask(
-      targetId: t.id,
-      title: 'Scripts',
-    );
-    final a = await dev.projects.createAction(
-      targetId: t.id,
+    final task = await dev.projects.addPlanTask(goalId: g.id, title: 'Scripts');
+    final b = await dev.projects.createTimeBlock(
+      projectId: p.id,
+      label: 'Filming',
       startTime: const ClockTime(6, 0),
       endTime: const ClockTime(7, 0),
       recurrence: WeeklyRecurrence({1, 2, 3, 4, 5}),
     );
-    if (attend) await dev.projects.setSessionAttended(a.id, today, true);
+    final a = await dev.projects.addConsistentAction(
+      goalId: g.id,
+      text: 'Post one short a day',
+    );
+    if (attend) await dev.projects.setSessionAttended(b.id, today, true);
     await pumpEventQueue();
-    return (project: p, target: t, task: task, action: a);
+    return (project: p, goal: g, task: task, block: b, action: a);
   }
 
   List<String> projectPosts() => [
@@ -78,20 +88,41 @@ void main() {
       final report = await a.sync();
       expect(projectPosts(), [
         'POST projects/batch',
-        'POST targets/batch',
+        'POST goals/batch',
+        'POST time-blocks/batch',
         'POST plan-tasks/batch',
         'POST consistent-actions/batch',
         'POST session-marks/batch',
       ]);
-      expect(report.pushed, 5);
+      expect(report.pushed, 6);
       expect(report.issues, isEmpty);
       expect(a.queue.isEmpty, isTrue);
       expect(server.projectRecords(ProjectResource.projects).keys, [
         s.project.id,
       ]);
       expect(server.projectRecords(ProjectResource.sessionMarks).keys, [
-        SessionMark.keyFor(s.action.id, today),
+        SessionMark.keyFor(s.block.id, today),
       ]);
+      expect(
+        server
+            .projectRecords(ProjectResource.sessionMarks)
+            .values
+            .single
+            .json['timeBlockId'],
+        s.block.id,
+      );
+      expect(
+        server
+            .projectRecords(ProjectResource.timeBlocks)[s.block.id]!
+            .json['projectId'],
+        s.project.id,
+      );
+      expect(
+        server
+            .projectRecords(ProjectResource.consistentActions)[s.action.id]!
+            .json['goalId'],
+        s.goal.id,
+      );
     });
 
     test('a second device receives every record, announced on '
@@ -102,13 +133,19 @@ void main() {
 
       final b = device('B');
       final report = await b.sync();
-      expect(report.pulledProjectRecords, 5);
+      expect(report.pulledProjectRecords, 6);
       final data = b.projects.data;
       expect(data.project(s.project.id)!.name, 'Content');
-      expect(data.target(s.target.id)!.deadline, DateTime(2026, 1, 31));
+      expect(data.goal(s.goal.id)!.deadline, DateTime(2026, 1, 31));
       expect(data.planTask(s.task.id)!.title, 'Scripts');
-      expect(data.action(s.action.id), s.action);
-      expect(data.isAttended(s.action.id, today), isTrue);
+      expect(data.timeBlock(s.block.id), s.block);
+      expect(data.timeBlocksOf(s.project.id).single.label, 'Filming');
+      expect(data.consistentAction(s.action.id), s.action);
+      expect(
+        data.consistentActionsOf(s.goal.id).single.text,
+        'Post one short a day',
+      );
+      expect(data.isAttended(s.block.id, today), isTrue);
       expect(b.queue.isEmpty, isTrue);
       expect(
         {for (final e in b.remoteProjectEvents) (e.kind, e.type)},
@@ -138,7 +175,58 @@ void main() {
           s.action.id,
         )!,
       ]);
-      expect(back.actions.single, s.action);
+      expect(back.consistentActions.single, s.action);
+
+      final blocks = projectRecordsFromRemote([
+        localProjectRecord(repo, ProjectResource.timeBlocks, s.block.id)!,
+      ]);
+      expect(blocks.timeBlocks.single, s.block);
+    });
+
+    test('consistent actions round-trip: edits, reorders and deletes reach '
+        'the other device', () async {
+      final a = device('A');
+      final s = await seed(a, attend: false);
+      clock.advance();
+      final second = await a.projects.addConsistentAction(
+        goalId: s.goal.id,
+        text: 'Reply to comments',
+      );
+      await a.sync();
+      final b = device('B');
+      await b.sync();
+      expect(
+        b.projects.data.consistentActionsOf(s.goal.id).map((x) => x.text),
+        ['Post one short a day', 'Reply to comments'],
+      );
+
+      clock.advance();
+      await b.projects.editConsistentAction(s.action.id, 'Post two shorts');
+      await b.projects.reorderConsistentActions(s.goal.id, [
+        second.id,
+        s.action.id,
+      ]);
+      await b.sync();
+      expect(projectPosts().last, 'POST consistent-actions/batch');
+      await a.sync();
+      expect(
+        a.projects.data.consistentActionsOf(s.goal.id).map((x) => x.text),
+        ['Reply to comments', 'Post two shorts'],
+      );
+
+      clock.advance();
+      await a.projects.deleteConsistentAction(second.id);
+      await a.sync();
+      expect(
+        server
+            .projectRecords(ProjectResource.consistentActions)[second.id]!
+            .isDeleted,
+        isTrue,
+      );
+      await b.sync();
+      expect(b.projects.data.consistentActionsOf(s.goal.id).map((x) => x.id), [
+        s.action.id,
+      ]);
     });
 
     test('a child whose parent the server refused stays queued and is '
@@ -149,14 +237,14 @@ void main() {
       clock.advance();
       final bad = Project(id: 'bad-project', name: ' ', createdAt: clock());
       await a.projectRepo.save(ProjectRecords(projects: [bad]));
-      final orphan = Target(
-        id: 'orphan-target',
+      final orphan = Goal(
+        id: 'orphan-goal',
         projectId: bad.id,
         title: 'Orphan',
         deadline: DateTime(2026, 2, 1),
         createdAt: clock(),
       );
-      await a.projectRepo.save(ProjectRecords(targets: [orphan]));
+      await a.projectRepo.save(ProjectRecords(goals: [orphan]));
 
       final report = await a.sync();
       expect({for (final i in report.issues) i.id}, {bad.id, orphan.id});
@@ -167,9 +255,7 @@ void main() {
       expect(server.projectRecords(ProjectResource.projects).keys, [
         good.project.id,
       ]);
-      expect(server.projectRecords(ProjectResource.targets).keys, [
-        good.target.id,
-      ]);
+      expect(server.projectRecords(ProjectResource.goals).keys, [good.goal.id]);
       expect(a.queue.length, 2);
     });
   });
@@ -190,7 +276,8 @@ void main() {
         await a.sync();
         for (final r in [
           ProjectResource.projects,
-          ProjectResource.targets,
+          ProjectResource.goals,
+          ProjectResource.timeBlocks,
           ProjectResource.planTasks,
           ProjectResource.consistentActions,
         ]) {
@@ -203,7 +290,9 @@ void main() {
 
         await b.sync();
         expect(b.projects.data.projects, isEmpty);
-        expect(b.projects.data.actions, isEmpty);
+        expect(b.projects.data.timeBlocks, isEmpty);
+        expect(b.projects.data.consistentActions, isEmpty);
+        expect(b.projects.data.sessionMarks, isEmpty);
         // Kept locally as tombstones (sync), hidden from the UI.
         expect(b.projectRepo.getProjectRecord(s.project.id)!.isDeleted, isTrue);
         expect(
@@ -213,7 +302,8 @@ void main() {
           },
           {
             ProjectEntityKind.project,
-            ProjectEntityKind.target,
+            ProjectEntityKind.goal,
+            ProjectEntityKind.timeBlock,
             ProjectEntityKind.planTask,
             ProjectEntityKind.consistentAction,
           },
@@ -269,10 +359,10 @@ void main() {
       await b.sync();
 
       clock.advance();
-      await b.projects.setSessionAttended(s.action.id, today, false);
+      await b.projects.setSessionAttended(s.block.id, today, false);
       await b.sync();
       await a.sync();
-      expect(a.projects.data.isAttended(s.action.id, today), isFalse);
+      expect(a.projects.data.isAttended(s.block.id, today), isFalse);
       expect(
         a.remoteProjectEvents.where(
           (e) => e.kind == ProjectEntityKind.sessionMark,
@@ -281,31 +371,34 @@ void main() {
       );
     });
 
-    test('overlapping actions merged from two devices are tolerated', () async {
-      final a = device('A');
-      final s = await seed(a, attend: false);
-      await a.sync();
-      final b = device('B');
-      await b.sync();
-      // Both offline-create a clashing block on the same target.
-      clock.advance();
-      await a.projects.createAction(
-        targetId: s.target.id,
-        startTime: const ClockTime(8, 0),
-        endTime: const ClockTime(9, 0),
-        recurrence: WeeklyRecurrence({1}),
-      );
-      await b.projects.createAction(
-        targetId: s.target.id,
-        startTime: const ClockTime(8, 30),
-        endTime: const ClockTime(9, 30),
-        recurrence: WeeklyRecurrence({1}),
-      );
-      await a.sync();
-      final report = await b.sync();
-      expect(report.issues, isEmpty);
-      expect(b.projects.data.actions, hasLength(3));
-    });
+    test(
+      'overlapping time blocks merged from two devices are tolerated',
+      () async {
+        final a = device('A');
+        final s = await seed(a, attend: false);
+        await a.sync();
+        final b = device('B');
+        await b.sync();
+        // Both offline-create a clashing block on the same project.
+        clock.advance();
+        await a.projects.createTimeBlock(
+          projectId: s.project.id,
+          startTime: const ClockTime(8, 0),
+          endTime: const ClockTime(9, 0),
+          recurrence: WeeklyRecurrence({1}),
+        );
+        await b.projects.createTimeBlock(
+          projectId: s.project.id,
+          startTime: const ClockTime(8, 30),
+          endTime: const ClockTime(9, 30),
+          recurrence: WeeklyRecurrence({1}),
+        );
+        await a.sync();
+        final report = await b.sync();
+        expect(report.issues, isEmpty);
+        expect(b.projects.data.timeBlocks, hasLength(3));
+      },
+    );
   });
 
   group('cursor', () {
@@ -314,7 +407,7 @@ void main() {
       await seed(a);
       await a.sync();
       final b = device('B');
-      expect((await b.sync()).pulledProjectRecords, 5);
+      expect((await b.sync()).pulledProjectRecords, 6);
       for (final r in ProjectResource.values) {
         expect(b.meta.projectsCursor('u1', r.function), isNotNull);
       }
@@ -357,7 +450,7 @@ void main() {
         final other = device('Other');
         final s = await seed(other);
         await other.projects.setPlanTaskDone(s.task.id, true);
-        await other.projects.setTargetStatus(s.target.id, TargetStatus.done);
+        await other.projects.setGoalStatus(s.goal.id, GoalStatus.done);
         final repo = other.projectRepo;
         for (final r in ProjectResource.values) {
           for (final id in localProjectIds(repo, r)) {
@@ -369,12 +462,18 @@ void main() {
         final b = device('B');
         await b.sync();
         const expected =
-            GameRules.planTaskXp + GameRules.targetDoneXp + GameRules.sessionXp;
+            GameRules.planTaskXp + GameRules.goalDoneXp + GameRules.sessionXp;
         expect(b.xp, expected);
         expect(b.game.state.projectLedger.keys, {
           GameState.planTaskKey(s.task.id),
-          GameState.targetKey(s.target.id),
-          GameState.sessionKey(s.action.id, today),
+          GameState.goalKey(s.goal.id),
+          GameState.sessionKey(s.block.id, today),
+        });
+        // Legacy ledger key shapes are kept.
+        expect(b.game.state.projectLedger.keys, {
+          'task:${s.task.id}',
+          'target:${s.goal.id}',
+          'session:${s.block.id}|2026-01-05',
         });
         expect(b.gameEvents, isEmpty, reason: 'remote awards are silent');
 
@@ -385,6 +484,35 @@ void main() {
         expect(b.xp, expected);
         expect(c.xp, expected);
         expect(c.gameEvents, isEmpty);
+      },
+    );
+
+    test(
+      'a time block deleted on another device drops its session XP',
+      () async {
+        final a = device('A');
+        final s = await seed(a);
+        expect(a.xp, GameRules.sessionXp);
+        await a.sync();
+        final b = device('B');
+        await b.sync();
+        expect(b.xp, GameRules.sessionXp);
+
+        clock.advance();
+        await b.projects.deleteTimeBlock(s.block.id);
+        await pumpEventQueue();
+        expect(b.xp, 0);
+        await b.sync();
+        expect(
+          server
+              .projectRecords(ProjectResource.timeBlocks)[s.block.id]!
+              .isDeleted,
+          isTrue,
+        );
+        await a.sync();
+        expect(a.xp, 0);
+        expect(a.projects.data.timeBlocks, isEmpty);
+        expect(a.projects.data.isAttended(s.block.id, today), isFalse);
       },
     );
 
@@ -418,7 +546,8 @@ void main() {
         a.queue.entries.map((e) => e.type).toSet(),
         containsAll([
           SyncEntityType.project,
-          SyncEntityType.target,
+          SyncEntityType.goal,
+          SyncEntityType.timeBlock,
           SyncEntityType.planTask,
           SyncEntityType.consistentAction,
           SyncEntityType.sessionMark,
@@ -457,6 +586,8 @@ void main() {
               .toSet(),
           containsAll([
             ProjectEntityKind.project,
+            ProjectEntityKind.goal,
+            ProjectEntityKind.timeBlock,
             ProjectEntityKind.consistentAction,
           ]),
         );

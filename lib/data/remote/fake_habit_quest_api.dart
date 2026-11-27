@@ -276,9 +276,11 @@ class FakeHabitQuestApi implements HabitQuestApi {
 
     return switch (r.resource) {
       ProjectResource.projects => blank('name'),
-      ProjectResource.targets || ProjectResource.planTasks =>
+      ProjectResource.goals || ProjectResource.planTasks =>
         blank('title') ?? blank(r.resource.parentField!),
-      ProjectResource.consistentActions ||
+      ProjectResource.consistentActions =>
+        blank('text') ?? blank(r.resource.parentField!),
+      ProjectResource.timeBlocks ||
       ProjectResource.sessionMarks => blank(r.resource.parentField!),
     };
   }

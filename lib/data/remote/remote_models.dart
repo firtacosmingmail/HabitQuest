@@ -271,11 +271,13 @@ bool _jsonEquals(Object? a, Object? b) {
   return a == b;
 }
 
-/// The five Projects Edge Functions (`supabase/API.md` "Projects"), in
-/// parent-first push order.
+/// The six Projects Edge Functions (`supabase/API.md` "Projects"), in
+/// parent-first push order: project, then goals and time blocks, then
+/// their children (plan tasks, consistent actions, session marks).
 enum ProjectResource {
   projects('projects'),
-  targets('targets'),
+  goals('goals'),
+  timeBlocks('time-blocks'),
   planTasks('plan-tasks'),
   consistentActions('consistent-actions'),
   sessionMarks('session-marks');
@@ -288,17 +290,17 @@ enum ProjectResource {
   /// The parent's id field (`null` for projects).
   String? get parentField => switch (this) {
     projects => null,
-    targets => 'projectId',
-    planTasks || consistentActions => 'targetId',
-    sessionMarks => 'actionId',
+    goals || timeBlocks => 'projectId',
+    planTasks || consistentActions => 'goalId',
+    sessionMarks => 'timeBlockId',
   };
 
   /// The resource the parent lives in (`null` for projects).
   ProjectResource? get parent => switch (this) {
     projects => null,
-    targets => projects,
-    planTasks || consistentActions => targets,
-    sessionMarks => consistentActions,
+    goals || timeBlocks => projects,
+    planTasks || consistentActions => goals,
+    sessionMarks => timeBlocks,
   };
 }
 
@@ -307,7 +309,7 @@ enum ProjectResource {
 /// here and the sync layer maps it to / from the models.
 ///
 /// [id] is the record's UUID, or for session marks the derived key
-/// `actionId|yyyy-MM-dd` (which the server also returns as `id`).
+/// `timeBlockId|yyyy-MM-dd` (which the server also returns as `id`).
 class RemoteProjectRecord implements RemoteEntity {
   final ProjectResource resource;
   final Map<String, dynamic> json;
@@ -332,7 +334,7 @@ class RemoteProjectRecord implements RemoteEntity {
     Map<String, dynamic> json,
   ) {
     final id = resource == ProjectResource.sessionMarks
-        ? '${readString(json, 'actionId')}|'
+        ? '${readString(json, 'timeBlockId')}|'
               '${formatDate(parseDate(json['date'], 'date'))}'
         : readString(json, 'id');
     return RemoteProjectRecord._(

@@ -17,10 +17,10 @@ enum XpReason {
   /// A work session was marked attended (gain) or un-marked (loss).
   session,
 
-  /// A target was set to done (gain) or back from done (loss).
-  target,
+  /// A goal was set to done (gain) or back from done (loss).
+  goal,
 
-  /// A project, target, plan task or consistent action was deleted with
+  /// A project, goal, plan task or time block was deleted with
   /// the XP it held (loss).
   projectItemDeleted,
 }

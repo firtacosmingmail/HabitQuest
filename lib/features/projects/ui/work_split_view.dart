@@ -1,6 +1,6 @@
 /// The work split: a Monday-first week view with hour rows and a time block
-/// per consistent-action session, coloured per project and labelled with
-/// the target. Used by the Calendar tab (all projects) and by the project
+/// per time block session, coloured per project and labelled with the
+/// block label (else the project name). Used by the Calendar tab (all projects) and by the project
 /// details (filtered with [WorkSplitView.projectId]).
 library;
 
@@ -16,7 +16,7 @@ import '../../../domain/providers.dart';
 import '../domain/sessions.dart';
 import '../models/projects_data.dart';
 import '../models/session.dart';
-import '../models/target.dart';
+import '../models/goal.dart';
 import '../projects_providers.dart';
 import 'widgets/project_widgets.dart';
 import '../../habits/widgets/check_in_button.dart';
@@ -82,8 +82,7 @@ HourRange workSplitVisibleRange(
 
 /// The sessions shown in the week starting [weekStart] (Monday): every
 /// session of the week, except sessions of archived projects (unless
-/// [projectId] is given) and FUTURE sessions of targets marked done (their
-/// time is free again; past ones stay, attended or not).
+/// [projectId] is given).
 List<Session> workSplitSessions(
   ProjectsData data, {
   required DateTime weekStart,
@@ -99,19 +98,18 @@ List<Session> workSplitSessions(
     for (final s in sessions)
       if ((projectId == null
               ? !(data.project(s.projectId)?.archived ?? true)
-              : s.projectId == projectId) &&
-          !(s.date.isAfter(today) && (data.target(s.targetId)?.isDone ?? true)))
+              : s.projectId == projectId))
         s,
   ];
 }
 
-/// The targets whose deadline falls on [day] (same filter as the blocks).
-List<Target> deadlinesOn(
+/// The goals whose deadline falls on [day] (same filter as the blocks).
+List<Goal> deadlinesOn(
   ProjectsData data,
   DateTime day, {
   String? projectId,
 }) => [
-  for (final t in data.targets)
+  for (final t in data.goals)
     if (isSameDay(t.deadline, day) &&
         (projectId == null
             ? !(data.project(t.projectId)?.archived ?? true)
@@ -609,7 +607,7 @@ class _DayHeaders extends StatelessWidget {
                         height: 18,
                         child: deadlines.isEmpty
                             ? null
-                            : _DeadlineMarker(day: day, targets: deadlines),
+                            : _DeadlineMarker(day: day, goals: deadlines),
                       ),
                     ],
                   ),
@@ -622,17 +620,17 @@ class _DayHeaders extends StatelessWidget {
   }
 }
 
-/// A flag per day with deadlines (tooltip: the targets due).
+/// A flag per day with deadlines (tooltip: the goals due).
 class _DeadlineMarker extends StatelessWidget {
   final DateTime day;
-  final List<Target> targets;
+  final List<Goal> goals;
 
-  const _DeadlineMarker({required this.day, required this.targets});
+  const _DeadlineMarker({required this.day, required this.goals});
 
   @override
   Widget build(BuildContext context) {
     final label = [
-      for (final t in targets) 'Deadline: ${t.title}${t.isDone ? ' ✓' : ''}',
+      for (final t in goals) 'Deadline: ${t.title}${t.isDone ? ' ✓' : ''}',
     ].join('\n');
     return Tooltip(
       key: ValueKey('deadline-marker-${dateKey(day)}'),
@@ -646,11 +644,11 @@ class _DeadlineMarker extends StatelessWidget {
             Icon(
               Icons.flag_rounded,
               size: 16,
-              color: projectColor(targets.first.projectId),
+              color: projectColor(goals.first.projectId),
             ),
-            if (targets.length > 1)
+            if (goals.length > 1)
               Text(
-                '${targets.length}',
+                '${goals.length}',
                 style: Theme.of(context).textTheme.labelSmall,
               ),
           ],
@@ -834,7 +832,8 @@ class _DayColumn extends StatelessWidget {
                   width: laneWidth - 2,
                   child: SessionBlock(
                     session: s,
-                    targetTitle: data.target(s.targetId)?.title ?? 'Target',
+                    title:
+                        s.label ?? data.project(s.projectId)?.name ?? 'Project',
                     onTap: () => showSessionSheet(
                       context,
                       session: s,
@@ -862,7 +861,7 @@ class _DayColumn extends StatelessWidget {
 
 /// Side-by-side lanes for overlapping sessions of one day (a lane index
 /// per `Session.key`). The overlap rule keeps active blocks apart, but
-/// past sessions of done targets may still overlap.
+/// merged data from two devices may still overlap.
 Map<String, int> assignLanes(List<Session> daySessions) {
   final sorted = [...daySessions]..sort(compareSessions);
   final laneEnds = <int>[];
@@ -879,17 +878,17 @@ Map<String, int> assignLanes(List<Session> daySessions) {
   return out;
 }
 
-/// One time block: the project's colour, the target and the times; a ✓
+/// One time block: the project's colour, the block label (or project name) and the times; a ✓
 /// when attended. Keyed `session-block-<Session.key>`.
 class SessionBlock extends StatelessWidget {
   final Session session;
-  final String targetTitle;
+  final String title;
   final VoidCallback onTap;
 
   const SessionBlock({
     super.key,
     required this.session,
-    required this.targetTitle,
+    required this.title,
     required this.onTap,
   });
 
@@ -905,7 +904,7 @@ class SessionBlock extends StatelessWidget {
     return Semantics(
       button: true,
       label:
-          '$targetTitle, $times'
+          '$title, $times'
           '${session.attended ? ', attended' : ''}',
       excludeSemantics: true,
       child: Material(
@@ -932,7 +931,7 @@ class SessionBlock extends StatelessWidget {
                         ),
                       Flexible(
                         child: Text(
-                          targetTitle,
+                          title,
                           maxLines: c.maxHeight > 40 ? 2 : 1,
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.labelSmall?.copyWith(
@@ -965,9 +964,9 @@ class SessionBlock extends StatelessWidget {
   }
 }
 
-/// The sheet for a tapped block: target, project, date and times, a toggle
+/// The sheet for a tapped block: label, project, date and times, a toggle
 /// to mark the session attended (today and past only) and a button that
-/// opens the target.
+/// opens the project.
 Future<void> showSessionSheet(
   BuildContext context, {
   required Session session,
@@ -977,7 +976,7 @@ Future<void> showSessionSheet(
   showDragHandle: true,
   isScrollControlled: true,
   builder: (_) => _SessionSheet(
-    actionId: session.actionId,
+    timeBlockId: session.timeBlockId,
     date: session.date,
     fallback: session,
     canAttend: canAttend,
@@ -985,13 +984,13 @@ Future<void> showSessionSheet(
 );
 
 class _SessionSheet extends ConsumerWidget {
-  final String actionId;
+  final String timeBlockId;
   final DateTime date;
   final Session fallback;
   final bool canAttend;
 
   const _SessionSheet({
-    required this.actionId,
+    required this.timeBlockId,
     required this.date,
     required this.fallback,
     required this.canAttend,
@@ -1001,11 +1000,11 @@ class _SessionSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final data = ref.watch(projectsDataProvider).value;
-    final attended = data?.isAttended(actionId, date) ?? fallback.attended;
-    final target = data?.target(fallback.targetId);
+    final attended =
+        data?.isAttended(timeBlockId, date) ?? fallback.attended;
     final project = data?.project(fallback.projectId);
     final color = projectColor(fallback.projectId);
-    final title = target?.title ?? 'Target';
+    final title = fallback.label ?? project?.name ?? 'Project';
     return SafeArea(
       child: Padding(
         key: const ValueKey('session-sheet'),
@@ -1041,7 +1040,6 @@ class _SessionSheet extends ConsumerWidget {
                     ],
                   ),
                 ),
-                if (target != null) TargetStatusChip(status: target.status),
               ],
             ),
             const SizedBox(height: 12),
@@ -1074,7 +1072,7 @@ class _SessionSheet extends ConsumerWidget {
                         : 'Mark attended',
                     onPressed: () => ref
                         .read(projectServiceProvider)
-                        .setSessionAttended(actionId, date, !attended),
+                        .setSessionAttended(timeBlockId, date, !attended),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -1093,17 +1091,15 @@ class _SessionSheet extends ConsumerWidget {
                 ),
               ),
             const SizedBox(height: 16),
-            if (target != null)
+            if (project != null)
               FilledButton.icon(
-                key: const ValueKey('session-sheet-open-target'),
+                key: const ValueKey('session-sheet-open-project'),
                 onPressed: () {
                   Navigator.of(context).pop();
-                  context.push(
-                    AppRoutes.targetEditor(target.projectId, target.id),
-                  );
+                  context.push(AppRoutes.projectDetails(project.id));
                 },
-                icon: const Icon(Icons.flag_rounded),
-                label: const Text('Open target'),
+                icon: const Icon(Icons.folder_open_rounded),
+                label: const Text('Open project'),
               ),
           ],
         ),
@@ -1130,7 +1126,7 @@ class _EmptyWeekNote extends StatelessWidget {
       ),
       child: Text(
         filtered
-            ? 'No time blocks this week. Add one to a target ⏰'
+            ? 'No time blocks this week. Add one to a project ⏰'
             : 'No time blocks this week ⏰',
         textAlign: TextAlign.center,
         style: theme.textTheme.bodyMedium,

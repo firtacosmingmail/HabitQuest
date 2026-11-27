@@ -1,6 +1,6 @@
 import 'json.dart';
 
-/// A user's project (e.g. "Content business"). Owns [Target]s.
+/// A user's project (e.g. "Content business"). Owns `Goal`s and `TimeBlock`s.
 ///
 /// Immutable; use [copyWith] and `ProjectService` to persist changes.
 /// Sync metadata ([updatedAt], [deletedAt]) follows the habit rules:

@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:habit_quest/features/game/game_providers.dart';
 import 'package:habit_quest/features/projects/data/project_repository.dart';
 import 'package:habit_quest/features/projects/models/plan_task.dart';
-import 'package:habit_quest/features/projects/models/target.dart';
+import 'package:habit_quest/features/projects/models/goal.dart';
 
 import '../../helpers/test_app.dart';
 import 'helpers.dart';
@@ -12,40 +12,31 @@ import 'helpers.dart';
 /// Wednesday 18 Nov 2026, 09:00.
 DateTime clock() => DateTime(2026, 11, 18, 9);
 
-const monFri = {1, 2, 3, 4, 5};
-
 Finder key(String k) => find.byKey(ValueKey(k));
 
-/// p1 "Content": t1 "5 videos" (in progress, due 30 Nov), plan task k1
-/// (open, due today), action a1 Mon–Fri 10:00–13:00.
+/// p1 "Content": goal t1 "5 videos" (in progress, due 30 Nov), plan task
+/// k1 (open, due today), project time block a1 Mon–Fri 10:00–13:00.
 InMemoryProjectRepository seededRepo() => InMemoryProjectRepository(
   seed: ProjectRecords(
     projects: [project('p1', name: 'Content')],
-    targets: [
-      target(
+    goals: [
+      goal(
         't1',
         title: '5 videos',
         deadline: DateTime(2026, 11, 30),
-        status: TargetStatus.inProgress,
+        status: GoalStatus.inProgress,
       ),
     ],
     planTasks: [
       PlanTask(
         id: 'k1',
-        targetId: 't1',
+        goalId: 't1',
         title: 'Write script 1',
         deliveryDate: DateTime(2026, 11, 18),
         createdAt: createdOn(2026, 11, 1),
       ),
     ],
-    actions: [
-      weekly(
-        'a1',
-        targetId: 't1',
-        days: monFri,
-        created: createdOn(2026, 11, 1),
-      ),
-    ],
+    timeBlocks: [weekly('a1', days: monFri, created: createdOn(2026, 11, 1))],
   ),
 );
 
@@ -103,7 +94,7 @@ void main() {
     expect(c.read(gameProfileProvider).xp, 0);
   });
 
-  testWidgets('project details: target done floats "+50 XP" and toasts '
+  testWidgets('project details: goal done floats "+50 XP" and toasts '
       'the achievements', (tester) async {
     final c = await pump(tester, location: '/projects/p1');
     await tester.tap(key('status-chip-t1'));
@@ -114,7 +105,7 @@ void main() {
     await pumpUntilFound(tester, find.text('Bullseye'));
     expect(key('achievement-toast'), findsOneWidget);
     expect(find.text('🎯'), findsOneWidget);
-    // Every target of p1 is done: the project badge follows.
+    // Every goal of p1 is done: the project badge follows.
     await pumpUntilFound(tester, find.text('Mission Complete'));
     expect(find.text('🏆'), findsOneWidget);
 
@@ -122,10 +113,10 @@ void main() {
     expect(c.read(gameProfileProvider).xp, 50);
   });
 
-  testWidgets('target editor: finishing a plan task floats "+10 XP"', (
+  testWidgets('goal editor: finishing a plan task floats "+10 XP"', (
     tester,
   ) async {
-    final c = await pump(tester, location: '/projects/p1/targets/t1');
+    final c = await pump(tester, location: '/projects/p1/goals/t1');
     await tapAndPump(tester, key('plan-task-done-k1'));
     expect(find.text('+10 XP'), findsOneWidget);
     await pumpUntilFound(tester, find.text('Checked Off'));

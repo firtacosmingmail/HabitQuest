@@ -15,8 +15,8 @@ class GameState {
   final Map<String, int> perfectDayLedger;
 
   /// XP granted by projects, keyed by [planTaskKey] (`task:<id>`),
-  /// [targetKey] (`target:<id>`) or [sessionKey]
-  /// (`session:<actionId>|yyyy-MM-dd`).
+  /// [goalKey] (`target:<goalId>`, legacy prefix) or [sessionKey]
+  /// (`session:<timeBlockId>|yyyy-MM-dd`).
   final Map<String, int> projectLedger;
 
   /// Unlocked achievement id → unlock time. Never shrinks.
@@ -49,17 +49,23 @@ class GameState {
       '$habitId|${dateKey(date)}';
 
   static const planTaskPrefix = 'task:';
-  static const targetPrefix = 'target:';
+  /// Goal ledger prefix. Kept as `target:` (the pre-rework name) on
+  /// purpose: a goal keeps its old target id, so ledgers written before
+  /// the rework (local and synced game state) stay valid without a
+  /// migration (docs/PROJECTS.md "XP ledger keys").
+  static const goalPrefix = 'target:';
   static const sessionPrefix = 'session:';
 
   static String planTaskKey(String taskId) => '$planTaskPrefix$taskId';
 
-  static String targetKey(String targetId) => '$targetPrefix$targetId';
+  static String goalKey(String goalId) => '$goalPrefix$goalId';
 
-  static String sessionKey(String actionId, DateTime date) =>
-      '$sessionPrefix$actionId|${dateKey(date)}';
+  /// A time block keeps its old consistent-action id, so pre-rework
+  /// session keys stay valid.
+  static String sessionKey(String timeBlockId, DateTime date) =>
+      '$sessionPrefix$timeBlockId|${dateKey(date)}';
 
-  /// Parses a [sessionKey] into (actionId, date); `null` if malformed.
+  /// Parses a [sessionKey] into (timeBlockId, date); `null` if malformed.
   static (String, DateTime)? parseSessionKey(String key) {
     if (!key.startsWith(sessionPrefix)) return null;
     final rest = key.substring(sessionPrefix.length);
@@ -85,8 +91,8 @@ class GameState {
   /// Plan tasks that currently hold XP.
   int get planTasksDone => _countPrefix(planTaskPrefix);
 
-  /// Targets that currently hold XP (done).
-  int get targetsDone => _countPrefix(targetPrefix);
+  /// Goals that currently hold XP (done).
+  int get goalsDone => _countPrefix(goalPrefix);
 
   /// Sessions that currently hold XP (attended).
   int get sessionsAttended => _countPrefix(sessionPrefix);

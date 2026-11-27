@@ -15,10 +15,10 @@ import '../../domain/streaks.dart';
 import '../projects/data/project_repository.dart';
 import '../projects/domain/project_events.dart';
 import '../projects/domain/project_service.dart';
-import '../projects/models/consistent_action.dart';
 import '../projects/models/plan_task.dart';
 import '../projects/models/projects_data.dart';
-import '../projects/models/target.dart';
+import '../projects/models/goal.dart';
+import '../projects/models/time_block.dart';
 import 'achievements.dart';
 import 'game_events.dart';
 import 'game_profile.dart';
@@ -46,11 +46,12 @@ import 'game_state.dart';
 ///   grants or removes XP.
 /// * Deleting a habit removes the XP of all its check-ins.
 /// * Projects (when a [ProjectService] is given): finishing a plan task,
-///   attending a session and setting a target to done grant
+///   attending a session and setting a goal to done grant
 ///   [GameRules.planTaskXp], [GameRules.sessionXp] and
-///   [GameRules.targetDoneXp], keyed `task:<id>`,
-///   `session:<actionId>|<date>` and `target:<id>`. Undoing (un-check,
-///   un-attend, target back from done) or deleting the item takes exactly
+///   [GameRules.goalDoneXp], keyed `task:<id>`,
+///   `session:<timeBlockId>|<date>` and `target:<goalId>` (legacy prefix,
+///   kept so old ledgers stay valid). Undoing (un-check,
+///   un-attend, goal back from done) or deleting the item takes exactly
 ///   that grant back. Listens to local [ProjectService.changes] and
 ///   [ProjectService.attendanceEvents] only (never to synced data).
 /// * Levels and achievements: see [GameRules] and [achievementCatalog].
@@ -224,7 +225,7 @@ class GameEngine {
     _commit(tx, habits);
   }
 
-  /// Applies a local projects change (plan task done / undone, target
+  /// Applies a local projects change (plan task done / undone, goal
   /// status, deletions). Called from the service stream; public for tests.
   void handleProjectChange(ProjectChangeEvent event) {
     if (_disposed) return;
@@ -243,27 +244,27 @@ class GameEngine {
             granted: now,
             amount: GameRules.planTaskXp,
             reason: deleted ? XpReason.projectItemDeleted : XpReason.planTask,
-            projectId: _projectOfTarget(task.targetId),
+            projectId: _projectOfGoal(task.goalId),
             date: today,
           );
         }
-      case Target target:
+      case Goal goal:
         final was =
-            event.previous is Target && (event.previous! as Target).isDone;
-        final now = !deleted && target.isDone;
+            event.previous is Goal && (event.previous! as Goal).isDone;
+        final now = !deleted && goal.isDone;
         if (now != was || deleted) {
           _setProjectGrant(
             tx,
-            GameState.targetKey(target.id),
+            GameState.goalKey(goal.id),
             granted: now,
-            amount: GameRules.targetDoneXp,
-            reason: deleted ? XpReason.projectItemDeleted : XpReason.target,
-            projectId: target.projectId,
+            amount: GameRules.goalDoneXp,
+            reason: deleted ? XpReason.projectItemDeleted : XpReason.goal,
+            projectId: goal.projectId,
             date: today,
           );
         }
-      case ConsistentAction action when deleted:
-        final prefix = '${GameState.sessionPrefix}${action.id}|';
+      case TimeBlock block when deleted:
+        final prefix = '${GameState.sessionPrefix}${block.id}|';
         final keys = tx.projects.keys
             .where((k) => k.startsWith(prefix))
             .toList();
@@ -276,7 +277,7 @@ class GameEngine {
             XpLost(
               amount: total,
               reason: XpReason.projectItemDeleted,
-              projectId: _projectOfTarget(action.targetId),
+              projectId: block.projectId,
               date: today,
             ),
           );
@@ -294,7 +295,7 @@ class GameEngine {
     final tx = _Tx(_state);
     _setProjectGrant(
       tx,
-      GameState.sessionKey(event.actionId, event.date),
+      GameState.sessionKey(event.timeBlockId, event.date),
       granted: event.attended,
       amount: GameRules.sessionXp,
       reason: XpReason.session,
@@ -340,8 +341,8 @@ class GameEngine {
     }
   }
 
-  String? _projectOfTarget(String targetId) =>
-      _projects?.repository.getTargetRecord(targetId)?.projectId;
+  String? _projectOfGoal(String goalId) =>
+      _projects?.repository.getGoalRecord(goalId)?.projectId;
 
   /// Values of every [AchievementKind] for [state].
   Map<AchievementKind, int> _achievementValues(
@@ -356,18 +357,18 @@ class GameEngine {
     AchievementKind.perfectDays: state.perfectDays,
     AchievementKind.planTasksDone: state.planTasksDone,
     AchievementKind.sessionsAttended: state.sessionsAttended,
-    AchievementKind.targetsDone: state.targetsDone,
+    AchievementKind.goalsDone: state.goalsDone,
     AchievementKind.projectsCompleted: completedProjects(
       _projects?.data ?? ProjectsData.empty,
     ),
   };
 
-  /// Projects with at least one target where every target is done.
+  /// Projects with at least one goal where every goal is done.
   static int completedProjects(ProjectsData data) {
     var n = 0;
     for (final p in data.projects) {
-      final targets = data.targetsOf(p.id);
-      if (targets.isNotEmpty && targets.every((t) => t.isDone)) n++;
+      final goals = data.goalsOf(p.id);
+      if (goals.isNotEmpty && goals.every((g) => g.isDone)) n++;
     }
     return n;
   }
@@ -478,7 +479,7 @@ class GameEngine {
   ///    like any other grant so a later merge cannot double it;
   /// 4. re-evaluate Perfect Days for the days touched by 2 and 3;
   /// 5. the same for projects, derived from the synced project records:
-  ///    drop grants whose plan task / target / session is known on this
+  ///    drop grants whose plan task / goal / session is known on this
   ///    device but no longer done / attended (or deleted), and grant the
   ///    base XP for [appliedProjects] (pulled from the server) that are done
   ///    or attended but hold no grant yet. Grants for records this device
@@ -563,19 +564,19 @@ class GameEngine {
         if (repo.getPlanTaskRecord(id) == null) return true;
         return data.planTask(id)?.done ?? false;
       }
-      if (key.startsWith(GameState.targetPrefix)) {
-        final id = key.substring(GameState.targetPrefix.length);
-        if (repo.getTargetRecord(id) == null) return true;
-        return data.target(id)?.isDone ?? false;
+      if (key.startsWith(GameState.goalPrefix)) {
+        final id = key.substring(GameState.goalPrefix.length);
+        if (repo.getGoalRecord(id) == null) return true;
+        return data.goal(id)?.isDone ?? false;
       }
       final s = GameState.parseSessionKey(key);
       if (s == null) return true;
-      final (actionId, date) = s;
-      if (repo.getActionRecord(actionId) == null) return true;
-      if (data.action(actionId) == null) return false;
-      final mark = repo.getSessionMarkRecord(actionId, date);
+      final (blockId, date) = s;
+      if (repo.getTimeBlockRecord(blockId) == null) return true;
+      if (data.timeBlock(blockId) == null) return false;
+      final mark = repo.getSessionMarkRecord(blockId, date);
       if (mark == null) return true;
-      return data.isAttended(actionId, date);
+      return data.isAttended(blockId, date);
     }
 
     tx.projects.removeWhere((key, _) => !keep(key));
@@ -589,18 +590,18 @@ class GameEngine {
         );
       }
     }
-    for (final t in applied.targets) {
-      if (data.target(t.id)?.isDone ?? false) {
+    for (final g in applied.goals) {
+      if (data.goal(g.id)?.isDone ?? false) {
         tx.projects.putIfAbsent(
-          GameState.targetKey(t.id),
-          () => GameRules.targetDoneXp,
+          GameState.goalKey(g.id),
+          () => GameRules.goalDoneXp,
         );
       }
     }
     for (final m in applied.sessionMarks) {
-      if (data.isAttended(m.actionId, m.date)) {
+      if (data.isAttended(m.timeBlockId, m.date)) {
         tx.projects.putIfAbsent(
-          GameState.sessionKey(m.actionId, m.date),
+          GameState.sessionKey(m.timeBlockId, m.date),
           () => GameRules.sessionXp,
         );
       }

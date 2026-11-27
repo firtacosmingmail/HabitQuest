@@ -12,7 +12,7 @@ class ProjectNotificationSettings {
   final bool workSplits;
 
   /// "Deadlines": 3 days before, 1 day before and the morning of a
-  /// target's deadline.
+  /// goal's deadline.
   final bool deadlines;
 
   /// "Task deliveries": the day before a plan task's delivery date.

@@ -8,8 +8,14 @@ enum SyncEntityType {
   checkIn,
   gameState,
   project,
-  target,
+  goal,
   planTask,
+  timeBlock,
+
+  /// The goal's text items (docs/PROJECTS.md). Before the Projects rework
+  /// (local schema v2) this name meant the recurring time blocks; the
+  /// local migration (`migrateProjectsStorage`) renames those queue
+  /// entries to [timeBlock] before the queue is loaded.
   consistentAction,
   sessionMark,
 }
@@ -22,7 +28,7 @@ enum SyncEntityType {
 abstract interface class ChangeRecorder {
   /// [id] is the habit id, the check-in key (`habitId|yyyy-MM-dd`),
   /// [gameStateId], a projects record id, or a session mark key
-  /// (`actionId|yyyy-MM-dd`).
+  /// (`timeBlockId|yyyy-MM-dd`).
   Future<void> recordChange(SyncEntityType type, String id);
 }
 

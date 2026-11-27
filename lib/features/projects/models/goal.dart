@@ -1,25 +1,26 @@
 import '../../../core/utils/dates.dart';
 import 'json.dart';
 
-/// A target's status. ALWAYS set by the user; the app never derives it
+/// A goal's status. ALWAYS set by the user; the app never derives it
 /// (not from the plan, the sessions or the deadline).
 ///
 /// JSON: the enum name (`"notStarted"`, `"inProgress"`, `"done"`).
-enum TargetStatus {
+enum GoalStatus {
   notStarted,
   inProgress,
   done;
 
   /// Unknown values fall back to [notStarted] (forward compatibility).
-  static TargetStatus fromJson(Object? v) => TargetStatus.values.firstWhere(
+  static GoalStatus fromJson(Object? v) => GoalStatus.values.firstWhere(
         (s) => s.name == v,
-        orElse: () => TargetStatus.notStarted,
+        orElse: () => GoalStatus.notStarted,
       );
 }
 
-/// A target of a [Project] (e.g. "5 videos" by 30 Nov). Owns `PlanTask`s
-/// (the plan) and `ConsistentAction`s (recurring time blocks).
-class Target {
+/// A goal of a [Project] (e.g. "5 videos" by 30 Nov). Owns `PlanTask`s
+/// (the plan) and `ConsistentAction`s (text items). Time blocks belong to
+/// the project, not to the goal.
+class Goal {
   /// UUID v4.
   final String id;
 
@@ -27,12 +28,12 @@ class Target {
   final String projectId;
   final String title;
 
-  /// Date-only (local). Sessions of the target's consistent actions run up
-  /// to and including this day.
+  /// Date-only (local). Display / reminders only: it does not cut off the
+  /// project's time blocks.
   final DateTime deadline;
 
-  /// Manual only; see [TargetStatus].
-  final TargetStatus status;
+  /// Manual only; see [GoalStatus].
+  final GoalStatus status;
 
   /// Creation time (UTC).
   final DateTime createdAt;
@@ -43,12 +44,12 @@ class Target {
   /// Tombstone (UTC); `null` when alive.
   final DateTime? deletedAt;
 
-  Target({
+  Goal({
     required this.id,
     required this.projectId,
     required this.title,
     required DateTime deadline,
-    this.status = TargetStatus.notStarted,
+    this.status = GoalStatus.notStarted,
     required DateTime createdAt,
     DateTime? updatedAt,
     DateTime? deletedAt,
@@ -58,16 +59,16 @@ class Target {
         deletedAt = deletedAt?.toUtc();
 
   bool get isDeleted => deletedAt != null;
-  bool get isDone => status == TargetStatus.done;
+  bool get isDone => status == GoalStatus.done;
 
-  Target copyWith({
+  Goal copyWith({
     String? title,
     DateTime? deadline,
-    TargetStatus? status,
+    GoalStatus? status,
     DateTime? updatedAt,
     DateTime? Function()? deletedAt,
   }) =>
-      Target(
+      Goal(
         id: id,
         projectId: projectId,
         title: title ?? this.title,
@@ -89,12 +90,12 @@ class Target {
         'deletedAt': formatOptionalTimestamp(deletedAt),
       };
 
-  factory Target.fromJson(Map<String, dynamic> json) => Target(
+  factory Goal.fromJson(Map<String, dynamic> json) => Goal(
         id: json['id'] as String,
         projectId: json['projectId'] as String,
         title: json['title'] as String,
         deadline: parseDateKey(json['deadline'] as String),
-        status: TargetStatus.fromJson(json['status']),
+        status: GoalStatus.fromJson(json['status']),
         createdAt: DateTime.parse(json['createdAt'] as String),
         updatedAt: parseOptionalTimestamp(json['updatedAt']),
         deletedAt: parseOptionalTimestamp(json['deletedAt']),
@@ -102,7 +103,7 @@ class Target {
 
   @override
   bool operator ==(Object other) =>
-      other is Target &&
+      other is Goal &&
       other.id == id &&
       other.projectId == projectId &&
       other.title == title &&
@@ -117,5 +118,5 @@ class Target {
 
   @override
   String toString() =>
-      'Target($id, $title, due ${dateKey(deadline)}, ${status.name})';
+      'Goal($id, $title, due ${dateKey(deadline)}, ${status.name})';
 }

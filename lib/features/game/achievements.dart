@@ -24,10 +24,10 @@ enum AchievementKind {
   /// Number of sessions currently attended (holding XP).
   sessionsAttended,
 
-  /// Number of targets currently done (holding XP).
-  targetsDone,
+  /// Number of goals currently done (holding XP).
+  goalsDone,
 
-  /// Number of projects with at least one target and every target done.
+  /// Number of projects with at least one goal and every goal done.
   projectsCompleted,
 }
 
@@ -82,8 +82,9 @@ abstract final class AchievementIds {
   static const firstPlanTask = 'first_plan_task';
   static const sessions10 = 'sessions_10';
   static const sessions50 = 'sessions_50';
-  static const firstTargetDone = 'first_target_done';
-  static const targets5 = 'targets_5';
+  // Stored ids keep the pre-rework names (earned achievements persist).
+  static const firstGoalDone = 'first_target_done';
+  static const goals5 = 'targets_5';
   static const projectComplete = 'project_complete';
 }
 
@@ -225,21 +226,21 @@ const List<Achievement> achievementCatalog = [
     threshold: 50,
   ),
   Achievement(
-    id: AchievementIds.firstTargetDone,
+    id: AchievementIds.firstGoalDone,
     name: 'Bullseye',
     description: 'Set your first target to done.',
     emoji: '🎯',
     hint: 'Set a project target to done.',
-    kind: AchievementKind.targetsDone,
+    kind: AchievementKind.goalsDone,
     threshold: 1,
   ),
   Achievement(
-    id: AchievementIds.targets5,
+    id: AchievementIds.goals5,
     name: 'Sharpshooter',
     description: 'Set 5 targets to done.',
     emoji: '🏹',
     hint: 'Set 5 project targets to done.',
-    kind: AchievementKind.targetsDone,
+    kind: AchievementKind.goalsDone,
     threshold: 5,
   ),
   Achievement(
