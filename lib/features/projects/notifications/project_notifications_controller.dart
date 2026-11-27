@@ -14,7 +14,7 @@ import 'project_notification_settings.dart';
 /// settings toggle, app start / resume, sign-in / out) re-plans the whole
 /// rolling window with [planProjectNotifications], schedules it (replacing
 /// by id) and cancels every other pending id in the Projects range, which
-/// covers deleted items, done targets / tasks, toggles turned off and
+/// covers deleted items, done goals / tasks, toggles turned off and
 /// occurrences that dropped out of the cap. Habit reminder ids are never
 /// touched.
 ///

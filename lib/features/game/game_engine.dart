@@ -363,7 +363,7 @@ class GameEngine {
     ),
   };
 
-  /// Projects with at least one target where every target is done.
+  /// Projects with at least one goal where every goal is done.
   static int completedProjects(ProjectsData data) {
     var n = 0;
     for (final p in data.projects) {
@@ -479,7 +479,7 @@ class GameEngine {
   ///    like any other grant so a later merge cannot double it;
   /// 4. re-evaluate Perfect Days for the days touched by 2 and 3;
   /// 5. the same for projects, derived from the synced project records:
-  ///    drop grants whose plan task / target / session is known on this
+  ///    drop grants whose plan task / goal / session is known on this
   ///    device but no longer done / attended (or deleted), and grant the
   ///    base XP for [appliedProjects] (pulled from the server) that are done
   ///    or attended but hold no grant yet. Grants for records this device
