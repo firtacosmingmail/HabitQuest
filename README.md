@@ -45,11 +45,16 @@ survives a reinstall or a new phone. See [Sync](#sync) and
     week to cover any session outside it (floor of the earliest start,
     ceiling of the latest end; never smaller than 06–20). "Earlier" /
     "Later" buttons above and below the grid reveal 2 more hours per tap
-    (down to 00:00 / up to 24:00) and "Reset" collapses back; a manual
+    (down to 00:00 / up to 24:00) at the **same row height**: the grid
+    (and the project details card) grows taller instead of squeezing the
+    rows, and the Calendar tab's work split then scrolls vertically as a
+    whole (the grid has no scroll of its own; "Later" scrolls the new hours
+    into view). "Reset" shrinks it back to the fitted height; a manual
     expansion is kept while you stay on the week and reset when the week
-    changes. Range and row-height changes animate. Only if a range cannot
-    fit at the 12 px minimum row height (e.g. 00–24 on a 320×568 phone)
-    does the grid fall back to scrolling.
+    changes. Range and height changes animate. Rows are at least 12 px
+    (below 16 px only every second hour is labelled); if the automatic
+    range cannot fit at 12 px, the grid is taller than the frame and
+    scrolls with the page.
   The same week view (`WorkSplitView`, in
   `lib/features/projects/ui/work_split_view.dart`) is reused on the project
   details, filtered to that project.
