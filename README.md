@@ -843,13 +843,14 @@ against live with `cd admin && flutter run -d chrome` and sign in as an
 admin. **Hosting** `admin/build/web` on a static host is still in the
 backlog. Details in [admin/README.md](admin/README.md).
 
-**Pending: admin stats v2 (Projects).** Migration
+**Admin stats v2 (Projects): live since 2026-11-18.** Migration
 `20261114130000_admin_stats_projects.sql` replaces `admin_stats` so the XP
 totals and distributions include the project XP ledger (`state.projects`)
 and adds Projects usage counts (projects, targets done, plan tasks done,
-sessions attended). It reads the Projects tables, so it **must be applied
-after** the Projects migration `20261114120000_projects.sql`; then redeploy
-`admin-stats`. Not deployed yet (needs the user's go-ahead).
+sessions attended). It reads the Projects tables, so it was applied right
+after the Projects migration `20261114120000_projects.sql`, and
+`admin-stats` was redeployed (see [Backend](#backend-supabase) "Deploy
+status").
 
 ## Sign in with Google & Apple
 
@@ -992,7 +993,9 @@ Edge Functions in the background.
 What syncs: habits, check-ins, the game state, and the **Projects** records
 (projects, targets, plan tasks, consistent actions and session marks; see
 docs/PROJECTS.md and supabase/API.md "Projects"). Projects follow exactly the
-same rules as habits below.
+same rules as habits below. The Projects backend (tables and the five
+functions) is **live** on `fwikodmrfoorbstmkedx` since **2026-11-18** (see
+[Backend](#backend-supabase) "Deploy status").
 
 ### Local model
 
@@ -1131,8 +1134,7 @@ The game state stays a single opaque JSON object on the server
 change**. The admin stats (`admin_stats` v2, migration
 `20261114130000_admin_stats_projects.sql`) sum all three ledgers
 (`checkIns` + `perfectDays` + `projects`) for the XP distribution and also
-report the project XP alone; until that migration is deployed, the live
-admin stats still sum only `checkIns` and `perfectDays`.
+report the project XP alone (live since 2026-11-18).
 
 ### Mapping notes
 
@@ -1458,13 +1460,15 @@ supabase/
     _shared/                  # cors, errors, auth, validation, mapping, LWW, stores
     auth-register|auth-login|auth-refresh|auth-logout/
     habits/ check-ins/ game-state/
+    projects/ targets/ plan-tasks/ consistent-actions/ session-marks/
     profile/ auth-change-password/ account-delete/
     tests/                    # Deno unit tests + e2e_smoke.ts
   .env.example                # placeholders only, never commit real keys
 ```
 
-Tables `profiles` (created by a trigger on sign-up), `habits`, `check_ins`
-and `game_state` each belong to `auth.uid()` and have row-level security with
+Tables `profiles` (created by a trigger on sign-up), `habits`, `check_ins`,
+`game_state` and the Projects tables (`projects`, `targets`, `plan_tasks`,
+`consistent_actions`, `session_marks`) each belong to `auth.uid()` and have row-level security with
 select/insert/update/delete policies. The functions create their Supabase
 client with the anon key plus the caller's JWT, so RLS applies to every query;
 the service-role key is used only by `account-delete` (for
@@ -1495,7 +1499,7 @@ supabase db push                                    # applies supabase/migration
 | Function | verify_jwt | Why |
 |---|---|---|
 | `auth-register`, `auth-login`, `auth-refresh`, `auth-oauth` | off | called without a user token |
-| `auth-logout`, `habits`, `check-ins`, `game-state`, `profile`, `auth-change-password`, `account-delete` | off | the function validates the bearer token itself (`supabase.auth.getUser`) so a bad token gets the contract's `401 {"error":{"code":"unauthorized"}}` body instead of the gateway's own format; data is still only reachable with the user's JWT through RLS |
+| `auth-logout`, `habits`, `check-ins`, `game-state`, `projects`, `targets`, `plan-tasks`, `consistent-actions`, `session-marks`, `profile`, `auth-change-password`, `account-delete` | off | the function validates the bearer token itself (`supabase.auth.getUser`) so a bad token gets the contract's `401 {"error":{"code":"unauthorized"}}` body instead of the gateway's own format; data is still only reachable with the user's JWT through RLS |
 
 ```sh
 supabase functions deploy auth-register --no-verify-jwt
@@ -1507,8 +1511,28 @@ supabase functions deploy habits        --no-verify-jwt
 supabase functions deploy check-ins     --no-verify-jwt
 supabase functions deploy game-state    --no-verify-jwt
 supabase functions deploy profile auth-change-password account-delete --no-verify-jwt
+supabase functions deploy projects targets plan-tasks consistent-actions session-marks --no-verify-jwt
 # or all at once (uses config.toml): supabase functions deploy
 ```
+
+**Deploy status (Projects): live since 2026-11-18.** On
+`fwikodmrfoorbstmkedx`: migrations `20261114120000_projects.sql` and
+`20261114130000_admin_stats_projects.sql` applied with `supabase db push`
+(only those two were pending), then
+`supabase functions deploy projects targets plan-tasks consistent-actions
+session-marks habits check-ins account-delete admin-stats --no-verify-jwt`
+(`habits`, `check-ins` and `account-delete` share the changed `_shared/`
+code; `admin-stats` for the v2 stats). Live smoke test that day, with a
+throwaway user created and deleted through the Auth admin API: the five
+Projects functions answer 401 without a token; push + pull (and delta
+pull) of one project, target, plan task, consistent action and session mark,
+LWW refusing an older write; habits and check-ins push/pull still work;
+`GET /quotes` anonymous → 200; `admin-stats` → 403 for the non-admin; the
+live `admin_stats` SQL returns the new Projects fields; deleting the user
+removed all its rows (cascade). Note: a service-role bearer gets 401 from
+`admin-stats`/`admin-quotes` on live (the runtime's
+`SUPABASE_SERVICE_ROLE_KEY` is not the legacy key the CLI lists); admins
+sign in with an email from `QUOTE_ADMINS` instead.
 
 ### 4. Secrets and auth settings
 

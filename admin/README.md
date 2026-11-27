@@ -80,13 +80,14 @@ Smoke test on that day: no token → 401 on both functions; a signed-in
 non-admin → 403 on both. To check the admin path (200), sign in to the
 console running locally against live with an email from `QUOTE_ADMINS`.
 
-**Pending: admin stats v2.** `20261114130000_admin_stats_projects.sql`
-(project XP in the XP totals/distribution, project XP buckets, Projects
-usage counts, sessions attended per day) is merged but **not deployed**. It
-depends on the Projects migration `20261114120000_projects.sql` and must be
-applied after it, then `admin-stats` redeployed. Until then the dashboard's
-Projects tiles and charts show zeros and the XP distribution counts
-check-ins and Perfect Days only.
+**Admin stats v2: deployed on 2026-11-18.**
+`20261114130000_admin_stats_projects.sql` (project XP in the XP
+totals/distribution, project XP buckets, Projects usage counts, sessions
+attended per day) was applied right after the Projects migration
+`20261114120000_projects.sql`, and `admin-stats` was redeployed with
+`--no-verify-jwt`. Smoke test: a signed-in non-admin still gets 403, and the
+live `admin_stats` SQL returns the Projects fields. The dashboard's Projects
+tiles and charts now show live data.
 
 To set the backend up on another project: apply the migrations, deploy the
 two functions (plus `quotes`) with `--no-verify-jwt`, and set
