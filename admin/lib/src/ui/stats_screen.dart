@@ -293,7 +293,7 @@ class _Dashboard extends StatelessWidget {
         title: 'Project XP distribution',
         note:
             'The projects part of each player\'s XP: plan tasks finished, '
-            'sessions attended and targets done.',
+            'sessions attended and goals done.',
         kind: ChartKind.column,
         labels: s.projectXpBuckets.map((b) => b.label).toList(),
         values: s.projectXpBuckets.map((b) => b.users).toList(),
@@ -378,11 +378,12 @@ class _Dashboard extends StatelessWidget {
                   '${groupThousands(s.totals.usersWithProjects)} users',
             ),
             StatTile(
-              label: 'Targets done',
-              value: s.totals.targetsDone,
+              label: 'Goals done',
+              value: s.totals.goalsDone,
               caption:
-                  'of ${groupThousands(s.totals.targets)}; '
-                  '${groupThousands(s.totals.planTasksDone)} plan tasks done',
+                  'of ${groupThousands(s.totals.goals)}; '
+                  '${groupThousands(s.totals.planTasksDone)} plan tasks done; '
+                  '${groupThousands(s.totals.timeBlocks)} time blocks',
             ),
             StatTile(
               label: 'Sessions attended',

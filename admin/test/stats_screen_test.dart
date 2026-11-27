@@ -50,7 +50,7 @@ void main() {
     for (final label in [
       'Total XP',
       'Projects',
-      'Targets done',
+      'Goals done',
       'Sessions attended',
       'Projects created',
     ]) {
@@ -120,8 +120,10 @@ void main() {
         'projects': 3,
         'activeProjects': 2,
         'usersWithProjects': 2,
-        'targets': 4,
-        'targetsDone': 1,
+        'goals': 4,
+        'goalsDone': 1,
+        'timeBlocks': 2,
+        'consistentActions': 3,
         'planTasksDone': 5,
         'sessionsAttended': 6,
       },
@@ -135,7 +137,9 @@ void main() {
     });
     expect(s.totals.xp, 900);
     expect(s.totals.projectXp, 75);
-    expect(s.totals.targetsDone, 1);
+    expect(s.totals.goalsDone, 1);
+    expect(s.totals.timeBlocks, 2);
+    expect(s.totals.consistentActions, 3);
     expect(s.totals.planTasksDone, 5);
     expect(s.range.sessionsAttended, 2);
     expect(s.daily.single.sessionsAttended, 2);

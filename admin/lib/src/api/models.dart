@@ -260,9 +260,11 @@ class StatsTotals {
   final int projects;
   final int activeProjects;
   final int usersWithProjects;
-  final int targets;
-  final int targetsDone;
+  final int goals;
+  final int goalsDone;
   final int planTasksDone;
+  final int timeBlocks;
+  final int consistentActions;
   final int sessionsAttended;
 
   const StatsTotals({
@@ -279,9 +281,11 @@ class StatsTotals {
     this.projects = 0,
     this.activeProjects = 0,
     this.usersWithProjects = 0,
-    this.targets = 0,
-    this.targetsDone = 0,
+    this.goals = 0,
+    this.goalsDone = 0,
     this.planTasksDone = 0,
+    this.timeBlocks = 0,
+    this.consistentActions = 0,
     this.sessionsAttended = 0,
   });
 
@@ -299,9 +303,11 @@ class StatsTotals {
     projects: _int(j['projects']),
     activeProjects: _int(j['activeProjects']),
     usersWithProjects: _int(j['usersWithProjects']),
-    targets: _int(j['targets']),
-    targetsDone: _int(j['targetsDone']),
+    goals: _int(j['goals']),
+    goalsDone: _int(j['goalsDone']),
     planTasksDone: _int(j['planTasksDone']),
+    timeBlocks: _int(j['timeBlocks']),
+    consistentActions: _int(j['consistentActions']),
     sessionsAttended: _int(j['sessionsAttended']),
   );
 }
