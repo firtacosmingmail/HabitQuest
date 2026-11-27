@@ -13,6 +13,7 @@ import 'features/game/game_providers.dart';
 import 'features/game/game_repository.dart';
 import 'features/notifications/notifications_bootstrap.dart';
 import 'features/projects/data/hive_project_repository.dart';
+import 'features/projects/data/projects_storage_migration.dart';
 import 'features/projects/notifications/project_notification_settings.dart';
 import 'features/projects/notifications/project_notifications_providers.dart';
 import 'features/projects/projects_providers.dart';
@@ -26,8 +27,14 @@ Future<void> main() async {
   await Hive.initFlutter();
   // The persistent sync queue records every local write of the
   // repositories (see docs in README "Sync").
-  final queue = SyncQueue(await HiveStringStore.open(SyncQueue.boxName));
-  final meta = SyncMeta(await HiveStringStore.open(SyncMeta.boxName));
+  final queueStore = await HiveStringStore.open(SyncQueue.boxName);
+  final metaStore = await HiveStringStore.open(SyncMeta.boxName);
+  // One-time conversion of pre-rework projects data (targets → goals,
+  // target time blocks → project time blocks), including the pending sync
+  // entries and the pull cursors. Must run before the queue loads.
+  await migrateHiveProjectsStorage(syncQueue: queueStore, syncMeta: metaStore);
+  final queue = SyncQueue(queueStore);
+  final meta = SyncMeta(metaStore);
   final repository = await HiveHabitRepository.open(recorder: queue);
   final gameRepository = await HiveGameRepository.open(recorder: queue);
   // Projects (docs/PROJECTS.md), synced like habits.

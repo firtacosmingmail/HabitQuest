@@ -1,13 +1,15 @@
 import '../../../core/utils/dates.dart';
 import 'clock_time.dart';
 
-/// One occurrence of a consistent action on a calendar day. Computed (see
-/// `expandSessions`), never stored; only the user's attended mark is stored
-/// (`SessionMark`).
+/// One occurrence of a project's time block on a calendar day. Computed
+/// (see `expandSessions`), never stored; only the user's attended mark is
+/// stored (`SessionMark`).
 class Session {
-  final String actionId;
-  final String targetId;
+  final String timeBlockId;
   final String projectId;
+
+  /// The block's label (`null` when it has none).
+  final String? label;
 
   /// Date-only (local).
   final DateTime date;
@@ -18,9 +20,9 @@ class Session {
   final bool attended;
 
   Session({
-    required this.actionId,
-    required this.targetId,
+    required this.timeBlockId,
     required this.projectId,
+    this.label,
     required DateTime date,
     required this.startTime,
     required this.endTime,
@@ -33,13 +35,13 @@ class Session {
   /// Local end (wall clock on [date]).
   DateTime get end => endTime.on(date);
 
-  /// Same key as `SessionMark.keyFor(actionId, date)`.
-  String get key => '$actionId|${dateKey(date)}';
+  /// Same key as `SessionMark.keyFor(timeBlockId, date)`.
+  String get key => '$timeBlockId|${dateKey(date)}';
 
   Session withAttended(bool attended) => Session(
-        actionId: actionId,
-        targetId: targetId,
+        timeBlockId: timeBlockId,
         projectId: projectId,
+        label: label,
         date: date,
         startTime: startTime,
         endTime: endTime,
@@ -49,9 +51,9 @@ class Session {
   @override
   bool operator ==(Object other) =>
       other is Session &&
-      other.actionId == actionId &&
-      other.targetId == targetId &&
+      other.timeBlockId == timeBlockId &&
       other.projectId == projectId &&
+      other.label == label &&
       other.date == date &&
       other.startTime == startTime &&
       other.endTime == endTime &&
@@ -59,10 +61,10 @@ class Session {
 
   @override
   int get hashCode => Object.hash(
-      actionId, targetId, projectId, date, startTime, endTime, attended);
+      timeBlockId, projectId, label, date, startTime, endTime, attended);
 
   @override
   String toString() =>
-      'Session($actionId, ${dateKey(date)} $startTime–$endTime'
+      'Session($timeBlockId, ${dateKey(date)} $startTime–$endTime'
       '${attended ? ', attended' : ''})';
 }

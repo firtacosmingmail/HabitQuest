@@ -35,14 +35,14 @@ export interface Project {
   deletedAt: string | null;
 }
 
-export type TargetStatus = "notStarted" | "inProgress" | "done";
+export type GoalStatus = "notStarted" | "inProgress" | "done";
 
-export interface Target {
+export interface Goal {
   id: string;
   projectId: string;
   title: string;
   deadline: string;
-  status: TargetStatus;
+  status: GoalStatus;
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
@@ -50,7 +50,7 @@ export interface Target {
 
 export interface PlanTask {
   id: string;
-  targetId: string;
+  goalId: string;
   title: string;
   deliveryDate: string | null;
   done: boolean;
@@ -60,29 +60,43 @@ export interface PlanTask {
   deletedAt: string | null;
 }
 
-export type ActionRecurrence =
+export type BlockRecurrence =
   | { type: "weekly"; weekdays: number[] }
   | { type: "monthly"; monthDays: number[] };
 
-export interface ConsistentAction {
+/** A recurring block of time of a project (open-ended when endDate is null). */
+export interface TimeBlock {
   id: string;
-  targetId: string;
+  projectId: string;
+  label: string | null;
   startTime: string;
   endTime: string;
-  recurrence: ActionRecurrence;
+  recurrence: BlockRecurrence;
   startDate: string | null;
+  endDate: string | null;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+}
+
+/** A text item of a goal (what to do consistently). */
+export interface ConsistentAction {
+  id: string;
+  goalId: string;
+  text: string;
+  sortOrder: number;
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
 }
 
 /**
- * Keyed by (actionId, date). `id` = "<actionId>|<yyyy-MM-dd>" is derived (the
- * app's sync queue key); it is added to responses and optional in requests.
+ * Keyed by (timeBlockId, date). `id` = "<timeBlockId>|<yyyy-MM-dd>" is derived
+ * (the app's sync queue key); it is added to responses and optional in requests.
  */
 export interface SessionMark {
   id: string;
-  actionId: string;
+  timeBlockId: string;
   date: string;
   attended: boolean;
   updatedAt: string;

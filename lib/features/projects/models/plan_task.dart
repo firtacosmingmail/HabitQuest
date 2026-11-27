@@ -1,21 +1,21 @@
 import '../../../core/utils/dates.dart';
 import 'json.dart';
 
-/// A task of a target's PLAN (e.g. "Write script 1"). Checked off by the
+/// A task of a goal's PLAN (e.g. "Write script 1"). Checked off by the
 /// user.
 class PlanTask {
   /// UUID v4.
   final String id;
 
-  /// The owning `Target.id`.
-  final String targetId;
+  /// The owning `Goal.id`.
+  final String goalId;
   final String title;
 
   /// Optional delivery date (date-only, local).
   final DateTime? deliveryDate;
   final bool done;
 
-  /// Sort order within the target's plan (ascending; ties by createdAt).
+  /// Sort order within the goal's plan (ascending; ties by createdAt).
   final int position;
 
   /// Creation time (UTC).
@@ -29,7 +29,7 @@ class PlanTask {
 
   PlanTask({
     required this.id,
-    required this.targetId,
+    required this.goalId,
     required this.title,
     DateTime? deliveryDate,
     this.done = false,
@@ -54,7 +54,7 @@ class PlanTask {
   }) =>
       PlanTask(
         id: id,
-        targetId: targetId,
+        goalId: goalId,
         title: title ?? this.title,
         deliveryDate:
             deliveryDate != null ? deliveryDate() : this.deliveryDate,
@@ -67,7 +67,7 @@ class PlanTask {
 
   Map<String, dynamic> toJson() => {
         'id': id,
-        'targetId': targetId,
+        'goalId': goalId,
         'title': title,
         'deliveryDate': deliveryDate == null ? null : dateKey(deliveryDate!),
         'done': done,
@@ -79,7 +79,7 @@ class PlanTask {
 
   factory PlanTask.fromJson(Map<String, dynamic> json) => PlanTask(
         id: json['id'] as String,
-        targetId: json['targetId'] as String,
+        goalId: json['goalId'] as String,
         title: json['title'] as String,
         deliveryDate: json['deliveryDate'] == null
             ? null
@@ -95,7 +95,7 @@ class PlanTask {
   bool operator ==(Object other) =>
       other is PlanTask &&
       other.id == id &&
-      other.targetId == targetId &&
+      other.goalId == goalId &&
       other.title == title &&
       other.deliveryDate == deliveryDate &&
       other.done == done &&
@@ -104,7 +104,7 @@ class PlanTask {
       other.deletedAt == deletedAt;
 
   @override
-  int get hashCode => Object.hash(id, targetId, title, deliveryDate, done,
+  int get hashCode => Object.hash(id, goalId, title, deliveryDate, done,
       position, createdAt, deletedAt);
 
   @override
