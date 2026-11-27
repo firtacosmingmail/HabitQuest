@@ -9,7 +9,7 @@ import '../models/goal.dart';
 import '../projects_providers.dart';
 import 'widgets/project_widgets.dart';
 
-/// Projects tab (`/projects`): active projects with their targets'
+/// Projects tab (`/projects`): active projects with their goals'
 /// progress, and an "Archived" section (archived projects still block
 /// clashing times). Create / rename / archive / delete from here.
 class ProjectsScreen extends ConsumerWidget {
@@ -57,7 +57,7 @@ class ProjectsScreen extends ConsumerWidget {
                   ? 'Plan your first big quest'
                   : 'No active projects',
               message:
-                  'A project holds targets with deadlines, a plan and regular time blocks.',
+                  'A project holds goals with deadlines and plans, and regular time blocks.',
               action: FilledButton.icon(
                 key: const ValueKey('empty-create-project'),
                 onPressed: () => createProjectFlow(context, ref),
@@ -135,7 +135,7 @@ Future<bool> runProjectMenuAction(
         context,
         title: 'Delete “${project.name}”?',
         message:
-            'Its targets, plans and time blocks are deleted too. This cannot be undone.',
+            'Its goals, plans and time blocks are deleted too. This cannot be undone.',
         confirmLabel: 'Delete',
       );
       if (ok) {
@@ -252,9 +252,9 @@ class ProjectCard extends ConsumerWidget {
                           Text(project.name, style: theme.textTheme.titleLarge),
                           Text(
                             goals.isEmpty
-                                ? 'No targets yet'
+                                ? 'No goals yet'
                                 : '$done of ${goals.length} '
-                                      '${goals.length == 1 ? 'target' : 'targets'} done',
+                                      '${goals.length == 1 ? 'goal' : 'goals'} done',
                             style: theme.textTheme.bodyMedium?.copyWith(
                               color: theme.colorScheme.onSurfaceVariant,
                             ),

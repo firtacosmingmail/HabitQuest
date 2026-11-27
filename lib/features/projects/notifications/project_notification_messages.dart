@@ -3,17 +3,18 @@
 /// rescheduled notification keeps its text.
 library;
 
-/// Work split start. `{project}`, `{block}` and `{time}` are replaced.
+/// Time block start. `{project}`, `{block}` and `{time}` are replaced;
+/// `{block}` is the block label, or the project name when it has none.
 const kWorkSplitTitles = <String>[
-  '⚔️ Quest time: {project}',
-  '🚀 Launch window open: {project}',
-  '🎯 Focus mode: {project}',
-  '🐉 Time to slay some work: {project}',
+  '⚔️ Quest time: {block}',
+  '🚀 Launch window open: {block}',
+  '🧭 Focus mode: {block}',
+  '🐉 Time to slay some work: {block}',
 ];
 const kWorkSplitBodies = <String>[
-  'Your {block} session starts now ({time}). Let\'s go!',
-  '{time}: a {block} block begins. Small steps, big adventure ✨',
-  'The {block} session is on ({time}). Your future self says thanks 🙌',
+  '{project}: your time block starts now ({time}). Let\'s go!',
+  '{time}: a {project} block begins. Small steps, big adventure ✨',
+  '{project} is on ({time}). Your future self says thanks 🙌',
 ];
 
 /// Deadline approaching, by days left (3, 1, 0). `{goal}`, `{project}`.
@@ -31,7 +32,7 @@ const kDeadlineBodies = <String>[
 /// Plan task delivery tomorrow. `{task}`, `{goal}`, `{project}`.
 const kTaskDeliveryTitles = <String>[
   '📦 Due tomorrow: {task}',
-  '🎯 Quick win ahead: {task} is due tomorrow',
+  '🏅 Quick win ahead: {task} is due tomorrow',
   '✨ XP is waiting: deliver {task} tomorrow',
 ];
 const kTaskDeliveryBodies = <String>[

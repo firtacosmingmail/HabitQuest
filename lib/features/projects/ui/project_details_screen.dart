@@ -93,19 +93,19 @@ class ProjectDetailsScreen extends ConsumerWidget {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        key: const ValueKey('new-target-fab'),
+        key: const ValueKey('new-goal-fab'),
         onPressed: () => context.push(AppRoutes.newGoal(projectId)),
         icon: const Icon(Icons.add_rounded),
-        label: const Text('New target'),
+        label: const Text('New goal'),
       ),
       body: ListView(
         key: const ValueKey('project-details-list'),
         padding: const EdgeInsets.only(bottom: 112),
         children: [
           if (project.archived) _ArchivedBanner(project: project),
-          const SectionTitle('Targets'),
+          const SectionTitle('Goals'),
           if (goals.isEmpty)
-            const NoteText('No targets yet. Add one with a deadline 🎯')
+            const NoteText('No goals yet. Add one with a deadline 🎯')
           else
             for (final g in goals) GoalTile(goal: g, color: color),
           SectionTitle(
@@ -242,7 +242,7 @@ class GoalTile extends ConsumerWidget {
     final progress = watchPlanProgress(ref, goal.id);
     final overdue = !goal.isDone && goal.deadline.isBefore(today);
     return Card(
-      key: ValueKey('target-tile-${goal.id}'),
+      key: ValueKey('goal-tile-${goal.id}'),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () =>

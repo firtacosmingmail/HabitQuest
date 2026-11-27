@@ -32,7 +32,7 @@ Future<void> tapVisible(WidgetTester tester, Finder finder) async {
 /// (open-ended); goals t1 "5 videos" (due 30 Nov, in progress, plan 1/2
 /// done) and t3 "Old cut" (done).
 /// p2 "Side gig" (archived): time block a2 "Admin" Mon–Fri 09:00–10:00;
-/// goal t2 "Side target" (due 31 Dec).
+/// goal t2 "Side goal" (due 31 Dec).
 InMemoryProjectRepository seededRepo() => InMemoryProjectRepository(
   seed: ProjectRecords(
     projects: [
@@ -55,7 +55,7 @@ InMemoryProjectRepository seededRepo() => InMemoryProjectRepository(
       goal(
         't2',
         projectId: 'p2',
-        title: 'Side target',
+        title: 'Side goal',
         deadline: DateTime(2026, 12, 31),
       ),
     ],
@@ -116,7 +116,7 @@ void main() {
 
   group('projects list', () {
     testWidgets('the Projects tab lists active and archived projects with '
-        'their targets\' progress', (tester) async {
+        'their goals\' progress', (tester) async {
       await pumpHabitQuestApp(tester, clock: clock);
       await tester.tap(
         find.descendant(
@@ -137,7 +137,7 @@ void main() {
       expect(find.text('5 videos'), findsOneWidget);
       expect(find.text('In progress'), findsOneWidget);
       expect(find.text('1/2 tasks'), findsOneWidget);
-      expect(find.text('1 of 2 targets done'), findsOneWidget);
+      expect(find.text('1 of 2 goals done'), findsOneWidget);
       expect(find.text('Archived'), findsOneWidget);
       expect(key('project-card-p2'), findsOneWidget);
       expect(find.text('Side gig'), findsOneWidget);
@@ -205,7 +205,7 @@ void main() {
       tester,
     ) async {
       await pumpApp(tester, initialLocation: '/projects/p1');
-      expect(key('target-tile-t1'), findsOneWidget);
+      expect(key('goal-tile-t1'), findsOneWidget);
       expect(find.textContaining('Due in 12 days'), findsOneWidget);
       expect(key('status-chip-t1'), findsOneWidget);
       expect(find.text('1/2 tasks'), findsOneWidget);
@@ -266,17 +266,17 @@ void main() {
     testWidgets('creates a goal, then edits plan and status', (tester) async {
       final c = await pumpApp(tester, initialLocation: '/projects/p1');
       final service = c.read(projectServiceProvider);
-      await tester.tap(key('new-target-fab'));
+      await tester.tap(key('new-goal-fab'));
       await tester.pumpAndSettle();
       expect(
         tester.widget<GoalEditorScreen>(find.byType(GoalEditorScreen)).goalId,
         isNull,
       );
 
-      await tester.enterText(key('target-title'), 'Launch shop');
+      await tester.enterText(key('goal-title'), 'Launch shop');
       await tester.tap(key('status-inProgress'));
       await tester.pumpAndSettle();
-      await tester.tap(key('save-target'));
+      await tester.tap(key('save-goal'));
       await tester.pumpAndSettle();
 
       final t = service.data
@@ -315,10 +315,10 @@ void main() {
       expect(service.data.planTasksOf(t.id), isEmpty);
 
       // Edit title + status.
-      await tester.enterText(key('target-title'), 'Launch the shop');
+      await tester.enterText(key('goal-title'), 'Launch the shop');
       await tester.tap(key('status-done'));
       await tester.pumpAndSettle();
-      await tapVisible(tester, key('save-target'));
+      await tapVisible(tester, key('save-goal'));
       final saved = service.data.goal(t.id)!;
       expect(saved.title, 'Launch the shop');
       expect(saved.status, GoalStatus.done);
@@ -485,16 +485,16 @@ void main() {
   });
 
   group('navigation', () {
-    testWidgets('list → details → new target → back shows it everywhere', (
+    testWidgets('list → details → new goal → back shows it everywhere', (
       tester,
     ) async {
       await pumpApp(tester);
       await tester.tap(find.text('Content business'));
       await tester.pumpAndSettle();
-      await tester.tap(key('new-target-fab'));
+      await tester.tap(key('new-goal-fab'));
       await tester.pumpAndSettle();
-      await tester.enterText(key('target-title'), 'Podcast');
-      await tester.tap(key('save-target'));
+      await tester.enterText(key('goal-title'), 'Podcast');
+      await tester.tap(key('save-goal'));
       await tester.pumpAndSettle();
       await tapVisible(tester, key('add-plan-task'));
       await tester.enterText(key('plan-task-title'), 'Mic');

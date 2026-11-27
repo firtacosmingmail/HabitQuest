@@ -92,16 +92,16 @@ void main() {
       find.text('15 XP for every work session you attend'),
       findsOneWidget,
     );
-    expect(find.text('50 XP when you set a target to done'), findsOneWidget);
+    expect(find.text('50 XP when you set a goal to done'), findsOneWidget);
 
     // Project badges show their hints while locked.
     expect(
       find.byKey(const ValueKey('badge-locked-first_target_done')),
       findsOneWidget,
     );
-    expect(find.text('Set a project target to done.'), findsOneWidget);
+    expect(find.text('Set a project goal to done.'), findsOneWidget);
     expect(find.text('Mark 10 work split sessions attended.'), findsOneWidget);
-    expect(find.text('Set every target of a project to done.'), findsOneWidget);
+    expect(find.text('Set every goal of a project to done.'), findsOneWidget);
   });
 
   testWidgets('tapping a badge opens its details sheet', (tester) async {

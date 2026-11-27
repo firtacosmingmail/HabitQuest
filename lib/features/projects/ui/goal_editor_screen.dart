@@ -91,7 +91,7 @@ class _GoalEditorScreenState extends ConsumerState<GoalEditorScreen> {
   Future<void> _save() async {
     final title = _title.text.trim();
     if (title.isEmpty) {
-      setState(() => _titleError = 'Give your target a title');
+      setState(() => _titleError = 'Give your goal a title');
       return;
     }
     final service = ref.read(projectServiceProvider);
@@ -123,7 +123,7 @@ class _GoalEditorScreenState extends ConsumerState<GoalEditorScreen> {
         setState(() => _load(saved));
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('Target saved ✨')));
+        ).showSnackBar(const SnackBar(content: Text('Goal saved ✨')));
       }
     } on ArgumentError catch (e) {
       if (mounted) setState(() => _error = '${e.message}');
@@ -161,9 +161,9 @@ class _GoalEditorScreenState extends ConsumerState<GoalEditorScreen> {
       return Scaffold(
         appBar: AppBar(),
         body: const MessageView(
-          key: ValueKey('target-not-found'),
+          key: ValueKey('goal-not-found'),
           emoji: '🎯',
-          title: 'Target not found',
+          title: 'Goal not found',
           message: 'It may have been deleted.',
         ),
       );
@@ -174,26 +174,26 @@ class _GoalEditorScreenState extends ConsumerState<GoalEditorScreen> {
     final color = projectColor(widget.projectId);
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.isNew ? 'New target' : 'Target'),
+        title: Text(widget.isNew ? 'New goal' : 'Goal'),
         actions: [
           if (!widget.isNew)
             IconButton(
-              key: const ValueKey('delete-target'),
-              tooltip: 'Delete target',
+              key: const ValueKey('delete-goal'),
+              tooltip: 'Delete goal',
               icon: const Icon(Icons.delete_outline_rounded),
               onPressed: _delete,
             ),
         ],
       ),
       body: ListView(
-        key: const ValueKey('target-editor-list'),
+        key: const ValueKey('goal-editor-list'),
         padding: const EdgeInsets.only(bottom: 48),
         children: [
           if (project != null) NoteText('In ${project.name}'),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
             child: TextField(
-              key: const ValueKey('target-title'),
+              key: const ValueKey('goal-title'),
               controller: _title,
               onChanged: (_) => setState(() => _titleError = null),
               maxLength: 80,
@@ -206,7 +206,7 @@ class _GoalEditorScreenState extends ConsumerState<GoalEditorScreen> {
             ),
           ),
           ListTile(
-            key: const ValueKey('target-deadline'),
+            key: const ValueKey('goal-deadline'),
             leading: Icon(Icons.flag_rounded, color: color),
             title: const Text('Deadline'),
             subtitle: Text(longDate(_deadline)),
@@ -220,7 +220,7 @@ class _GoalEditorScreenState extends ConsumerState<GoalEditorScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
             child: SegmentedButton<GoalStatus>(
-              key: const ValueKey('target-status'),
+              key: const ValueKey('goal-status'),
               showSelectedIcon: false,
               segments: [
                 for (final s in GoalStatus.values)
@@ -247,7 +247,7 @@ class _GoalEditorScreenState extends ConsumerState<GoalEditorScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
               child: OverlapMessageCard(
-                key: const ValueKey('target-save-error'),
+                key: const ValueKey('goal-save-error'),
                 title: 'Could not save',
                 message: _error!,
               ),
@@ -255,10 +255,10 @@ class _GoalEditorScreenState extends ConsumerState<GoalEditorScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
             child: FilledButton.icon(
-              key: const ValueKey('save-target'),
+              key: const ValueKey('save-goal'),
               onPressed: _saving || !_dirty ? null : _save,
               icon: const Icon(Icons.check_rounded),
-              label: Text(widget.isNew ? 'Create target' : 'Save changes'),
+              label: Text(widget.isNew ? 'Create goal' : 'Save changes'),
             ),
           ),
           if (_original != null) ...[
@@ -266,7 +266,7 @@ class _GoalEditorScreenState extends ConsumerState<GoalEditorScreen> {
             _ConsistentActionsSection(goal: _original!),
           ] else
             const NoteText(
-              'Create the target first, then add its plan and actions.',
+              'Create the goal first, then add its plan and actions.',
             ),
         ],
       ),
@@ -322,7 +322,7 @@ class _PlanSection extends ConsumerWidget {
         ),
         if (tasks.isEmpty)
           const NoteText(
-            'Break the target into tasks: scripts, recordings, edits…',
+            'Break the goal into tasks: scripts, recordings, edits…',
           ),
         for (final t in tasks) _PlanTaskTile(task: t, color: color),
       ],
