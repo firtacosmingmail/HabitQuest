@@ -1573,7 +1573,15 @@ without a token; `habits` and `check-ins` still answer 401 without a token;
 `/targets` returns 404; `supabase migration list` shows `20261127120000`
 applied; a read-only count found 2 goals, 4 time blocks (all with
 `project_id`), 8 session marks, 2 projects and 7 plan tasks, the same rows
-as before the rename. A signed-in sync from the debug app on a phone was not
+as before the rename. The backup was checked before the push (non-empty;
+2 `targets`, 4 `consistent_actions` and 8 `session_marks` rows). Further
+token-less checks: the 401 body is the usual `unauthorized` error, an
+invalid bearer also gets 401, CORS preflight answers 200; RLS is on with the
+four `*_own` policies on `goals`, `time_blocks`, `consistent_actions`,
+`plan_tasks` and `session_marks`; the `upsert_*`, `pull_*` and
+`soft_delete_*` SQL functions exist for goals, time blocks and consistent
+actions, and no `*target*` function is left. A signed-in push/pull
+round-trip on `/goals` and `/time-blocks` (the debug app on a phone) was not
 run that day (no device connected).
 
 Rollback notes (Projects rework). There is no down migration. If the rework
