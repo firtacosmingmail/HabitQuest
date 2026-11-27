@@ -47,7 +47,7 @@ lib/
                      quotes_cache.dart (hive box quotes_cache)
     game/            game engine (logic) + celebration UI — see README there
     notifications/   reminder scheduling — see README there
-    projects/        Projects/targets/plan/consistent actions/sessions: models,
+    projects/        Projects/goals/plan/time blocks/consistent actions/sessions: models,
                      Hive storage, ProjectService, providers, session expansion
                      and overlap rules — see docs/PROJECTS.md (no UI yet)
 test/

@@ -42,8 +42,12 @@ each achievement is announced once.
   amount; a key already in the ledger never earns again. Toggling nets 0.
   Deleting a habit removes the XP of its check-ins.
 * Projects (`GameEngine(projects: ProjectService)`): plan task done 10 XP,
-  session attended 15 XP, target set to done 50 XP, in `projectLedger`
-  (keys `task:<id>`, `session:<actionId>|<date>`, `target:<id>`). Undo or
+  session attended 15 XP, goal set to done 50 XP, in `projectLedger`
+  (keys `task:<id>`, `session:<timeBlockId>|<date>`, `target:<goalId>`; the
+  `target:` prefix and the achievement ids `first_target_done` /
+  `targets_5` predate the goals rename and are kept so stored ledgers and
+  earned badges stay valid; goal ids are the old target ids and time block
+  ids the old consistent-action ids). Undo or
   delete takes the grant back. Only local `ProjectService.changes` /
   `attendanceEvents` award XP; `reconcileSynced(appliedProjects:)` derives
   it from synced project records silently.
