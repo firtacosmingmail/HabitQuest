@@ -55,8 +55,8 @@ export interface PasswordGateway {
 export interface AccountDeleter {
   /**
    * Deletes the caller's rows via RLS, children first: session_marks,
-   * plan_tasks, consistent_actions, targets, projects, check_ins, habits,
-   * game_state, profiles.
+   * plan_tasks, consistent_actions, time_blocks, goals, projects, check_ins,
+   * habits, game_state, profiles.
    */
   deleteData(userId: string): Promise<void>;
   /** auth.admin.deleteUser with the service-role client (server-side only). */

@@ -1,6 +1,6 @@
 /**
  * Generic HTTP handler for the LWW resources (`habits`, `check-ins`, and the
- * Projects resources `projects`, `targets`, `plan-tasks`,
+ * Projects resources `projects`, `goals`, `time-blocks`, `plan-tasks`,
  * `consistent-actions`, `session-marks`). The
  * storage is behind [ResourceStore] so the routing and validation can be
  * tested without a database (see tests/resource_test.ts).
@@ -18,20 +18,22 @@ import {
   parseSessionMarkId,
   parseUuidId,
   validateConsistentAction,
+  validateGoal,
   validatePlanTask,
   validateProject,
   validateSessionMark,
-  validateTarget,
+  validateTimeBlock,
 } from "./projects_validation.ts";
 import type {
   BatchResult,
   CheckIn,
   ConsistentAction,
+  Goal,
   Habit,
   PlanTask,
   Project,
   SessionMark,
-  Target,
+  TimeBlock,
   WriteResult,
 } from "./types.ts";
 
@@ -87,9 +89,17 @@ export const projectsSpec: ResourceSpec<Project> = {
   parseId: parseUuidId,
 };
 
-export const targetsSpec: ResourceSpec<Target> = {
-  name: "targets",
-  validate: validateTarget,
+export const goalsSpec: ResourceSpec<Goal> = {
+  name: "goals",
+  validate: validateGoal,
+  parentFilter: "projectId",
+  parseParent: uuidParam("projectId"),
+  parseId: parseUuidId,
+};
+
+export const timeBlocksSpec: ResourceSpec<TimeBlock> = {
+  name: "time-blocks",
+  validate: validateTimeBlock,
   parentFilter: "projectId",
   parseParent: uuidParam("projectId"),
   parseId: parseUuidId,
@@ -98,28 +108,28 @@ export const targetsSpec: ResourceSpec<Target> = {
 export const planTasksSpec: ResourceSpec<PlanTask> = {
   name: "plan-tasks",
   validate: validatePlanTask,
-  parentFilter: "targetId",
-  parseParent: uuidParam("targetId"),
+  parentFilter: "goalId",
+  parseParent: uuidParam("goalId"),
   parseId: parseUuidId,
 };
 
 export const consistentActionsSpec: ResourceSpec<ConsistentAction> = {
   name: "consistent-actions",
   validate: validateConsistentAction,
-  parentFilter: "targetId",
-  parseParent: uuidParam("targetId"),
+  parentFilter: "goalId",
+  parseParent: uuidParam("goalId"),
   parseId: parseUuidId,
 };
 
-/** Path id: `<actionId>|<yyyy-MM-dd>` (send the `|` URL-encoded as `%7C`). */
+/** Path id: `<timeBlockId>|<yyyy-MM-dd>` (send the `|` URL-encoded as `%7C`). */
 export const sessionMarksSpec: ResourceSpec<SessionMark> = {
   name: "session-marks",
   validate: validateSessionMark,
-  parentFilter: "actionId",
-  parseParent: uuidParam("actionId"),
+  parentFilter: "timeBlockId",
+  parseParent: uuidParam("timeBlockId"),
   parseId: (id) => {
     const k = parseSessionMarkId(id);
-    return `${k.actionId}|${k.date}`;
+    return `${k.timeBlockId}|${k.date}`;
   },
 };
 

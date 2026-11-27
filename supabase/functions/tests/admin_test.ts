@@ -270,9 +270,11 @@ const RAW: RawStats = {
     projects: 6,
     active_projects: 5,
     users_with_projects: 4,
-    targets: 11,
-    targets_done: 3,
+    goals: 11,
+    goals_done: 3,
     plan_tasks_done: 17,
+    time_blocks: 8,
+    consistent_actions: 14,
     sessions_attended: 22,
   },
   in_range: {
@@ -329,13 +331,15 @@ Deno.test("buildStats: daily series, weekly sums, buckets and totals", () => {
   assertEquals(s.totals.xp, 5100);
   assertEquals(s.totals.projectXp, 640);
   assertEquals(
-    [s.totals.projects, s.totals.activeProjects, s.totals.usersWithProjects, s.totals.targets],
+    [s.totals.projects, s.totals.activeProjects, s.totals.usersWithProjects, s.totals.goals],
     [6, 5, 4, 11],
   );
   assertEquals(
-    [s.totals.targetsDone, s.totals.planTasksDone, s.totals.sessionsAttended],
+    [s.totals.goalsDone, s.totals.planTasksDone, s.totals.sessionsAttended],
     [3, 17, 22],
   );
+  assertEquals([s.totals.timeBlocks, s.totals.consistentActions], [8, 14]);
+  assert(!("targets" in s.totals) && !("targetsDone" in s.totals));
   assertEquals(s.range.projectsCreated, 2);
   assertEquals(s.range.sessionsAttended, 5);
   assertEquals(s.bestStreakBuckets.map((b) => b.users), [2, 0, 6, 0, 0, 1, 0, 0]);
@@ -393,6 +397,7 @@ Deno.test("buildStats: an empty database gives zeros, not errors", () => {
   assert(s.xpBuckets.every((b) => b.users === 0));
   assert(s.projectXpBuckets.every((b) => b.users === 0));
   assertEquals(s.totals.projectXp, 0);
+  assertEquals([s.totals.goals, s.totals.timeBlocks, s.totals.consistentActions], [0, 0, 0]);
   assertEquals(s.range.sessionsAttended, 0);
 });
 

@@ -10,8 +10,9 @@ Base URL: `{SUPABASE_URL}/functions/v1/<name>`
 ## General rules
 
 - Every request sends the header `apikey: <anon key>`.
-- Data endpoints (`habits`, `check-ins`, `game-state`, `projects`, `targets`,
-  `plan-tasks`, `consistent-actions`, `session-marks`, `quotes`, `quote-loves`,
+- Data endpoints (`habits`, `check-ins`, `game-state`, `projects`, `goals`,
+  `time-blocks`, `plan-tasks`, `consistent-actions`, `session-marks`, `quotes`,
+  `quote-loves`,
   `admin-quotes`, `admin-stats`)
   and `auth-logout` also
   send `Authorization: Bearer <accessToken>`. Exception: `GET /quotes` also
@@ -299,7 +300,8 @@ signs in again with the new password right after the `204`.
 Body: `{ "confirm": "DELETE" }` (exactly; anything else → `400 invalid_input`).
 
 - `204`: the caller's `session_marks`, `plan_tasks`, `consistent_actions`,
-  `targets`, `projects`, `check_ins`, `habits`, `game_state` and `profiles`
+  `time_blocks`, `goals`, `projects`, `check_ins`, `habits`, `game_state` and
+  `profiles`
   rows are deleted (with their JWT, RLS, children first), then the auth user with
   `auth.admin.deleteUser`. That admin call uses a service-role client built
   from `SUPABASE_SERVICE_ROLE_KEY`, which Supabase provides to deployed
@@ -311,22 +313,43 @@ Body: `{ "confirm": "DELETE" }` (exactly; anything else → `400 invalid_input`)
 ## Projects
 
 The Projects feature (`docs/PROJECTS.md` is the data contract: field
-meanings, recurrence and overlap rules). Five functions, one per entity,
+meanings, recurrence and overlap rules). Six functions, one per entity,
 with **exactly the semantics of `habits` / `check-ins`**: same routes, LWW,
 tombstones, batch, delta pull and cursor, CORS, error shape and `401
 unauthorized` contract (JWT checked in code with `auth.getUser`). Tables:
-`projects`, `targets`, `plan_tasks`, `consistent_actions`, `session_marks`
-(`migrations/20261114120000_projects.sql`), RLS per `auth.uid()`, LWW SQL
-functions `upsert_<entity>`, `upsert_<entities>`, `soft_delete_<entity>`,
+`projects`, `goals`, `time_blocks`, `plan_tasks`, `consistent_actions`,
+`session_marks` (`migrations/20261114120000_projects.sql`, reworked by
+`migrations/20261127120000_goals_time_blocks.sql`), RLS per `auth.uid()`, LWW
+SQL functions `upsert_<entity>`, `upsert_<entities>`, `soft_delete_<entity>`,
 `pull_<entities>` (SECURITY INVOKER).
+
+```
+Project ─┬─ Goal ─┬─ PlanTask
+         │        └─ ConsistentAction   (text items)
+         └─ TimeBlock ── SessionMark    (recurring blocks of time)
+```
 
 | Function | Resource | Id | List filter |
 |---|---|---|---|
 | `projects` | Project | UUID | – |
-| `targets` | Target | UUID | `?projectId=<uuid>` |
-| `plan-tasks` | PlanTask | UUID | `?targetId=<uuid>` |
-| `consistent-actions` | ConsistentAction | UUID | `?targetId=<uuid>` |
-| `session-marks` | SessionMark | `<actionId>\|<yyyy-MM-dd>` | `?actionId=<uuid>` |
+| `goals` | Goal | UUID | `?projectId=<uuid>` |
+| `time-blocks` | TimeBlock | UUID | `?projectId=<uuid>` |
+| `plan-tasks` | PlanTask | UUID | `?goalId=<uuid>` |
+| `consistent-actions` | ConsistentAction | UUID | `?goalId=<uuid>` |
+| `session-marks` | SessionMark | `<timeBlockId>\|<yyyy-MM-dd>` | `?timeBlockId=<uuid>` |
+
+**Rework of 2026-11-27 (breaking).** `targets` was renamed `goals` (the
+function `/targets` is **removed**: old app builds calling it get `404`);
+the recurring blocks ("consistent actions" of a target) moved to the
+project as **time blocks** (`/time-blocks`, with an optional `label` and
+`endDate`); `/consistent-actions` now serves the NEW consistent actions,
+plain text items of a goal; plan tasks reference `goalId` and session marks
+`timeBlockId`. Ids did not change (goal id = old target id, time block id =
+old consistent action id). Existing rows were migrated on the server: each
+block got its goal's project and the goal title as `label`; blocks of a
+deleted target were tombstoned with the target's `deletedAt` (their
+`updatedAt` is unchanged). The migration bumps `server_updated_at` of every
+time block; the app resets its cursors with this release.
 
 Routes, for each function `<f>` (see [Function `habits`](#function-habits)):
 
@@ -351,20 +374,23 @@ Routes, for each function `<f>` (see [Function `habits`](#function-habits)):
 - Responses carry exactly the contract JSON of `docs/PROJECTS.md` (camelCase,
   UTC timestamps with milliseconds, `yyyy-MM-dd` dates, `HH:mm` times,
   `null` fields sent as `null`), plus the derived `id` on session marks.
-- **Parent before child.** A target needs its project on the server, a plan
-  task or consistent action its target, a session mark its consistent action
-  (a tombstoned parent counts). Otherwise `409 parent_not_found` (a batch is
-  one transaction: nothing is written). Push projects → targets → plan tasks
-  and consistent actions → session marks.
+- **Parent before child.** A goal or a time block needs its project on the
+  server, a plan task or consistent action its goal, a session mark its time
+  block (a tombstoned parent counts). Otherwise `409 parent_not_found`, with
+  a message such as "The project of this time block does not exist on the
+  server; push the project first" (a batch is one transaction: nothing is
+  written). Push projects → goals and time blocks → plan tasks, consistent
+  actions and session marks.
 - The server does **not** cascade soft deletes: the app tombstones the
   children itself (`docs/PROJECTS.md`) and pushes every tombstone. Hard
   deletes (account deletion only) cascade through the foreign keys.
 - The server does not prevent changing a child's parent id (`projectId`,
-  `targetId`); the app never does (the contract says they cannot change).
-- **Overlaps are not checked on the server.** Whether two consistent
-  actions clash in time is an app save rule (`docs/PROJECTS.md` "Overlap
-  rule"); data merged from two offline devices may contain a clash, which
-  the server stores and the client tolerates.
+  `goalId`, `timeBlockId`); the app never does (the contract says they
+  cannot change).
+- **Overlaps are not checked on the server.** Whether two time blocks clash
+  in time is an app save rule (`docs/PROJECTS.md` "Overlap rule"); data
+  merged from two offline devices may contain a clash, which the server
+  stores and the client tolerates.
 
 ### Project
 
@@ -377,7 +403,7 @@ Routes, for each function `<f>` (see [Function `habits`](#function-habits)):
 - `name`: string, not blank, max 200 characters (stored as sent).
 - `archived`: boolean, default `false` when missing.
 
-### Target
+### Goal
 
 ```json
 { "id": "c41a…", "projectId": "7b0e…", "title": "5 videos",
@@ -392,50 +418,68 @@ Routes, for each function `<f>` (see [Function `habits`](#function-habits)):
 ### PlanTask
 
 ```json
-{ "id": "e9d2…", "targetId": "c41a…", "title": "5 scripts",
+{ "id": "e9d2…", "goalId": "c41a…", "title": "5 scripts",
   "deliveryDate": "2026-11-10", "done": false, "position": 0,
   "createdAt": "…Z", "updatedAt": "…Z", "deletedAt": null }
 ```
 
-- `deliveryDate`: `yyyy-MM-dd` or `null` (default). `done`: boolean, default
-  `false`. `position`: 32-bit integer, default `0`.
+- `goalId`: UUID, required. `deliveryDate`: `yyyy-MM-dd` or `null`
+  (default). `done`: boolean, default `false`. `position`: 32-bit integer,
+  default `0`.
 
-### ConsistentAction
+### TimeBlock
 
 ```json
-{ "id": "5f3c…", "targetId": "c41a…", "startTime": "10:00", "endTime": "13:00",
+{ "id": "5f3c…", "projectId": "7b0e…", "label": "Deep work",
+  "startTime": "10:00", "endTime": "13:00",
   "recurrence": { "type": "weekly", "weekdays": [1, 2, 3, 4, 5] },
-  "startDate": null,
+  "startDate": null, "endDate": null,
   "createdAt": "…Z", "updatedAt": "…Z", "deletedAt": null }
 ```
 
+- `projectId`: UUID, required.
+- `label`: `null` (default when missing) or a non-blank string of at most
+  200 characters (stored as sent).
 - `startTime`, `endTime`: `"HH:mm"` (24 h); `endTime` strictly after
   `startTime` (no block across midnight) → else `400 invalid_input`.
 - `recurrence`: `{ "type": "weekly", "weekdays": [1..7] }` (ISO, 1 = Monday)
   or `{ "type": "monthly", "monthDays": [1..31] }`; the list non-empty,
   integers, sorted ascending, no duplicates. Unknown `type` → `400`. Stored
   as `jsonb` normalised to exactly these keys (others are dropped).
-- `startDate`: `yyyy-MM-dd` or `null`.
+- `startDate`, `endDate`: `yyyy-MM-dd` or `null` (default). `endDate: null`
+  means open-ended (no goal deadline cuts a block off any more). When both
+  are set, `endDate` must not be before `startDate` → else `400 invalid_input`.
+
+### ConsistentAction
+
+```json
+{ "id": "a11c…", "goalId": "c41a…", "text": "Write 500 words", "sortOrder": 0,
+  "createdAt": "…Z", "updatedAt": "…Z", "deletedAt": null }
+```
+
+- A text item of a goal (what to do consistently); no schedule.
+- `goalId`: UUID, required. `text`: not blank, max 500 characters (stored as
+  sent). `sortOrder`: 32-bit integer, default `0`.
 
 ### SessionMark
 
 ```json
-{ "id": "5f3c…|2026-11-16", "actionId": "5f3c…", "date": "2026-11-16",
+{ "id": "5f3c…|2026-11-16", "timeBlockId": "5f3c…", "date": "2026-11-16",
   "attended": true, "updatedAt": "…Z", "deletedAt": null }
 ```
 
-- Keyed by `(actionId, date)` like check-ins, no UUID: two devices marking
-  the same session converge on one row. Table primary key
-  `(user_id, action_id, date)`; no `createdAt`.
-- `id` = `actionId + "|" + date` (lower-case uuid), the app's sync queue
+- Keyed by `(timeBlockId, date)` like check-ins, no UUID: two devices
+  marking the same session converge on one row. Table primary key
+  `(user_id, time_block_id, date)`; no `createdAt`.
+- `id` = `timeBlockId + "|" + date` (lower-case uuid), the app's sync queue
   key. It is **derived**: responses include it, requests may omit it; when
-  sent (body or path) it must match `actionId` and `date`
+  sent (body or path) it must match `timeBlockId` and `date`
   (`400 invalid_input` otherwise). In a path, URL-encode the `|` as `%7C`:
   `PUT /session-marks/5f3c…%7C2026-11-16`. Batch `results[].id` is this key.
 - Un-marking is a write with `attended: false` and a newer `updatedAt`.
   `DELETE` tombstones the mark (`deletedAt`), like check-ins.
-- The server does not check that `date` is a session day of the action or
-  not in the future (app rules).
+- The server does not check that `date` is a session day of the time block
+  or not in the future (app rules).
 
 ## Quotes
 
@@ -691,12 +735,14 @@ described under `GET /quotes?date=`. Other methods → `405`, sub-paths → `404
 
 Aggregates only: counts, per-day/per-week series, histograms and the
 most-loved quotes. No user id, email, display name, habit name, project name
-or target title is ever returned.
+or goal title is ever returned.
 
-The SQL behind it is `public.admin_stats` from
-`migrations/20261114130000_admin_stats_projects.sql`, which replaces the
-first version (`20261017120000_admin_functions.sql`) and **needs the Projects
-tables** (`20261114120000_projects.sql`) applied first. The Projects fields
+The SQL behind it is `public.admin_stats`, latest version in
+`migrations/20261127120000_goals_time_blocks.sql` (it replaced
+`20261114130000_admin_stats_projects.sql`, which replaced the first version
+in `20261017120000_admin_functions.sql`). Since the 2026-11-27 rework the
+totals report `goals` / `goalsDone` (formerly `targets` / `targetsDone`) and
+the new `timeBlocks` and `consistentActions`. The Projects fields
 below (`totals.xp`, `projectXp`, `projects`… , `range.projectsCreated`,
 `sessionsAttended`, `daily[].sessionsAttended`, `projectXpBuckets`) are `0`
 / all-zero buckets while the database still runs the first version.
@@ -713,7 +759,8 @@ below (`totals.xp`, `projectXp`, `projects`… , `range.projectsCreated`,
     "quotes": 90, "scheduledQuotes": 90, "quoteLoves": 230,
     "xp": 187430, "projectXp": 21245,
     "projects": 51, "activeProjects": 43, "usersWithProjects": 26,
-    "targets": 149, "targetsDone": 37, "planTasksDone": 612, "sessionsAttended": 803
+    "goals": 149, "goalsDone": 37, "planTasksDone": 612,
+    "timeBlocks": 88, "consistentActions": 230, "sessionsAttended": 803
   },
   "range": {
     "signups": 14, "activeUsers": 61, "habitsCreated": 52,
@@ -747,11 +794,13 @@ What each figure means (and its limits):
 | `daily[].habitsCreated` | `habits.created_at` (the client's creation time, also counts habits deleted later) | exact for synced habits |
 | `daily[].completions`, `weekly[].completions` | completed, non-deleted `check_ins` by `date` | exact (synced) |
 | `xpBuckets`, `totals.xp` | per user (`totals.xp`: summed over users): sum of the numeric values of `game_state.state.checkIns` + `perfectDays` + `projects` (the app's three XP ledgers, = `GameState.xp`) | exact for users with a synced game state (`usersWithGameState`) |
-| `projectXpBuckets`, `totals.projectXp` | the same, `state.projects` alone (keys `task:<id>` 10 XP, `session:<actionId>\|<date>` 15 XP, `target:<id>` 50 XP; README "Game rules") | exact for users with a synced game state; users without project XP are in the `0` bucket |
+| `projectXpBuckets`, `totals.projectXp` | the same, `state.projects` alone (keys `task:<id>` 10 XP, `session:<timeBlockId>\|<date>` 15 XP, `target:<goalId>` 50 XP, the `target:` prefix kept from before the rename; README "Game rules") | exact for users with a synced game state; users without project XP are in the `0` bucket |
 | `totals.projects`, `activeProjects`, `usersWithProjects` | non-deleted `projects` (`activeProjects`: also not archived; `usersWithProjects`: distinct owners) | exact (synced projects only) |
-| `totals.targets`, `targetsDone` | non-deleted `targets` of a non-deleted project (`targetsDone`: `status = 'done'`) | exact (synced) |
-| `totals.planTasksDone` | non-deleted `plan_tasks` with `done`, of a live target | exact (synced) |
-| `totals.sessionsAttended`, `range.sessionsAttended`, `daily[].sessionsAttended` | non-deleted `session_marks` with `attended`, of a non-deleted consistent action of a live target, by the session `date` | exact (synced); a back-filled session counts on its own day |
+| `totals.goals`, `goalsDone` | non-deleted `goals` of a non-deleted project (`goalsDone`: `status = 'done'`) | exact (synced) |
+| `totals.planTasksDone` | non-deleted `plan_tasks` with `done`, of a live goal | exact (synced) |
+| `totals.timeBlocks` | non-deleted `time_blocks` of a non-deleted project | exact (synced) |
+| `totals.consistentActions` | non-deleted `consistent_actions` (text items) of a live goal | exact (synced) |
+| `totals.sessionsAttended`, `range.sessionsAttended`, `daily[].sessionsAttended` | non-deleted `session_marks` with `attended`, of a non-deleted time block of a non-deleted project, by the session `date` | exact (synced); a back-filled session counts on its own day |
 | `range.projectsCreated` | `projects.created_at` (the client's creation time, also counts projects deleted later) | exact for synced projects |
 | `bestStreakBuckets` | `game_state.state.bestStreakEver` | **best** streak ever; current streaks are computed on the device and not stored |
 | `levels` | `game_state.state.maxLevelReached` | highest level reached |
