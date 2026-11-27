@@ -1095,8 +1095,13 @@ class _SessionSheet extends ConsumerWidget {
               FilledButton.icon(
                 key: const ValueKey('session-sheet-open-project'),
                 onPressed: () {
+                  final path = AppRoutes.projectDetails(project.id);
+                  final router = GoRouter.of(context);
+                  final here =
+                      router.routerDelegate.currentConfiguration.uri.path;
                   Navigator.of(context).pop();
-                  context.push(AppRoutes.projectDetails(project.id));
+                  // From the project's own work split card: already there.
+                  if (here != path) router.push(path);
                 },
                 icon: const Icon(Icons.folder_open_rounded),
                 label: const Text('Open project'),
