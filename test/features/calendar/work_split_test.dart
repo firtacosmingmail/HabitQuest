@@ -3,13 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:habit_quest/features/calendar/calendar_screen.dart';
 import 'package:habit_quest/features/projects/data/project_repository.dart';
-import 'package:habit_quest/features/projects/models/consistent_action.dart';
 import 'package:habit_quest/features/projects/models/plan_task.dart';
 import 'package:habit_quest/features/projects/models/session.dart';
-import 'package:habit_quest/features/projects/models/target.dart';
+import 'package:habit_quest/features/projects/models/time_block.dart';
+import 'package:habit_quest/features/projects/models/goal.dart';
 import 'package:habit_quest/features/projects/ui/project_details_screen.dart';
 import 'package:habit_quest/features/projects/projects_providers.dart';
-import 'package:habit_quest/features/projects/ui/target_editor_screen.dart';
 import 'package:habit_quest/features/projects/ui/work_split_view.dart';
 
 import '../../helpers/test_app.dart';
@@ -19,17 +18,19 @@ import '../projects/helpers.dart';
 DateTime clock() => DateTime(2026, 11, 18, 9);
 
 Finder key(String k) => find.byKey(ValueKey(k));
-Finder block(String actionId, String day) =>
-    key('session-block-$actionId|$day');
+Finder block(String timeBlockId, String day) =>
+    key('session-block-$timeBlockId|$day');
 
-/// p1 "Content": t1 "5 videos" (due Fri 27 Nov, a1 Mon–Fri 10:00–13:00),
-/// t5 "Teaser" (due Fri 20 Nov, no blocks). Tasks: k1 due Wed 18 Nov
-/// (open), k2 due Fri 20 Nov (done).
-/// p2 "Fitness": t2 "Run 10k" (due 31 Dec, a2 Tue/Thu 18:00–19:00).
-/// p3 "Old" (archived): t4 (a4 Mon 07:00–08:00, task k4 due 19 Nov).
+/// p1 "Content": open-ended block a1 "Filming" Mon–Fri 10:00–13:00; goals
+/// t1 "5 videos" (due Fri 27 Nov) and t5 "Teaser" (due Fri 20 Nov). Tasks:
+/// k1 due Wed 18 Nov (open), k2 due Fri 20 Nov (done).
+/// p2 "Fitness": unlabelled block a2 Tue/Thu 18:00–19:00; goal t2 "Run 10k"
+/// (due 31 Dec).
+/// p3 "Old" (archived): block a4 Mon 07:00–08:00; goal t4 with task k4 due
+/// 19 Nov.
 InMemoryProjectRepository seededRepo({
-  List<Target> extraTargets = const [],
-  List<ConsistentAction> extraActions = const [],
+  List<Goal> extraGoals = const [],
+  List<TimeBlock> extraBlocks = const [],
 }) => InMemoryProjectRepository(
   seed: ProjectRecords(
     projects: [
@@ -37,34 +38,34 @@ InMemoryProjectRepository seededRepo({
       project('p2', name: 'Fitness'),
       project('p3', name: 'Old', archived: true),
     ],
-    targets: [
-      target('t1', title: '5 videos', deadline: DateTime(2026, 11, 27)),
-      target('t5', title: 'Teaser', deadline: DateTime(2026, 11, 20)),
-      target(
+    goals: [
+      goal('t1', title: '5 videos', deadline: DateTime(2026, 11, 27)),
+      goal('t5', title: 'Teaser', deadline: DateTime(2026, 11, 20)),
+      goal(
         't2',
         projectId: 'p2',
         title: 'Run 10k',
         deadline: DateTime(2026, 12, 31),
       ),
-      target(
+      goal(
         't4',
         projectId: 'p3',
         title: 'Archived goal',
         deadline: DateTime(2026, 12, 31),
       ),
-      ...extraTargets,
+      ...extraGoals,
     ],
     planTasks: [
       PlanTask(
         id: 'k1',
-        targetId: 't1',
+        goalId: 't1',
         title: 'Write script 1',
         deliveryDate: DateTime(2026, 11, 18),
         createdAt: createdOn(2026, 11, 1),
       ),
       PlanTask(
         id: 'k2',
-        targetId: 't1',
+        goalId: 't1',
         title: 'Record intro',
         deliveryDate: DateTime(2026, 11, 20),
         done: true,
@@ -73,22 +74,22 @@ InMemoryProjectRepository seededRepo({
       ),
       PlanTask(
         id: 'k4',
-        targetId: 't4',
+        goalId: 't4',
         title: 'Hidden task',
         deliveryDate: DateTime(2026, 11, 19),
         createdAt: createdOn(2026, 11, 1),
       ),
     ],
-    actions: [
+    timeBlocks: [
       weekly(
         'a1',
-        targetId: 't1',
+        label: 'Filming',
         days: monFri,
         created: createdOn(2026, 11, 1),
       ),
       weekly(
         'a2',
-        targetId: 't2',
+        projectId: 'p2',
         days: {2, 4},
         start: '18:00',
         end: '19:00',
@@ -96,40 +97,38 @@ InMemoryProjectRepository seededRepo({
       ),
       weekly(
         'a4',
-        targetId: 't4',
+        projectId: 'p3',
         days: {1},
         start: '07:00',
         end: '08:00',
         created: createdOn(2026, 11, 1),
       ),
-      ...extraActions,
+      ...extraBlocks,
     ],
   ),
 );
 
-/// Adds an early block in the week of 16 Nov (t6: Mon 04:00–05:00, due
-/// 22 Nov) and a late one in the week of 23 Nov (t7: Wed 21:00–22:30,
-/// active from 23 Nov).
+/// Adds an early block in the week of 16 Nov only (a6: Mon 04:00–05:00,
+/// ends 22 Nov) and a late one in the week of 23 Nov only (a7: Wed
+/// 21:00–22:30, from 23 Nov until 29 Nov).
 InMemoryProjectRepository outOfHoursRepo() => seededRepo(
-  extraTargets: [
-    target('t6', title: 'Early', deadline: DateTime(2026, 11, 22)),
-    target('t7', title: 'Late', deadline: DateTime(2026, 11, 29)),
-  ],
-  extraActions: [
+  extraBlocks: [
     weekly(
       'a6',
-      targetId: 't6',
+      label: 'Early',
       days: {1},
       start: '04:00',
       end: '05:00',
+      endDate: DateTime(2026, 11, 22),
       created: createdOn(2026, 11, 1),
     ),
     weekly(
       'a7',
-      targetId: 't7',
+      label: 'Late',
       days: {3},
       start: '21:00',
       end: '22:30',
+      endDate: DateTime(2026, 11, 29),
       created: createdOn(2026, 11, 23),
     ),
   ],
@@ -216,7 +215,21 @@ void main() {
       expect(block('a2', '2026-11-18'), findsNothing);
       // Archived projects are hidden on the Calendar tab.
       expect(block('a4', '2026-11-16'), findsNothing);
-      expect(find.text('5 videos'), findsWidgets);
+      // Labelled with the block label, else the project name.
+      expect(
+        find.descendant(
+          of: block('a1', '2026-11-16'),
+          matching: find.text('Filming'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: block('a2', '2026-11-17'),
+          matching: find.text('Fitness'),
+        ),
+        findsOneWidget,
+      );
 
       // 06:00–20:00 share the grid: 10:00–13:00 is 3 of 14 hour rows;
       // 18:00 starts 8 rows below 10:00.
@@ -243,11 +256,11 @@ void main() {
       await tester.pumpAndSettle();
       expect(weekTitle(tester), '23 – 29 Nov 2026');
       expect(block('a1', '2026-11-27'), findsOneWidget);
-      // After the deadline (27 Nov) there are no more sessions.
+      // The block is open-ended: a goal deadline (27 Nov) does not stop it.
       await tester.tap(key('work-split-next-week'));
       await tester.pumpAndSettle();
       expect(weekTitle(tester), '30 Nov – 6 Dec 2026');
-      expect(block('a1', '2026-11-30'), findsNothing);
+      expect(block('a1', '2026-11-30'), findsOneWidget);
       expect(block('a2', '2026-12-01'), findsOneWidget);
 
       await tester.tap(key('work-split-today'));
@@ -276,29 +289,31 @@ void main() {
       expect(key('deadline-marker-2026-11-27'), findsOneWidget);
     });
 
-    testWidgets('tapping a past block marks it attended and opens the target', (
-      tester,
-    ) async {
-      final c = await pump(tester);
-      await openWorkSplit(tester);
+    testWidgets(
+      'tapping a past block marks it attended and opens the project',
+      (tester) async {
+        final c = await pump(tester);
+        await openWorkSplit(tester);
 
-      await tapVisible(tester, block('a1', '2026-11-16'));
-      expect(key('session-sheet'), findsOneWidget);
-      await tester.tap(key('session-sheet-attend'));
-      await tester.pumpAndSettle();
-      expect(
-        c
-            .read(projectServiceProvider)
-            .data
-            .isAttended('a1', DateTime(2026, 11, 16)),
-        isTrue,
-      );
-      expect(find.textContaining('Attended'), findsOneWidget);
+        await tapVisible(tester, block('a1', '2026-11-16'));
+        expect(key('session-sheet'), findsOneWidget);
+        await tester.tap(key('session-sheet-attend'));
+        await tester.pumpAndSettle();
+        expect(
+          c
+              .read(projectServiceProvider)
+              .data
+              .isAttended('a1', DateTime(2026, 11, 16)),
+          isTrue,
+        );
+        expect(find.textContaining('Attended'), findsOneWidget);
 
-      await tester.tap(key('session-sheet-open-target'));
-      await tester.pumpAndSettle();
-      expect(find.byType(TargetEditorScreen), findsOneWidget);
-    });
+        await tester.tap(key('session-sheet-open-project'));
+        await tester.pumpAndSettle();
+        expect(find.byType(ProjectDetailsScreen), findsOneWidget);
+        expect(find.text('Content'), findsWidgets);
+      },
+    );
 
     testWidgets('a future block cannot be marked yet', (tester) async {
       await pump(tester);
@@ -306,7 +321,7 @@ void main() {
       await tapVisible(tester, block('a2', '2026-11-19'));
       expect(key('session-sheet'), findsOneWidget);
       expect(key('session-sheet-attend'), findsNothing);
-      expect(key('session-sheet-open-target'), findsOneWidget);
+      expect(key('session-sheet-open-project'), findsOneWidget);
     });
 
     for (final dark in [false, true]) {

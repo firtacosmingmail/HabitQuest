@@ -23,8 +23,8 @@ import 'package:habit_quest/data/remote/http_habit_quest_api.dart';
 import 'package:habit_quest/data/remote/remote_models.dart';
 import 'package:habit_quest/features/game/game_rules.dart';
 import 'package:habit_quest/features/projects/models/clock_time.dart';
-import 'package:habit_quest/features/projects/models/consistent_action.dart';
 import 'package:habit_quest/features/projects/models/session_mark.dart';
+import 'package:habit_quest/features/projects/models/time_block.dart';
 import 'package:habit_quest/features/sync/sync_engine.dart';
 import 'package:http/http.dart' as http;
 
@@ -98,20 +98,25 @@ void main() {
     // Device A: a full tree, with a session attended today.
     final a = Device('A', clock: clock, api: api1);
     final p = await a.projects.createProject(name: 'E2E project');
-    final t = await a.projects.createTarget(
+    final g = await a.projects.createGoal(
       projectId: p.id,
-      title: 'E2E target',
+      title: 'E2E goal',
       deadline: day.add(const Duration(days: 30)),
     );
-    final task = await a.projects.addPlanTask(targetId: t.id, title: 'Task');
-    final action = await a.projects.createAction(
-      targetId: t.id,
+    final task = await a.projects.addPlanTask(goalId: g.id, title: 'Task');
+    final block = await a.projects.createTimeBlock(
+      projectId: p.id,
+      label: 'E2E block',
       startTime: const ClockTime(6, 0),
       endTime: const ClockTime(6, 30),
       recurrence: WeeklyRecurrence({1, 2, 3, 4, 5, 6, 7}),
       startDate: day,
     );
-    await a.projects.setSessionAttended(action.id, day, true);
+    final action = await a.projects.addConsistentAction(
+      goalId: g.id,
+      text: 'E2E consistent action',
+    );
+    await a.projects.setSessionAttended(block.id, day, true);
     await a.projects.setPlanTaskDone(task.id, true);
     await pumpEventQueue();
     final xp = a.xp;
@@ -121,14 +126,16 @@ void main() {
     expect(report.issues, isEmpty, reason: 'parents went out first');
     expect(a.queue.isEmpty, isTrue);
     final marks = await api1.listProjectRecords(ProjectResource.sessionMarks);
-    expect(marks.items.single.id, SessionMark.keyFor(action.id, day));
+    expect(marks.items.single.id, SessionMark.keyFor(block.id, day));
 
     // Device B, same account: gets everything, XP once and silently.
     final b = Device('B', clock: clock, api: api1);
     report = await b.sync(user: 'u1');
-    expect(report.pulledProjectRecords, 5);
+    expect(report.pulledProjectRecords, 6);
     expect(b.projects.data.project(p.id)!.name, 'E2E project');
-    expect(b.projects.data.isAttended(action.id, day), isTrue);
+    expect(b.projects.data.isAttended(block.id, day), isTrue);
+    expect(b.projects.data.timeBlock(block.id), block);
+    expect(b.projects.data.consistentAction(action.id), action);
     expect(b.xp, xp);
     expect(b.gameEvents, isEmpty);
     expect(b.remoteProjectEvents, isNotEmpty);
@@ -156,10 +163,14 @@ void main() {
       ProjectResource.projects,
     );
     expect(serverProjects.items.single.isDeleted, isTrue);
-    final serverTargets = await api1.listProjectRecords(
-      ProjectResource.targets,
-    );
-    expect(serverTargets.items.single.isDeleted, isTrue);
+    for (final r in [
+      ProjectResource.goals,
+      ProjectResource.timeBlocks,
+      ProjectResource.consistentActions,
+    ]) {
+      final items = await api1.listProjectRecords(r);
+      expect(items.items.single.isDeleted, isTrue, reason: r.function);
+    }
 
     // Account switch: user 2 on device B never sees user 1's projects.
     b.api = apiFor(u2);

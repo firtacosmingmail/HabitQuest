@@ -356,7 +356,7 @@ void main() {
       () async {
         const markJson = {
           'id': '5f3c0000-0000-4000-8000-000000000001|2026-11-16',
-          'actionId': '5f3c0000-0000-4000-8000-000000000001',
+          'timeBlockId': '5f3c0000-0000-4000-8000-000000000001',
           'date': '2026-11-16',
           'attended': true,
           'updatedAt': '2026-11-16T10:00:00.000Z',
@@ -385,7 +385,7 @@ void main() {
         );
         final mark = page.items.single;
         expect(mark.id, markJson['id']);
-        expect(mark.parentId, markJson['actionId']);
+        expect(mark.parentId, markJson['timeBlockId']);
 
         await api.putProjectRecord(mark);
         expect(requests.last.method, 'PUT');

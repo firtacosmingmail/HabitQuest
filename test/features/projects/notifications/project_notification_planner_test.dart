@@ -4,7 +4,7 @@ import 'package:habit_quest/features/notifications/reminder_request.dart';
 import 'package:habit_quest/features/projects/models/plan_task.dart';
 import 'package:habit_quest/features/projects/models/projects_data.dart';
 import 'package:habit_quest/features/projects/models/session_mark.dart';
-import 'package:habit_quest/features/projects/models/target.dart';
+import 'package:habit_quest/features/projects/models/goal.dart';
 import 'package:habit_quest/features/projects/notifications/project_notification_planner.dart';
 import 'package:habit_quest/features/projects/notifications/project_notification_settings.dart';
 
@@ -16,11 +16,11 @@ final now = DateTime(2026, 11, 14, 8);
 PlanTask task(
   String id,
   DateTime? delivery, {
-  String targetId = 't1',
+  String goalId = 't1',
   bool done = false,
 }) => PlanTask(
   id: id,
-  targetId: targetId,
+  goalId: goalId,
   title: 'Task $id',
   deliveryDate: delivery,
   done: done,
@@ -45,59 +45,86 @@ void main() {
   group('work split', () {
     final data = ProjectsData.fromRecords(
       projects: [project('p1', name: 'Content')],
-      targets: [
-        target('t1', title: '5 videos', deadline: DateTime(2026, 11, 20)),
-      ],
-      // Mon, Wed 10:00 and Sat 07:00 (already past today).
-      actions: [
-        weekly('a1', days: {1, 3}),
+      goals: [goal('t1', title: '5 videos', deadline: DateTime(2026, 11, 20))],
+      // Open-ended project blocks: Mon, Wed 10:00 ("Editing") and Sat
+      // 07:00 (already past today).
+      timeBlocks: [
+        weekly('a1', label: 'Editing', days: {1, 3}),
         weekly('a2', days: {6}, start: '07:00', end: '07:30'),
       ],
     );
 
-    test('fires at each session start, skips past ones and stops at the '
-        'deadline', () {
-      final ns = plan(
-        data,
-        settings: ProjectNotificationSettings.allOn.copyWith(
-          deadlines: false,
-          taskDeliveries: false,
-        ),
-      );
+    const splitsOnly = ProjectNotificationSettings(
+      workSplits: true,
+      deadlines: false,
+      taskDeliveries: false,
+    );
+
+    test('fires at each session start of an open-ended block through the '
+        'whole window (a goal deadline does not cut it off); skips past '
+        'ones', () {
+      final ns = plan(data, settings: splitsOnly);
       expect(ns.map((n) => n.fireAt), [
         DateTime(2026, 11, 16, 10),
         DateTime(2026, 11, 18, 10),
+        DateTime(2026, 11, 21, 7),
+        DateTime(2026, 11, 23, 10),
+        DateTime(2026, 11, 25, 10),
+        DateTime(2026, 11, 28, 7), // the window ends 28 Nov 08:00
       ]);
       expect(
         ns.every((n) => n.kind == ProjectNotificationKind.workSplit),
         isTrue,
       );
-      expect(ns.first.title + ns.first.body, contains('Content'));
-      expect(ns.first.body, contains('5 videos'));
+      expect(ns.first.key, 'split|a1|2026-11-16');
+      expect(ns.first.projectId, 'p1');
+      expect(ns.first.title, contains('Content'));
+      expect(ns.first.body, contains('Editing'));
+      expect(ns.first.body, isNot(contains('5 videos')));
+    });
+
+    test('an unlabelled block names the project in the body', () {
+      final ns = plan(data, settings: splitsOnly);
+      final sat = ns.firstWhere((n) => n.key == 'split|a2|2026-11-21');
+      expect(sat.body, contains('Content'));
+      expect(sat.body, contains('07:00'));
+    });
+
+    test('a block with an end date stops after it', () {
+      final ended = ProjectsData.fromRecords(
+        projects: data.projects,
+        timeBlocks: [
+          weekly('a1', days: {1, 3}, endDate: DateTime(2026, 11, 18)),
+        ],
+      );
+      expect(plan(ended, settings: splitsOnly).map((n) => n.fireAt), [
+        DateTime(2026, 11, 16, 10),
+        DateTime(2026, 11, 18, 10),
+      ]);
     });
 
     test('skips attended sessions', () {
       final marked = ProjectsData.fromRecords(
         projects: data.projects,
-        targets: data.targets,
-        actions: data.actions,
+        goals: data.goals,
+        timeBlocks: data.timeBlocks,
         sessionMarks: [
           SessionMark(
-            actionId: 'a1',
+            timeBlockId: 'a1',
             date: DateTime(2026, 11, 16),
             attended: true,
             updatedAt: now,
           ),
         ],
       );
-      final ns = plan(
-        marked,
-        settings: ProjectNotificationSettings.allOn.copyWith(
-          deadlines: false,
-          taskDeliveries: false,
-        ),
-      );
-      expect(ns.map((n) => n.fireAt), [DateTime(2026, 11, 18, 10)]);
+      final ns = plan(marked, settings: splitsOnly);
+      expect(ns.map((n) => n.fireAt), [
+        DateTime(2026, 11, 18, 10),
+        DateTime(2026, 11, 21, 7),
+        DateTime(2026, 11, 23, 10),
+        DateTime(2026, 11, 25, 10),
+        DateTime(2026, 11, 28, 7), // the window ends 28 Nov 08:00
+      ]);
     });
   });
 
@@ -105,7 +132,7 @@ void main() {
     test('3 days before, 1 day before and the deadline morning at 09:00', () {
       final data = ProjectsData.fromRecords(
         projects: [project('p1')],
-        targets: [target('t1', deadline: DateTime(2026, 11, 20))],
+        goals: [goal('t1', deadline: DateTime(2026, 11, 20))],
       );
       final ns = plan(data);
       expect(ns.map((n) => n.fireAt), [
@@ -119,7 +146,7 @@ void main() {
     test('skips times already past (deadline today after 09:00)', () {
       final data = ProjectsData.fromRecords(
         projects: [project('p1')],
-        targets: [target('t1', deadline: DateTime(2026, 11, 15))],
+        goals: [goal('t1', deadline: DateTime(2026, 11, 15))],
       );
       // 14 Nov 10:00: the 3-day reminder (12 Nov) is past; 1-day (14 Nov
       // 09:00) is past too; only the deadline morning remains.
@@ -127,30 +154,35 @@ void main() {
       expect(ns.map((n) => n.fireAt), [DateTime(2026, 11, 15, 9)]);
     });
 
-    test('skips targets marked done', () {
+    test('skips the deadline and tasks of goals marked done; the '
+        "project's sessions still notify", () {
       final data = ProjectsData.fromRecords(
         projects: [project('p1')],
-        targets: [
-          target(
+        goals: [
+          goal(
             't1',
             deadline: DateTime(2026, 11, 20),
-            status: TargetStatus.done,
+            status: GoalStatus.done,
           ),
         ],
-        actions: [weekly('a1', days: monFri)],
+        timeBlocks: [weekly('a1', days: monFri)],
         planTasks: [task('k1', DateTime(2026, 11, 18))],
       );
-      expect(plan(data), isEmpty);
+      final ns = plan(data);
+      expect(ns, isNotEmpty);
+      expect(ns.map((n) => n.kind).toSet(), {
+        ProjectNotificationKind.workSplit,
+      });
     });
 
-    test('in progress targets still notify', () {
+    test('in progress goals still notify', () {
       final data = ProjectsData.fromRecords(
         projects: [project('p1')],
-        targets: [
-          target(
+        goals: [
+          goal(
             't1',
             deadline: DateTime(2026, 11, 20),
-            status: TargetStatus.inProgress,
+            status: GoalStatus.inProgress,
           ),
         ],
       );
@@ -161,7 +193,7 @@ void main() {
   group('task delivery', () {
     final data = ProjectsData.fromRecords(
       projects: [project('p1', name: 'Content')],
-      targets: [target('t1', title: 'Launch', deadline: DateTime(2027, 1, 31))],
+      goals: [goal('t1', title: 'Launch', deadline: DateTime(2027, 1, 31))],
       planTasks: [
         task('k1', DateTime(2026, 11, 18)),
         task('k2', DateTime(2026, 11, 19), done: true),
@@ -187,8 +219,8 @@ void main() {
   group('toggles', () {
     final data = ProjectsData.fromRecords(
       projects: [project('p1')],
-      targets: [target('t1', deadline: DateTime(2026, 11, 20))],
-      actions: [
+      goals: [goal('t1', deadline: DateTime(2026, 11, 20))],
+      timeBlocks: [
         weekly('a1', days: {1}),
       ],
       planTasks: [task('k1', DateTime(2026, 11, 18))],
@@ -229,8 +261,8 @@ void main() {
   test('archived projects are skipped', () {
     final data = ProjectsData.fromRecords(
       projects: [project('p1', archived: true)],
-      targets: [target('t1', deadline: DateTime(2026, 11, 20))],
-      actions: [weekly('a1', days: monFri)],
+      goals: [goal('t1', deadline: DateTime(2026, 11, 20))],
+      timeBlocks: [weekly('a1', days: monFri)],
       planTasks: [task('k1', DateTime(2026, 11, 18))],
     );
     expect(plan(data), isEmpty);
@@ -240,8 +272,8 @@ void main() {
     test('only the next 14 days', () {
       final data = ProjectsData.fromRecords(
         projects: [project('p1')],
-        targets: [target('t1', deadline: DateTime(2027, 6, 30))],
-        actions: [
+        goals: [goal('t1', deadline: DateTime(2027, 6, 30))],
+        timeBlocks: [
           weekly('a1', days: {1}),
         ], // Mondays 10:00
       );
@@ -255,8 +287,8 @@ void main() {
     test('capped, nearest first', () {
       final data = ProjectsData.fromRecords(
         projects: [project('p1')],
-        targets: [target('t1', deadline: DateTime(2026, 11, 25))],
-        actions: [
+        goals: [goal('t1', deadline: DateTime(2026, 11, 25))],
+        timeBlocks: [
           weekly('a1', days: {1, 2, 3, 4, 5, 6, 7}, start: '10:00'),
           weekly(
             'a2',
@@ -268,8 +300,9 @@ void main() {
         planTasks: [task('k1', DateTime(2026, 11, 16))],
       );
       final all = plan(data, cap: 1000);
-      // 2 sessions/day 14..25 Nov = 24, + 3 deadline + 1 task.
-      expect(all, hasLength(28));
+      // 2 sessions/day 14..27 Nov = 28 (open-ended: not cut at the 25 Nov
+      // deadline; 28 Nov 10:00 is past the window), + 3 deadline + 1 task.
+      expect(all, hasLength(32));
       final capped = plan(data, cap: 5);
       expect(keys(capped), keys(all).take(5).toList());
       final fires = all.map((n) => n.fireAt).toList();
@@ -287,8 +320,8 @@ void main() {
     test('stable per occurrence and outside the habit range', () {
       final data = ProjectsData.fromRecords(
         projects: [project('p1')],
-        targets: [target('t1', deadline: DateTime(2026, 11, 20))],
-        actions: [weekly('a1', days: monFri)],
+        goals: [goal('t1', deadline: DateTime(2026, 11, 20))],
+        timeBlocks: [weekly('a1', days: monFri)],
         planTasks: [task('k1', DateTime(2026, 11, 18))],
       );
       final a = plan(data);
@@ -314,7 +347,7 @@ void main() {
     test('requests are one-shot with a project payload', () {
       final data = ProjectsData.fromRecords(
         projects: [project('p1')],
-        targets: [target('t1', deadline: DateTime(2026, 11, 20))],
+        goals: [goal('t1', deadline: DateTime(2026, 11, 20))],
       );
       final r = plan(data).first.toRequest();
       expect(r.repeat, ReminderRepeat.once);

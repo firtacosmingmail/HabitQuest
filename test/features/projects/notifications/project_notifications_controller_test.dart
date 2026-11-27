@@ -10,7 +10,8 @@ import 'package:habit_quest/features/notifications/reminder_ids.dart';
 import 'package:habit_quest/features/notifications/scheduler/fake_notification_scheduler.dart';
 import 'package:habit_quest/features/projects/data/project_repository.dart';
 import 'package:habit_quest/features/projects/domain/project_service.dart';
-import 'package:habit_quest/features/projects/models/target.dart';
+import 'package:habit_quest/features/projects/models/goal.dart';
+import 'package:habit_quest/features/projects/models/time_block.dart';
 import 'package:habit_quest/features/projects/notifications/project_notification_planner.dart';
 import 'package:habit_quest/features/projects/notifications/project_notification_settings.dart';
 import 'package:habit_quest/features/projects/notifications/project_notifications_controller.dart';
@@ -34,8 +35,9 @@ void main() {
     repo = InMemoryProjectRepository(
       seed: ProjectRecords(
         projects: [project('p1', name: 'Content')],
-        targets: [target('t1', deadline: DateTime(2026, 11, 20))],
-        actions: [
+        goals: [goal('t1', deadline: DateTime(2026, 11, 20))],
+        // An open-ended project block on Mondays 10:00.
+        timeBlocks: [
           weekly('a1', days: {1}),
         ],
       ),
@@ -80,8 +82,8 @@ void main() {
     await controller.start();
     expect(scheduler.initialized, isTrue);
     expect(scheduler.permissionRequests, 1);
-    // Monday 16 Nov 10:00 + deadline 17, 19, 20 Nov 09:00.
-    expect(scheduler.pending, hasLength(4));
+    // Mondays 16 and 23 Nov 10:00 + deadline 17, 19, 20 Nov 09:00.
+    expect(scheduler.pending, hasLength(5));
     expect(payloadKinds(), {'${kProjectPayloadPrefix}p1'});
     await controller.resync();
     expect(scheduler.permissionRequests, 1);
@@ -102,23 +104,49 @@ void main() {
     await settle();
     expect(scheduler.pending.values.map((r) => r.firstFire), [
       DateTime(2026, 11, 16, 10),
+      DateTime(2026, 11, 23, 10),
     ]);
     await settings.update(ProjectNotificationSettings.allOn);
     await settle();
-    expect(scheduler.pending, hasLength(4));
+    expect(scheduler.pending, hasLength(5));
   });
 
-  test('marking a target done cancels its notifications', () async {
+  Iterable<DateTime> fires() =>
+      scheduler.pending.values.map((r) => r.firstFire).toList()..sort();
+
+  test("marking a goal done cancels its deadline notifications; the "
+      "project's block keeps notifying", () async {
     await controller.start();
-    await service.setTargetStatus('t1', TargetStatus.done);
+    await service.setGoalStatus('t1', GoalStatus.done);
     await settle();
-    expect(scheduler.pending, isEmpty);
+    expect(fires(), [DateTime(2026, 11, 16, 10), DateTime(2026, 11, 23, 10)]);
+  });
+
+  test('adding and deleting a time block (re)schedules its sessions', () async {
+    await controller.start();
+    final block = await service.createTimeBlock(
+      projectId: 'p1',
+      label: 'Editing',
+      startTime: hm('14:00'),
+      endTime: hm('15:00'),
+      recurrence: WeeklyRecurrence({2}),
+    );
+    await settle();
+    final splitId = projectNotificationId('split|${block.id}|2026-11-17');
+    expect(scheduler.pending.keys, contains(splitId));
+    expect(scheduler.pending[splitId]!.body, contains('Editing'));
+    expect(scheduler.pending, hasLength(7));
+
+    await service.deleteTimeBlock(block.id);
+    await settle();
+    expect(scheduler.pending.keys, isNot(contains(splitId)));
+    expect(scheduler.pending, hasLength(5));
   });
 
   test('deleting items cancels their notifications', () async {
     await controller.start();
     final task = await service.addPlanTask(
-      targetId: 't1',
+      goalId: 't1',
       title: 'Script',
       deliveryDate: DateTime(2026, 11, 18),
     );
@@ -139,27 +167,26 @@ void main() {
     await controller.start();
     await service.applyRemote(
       ProjectRecords(
-        targets: [
+        goals: [
           repo
               .getData()
-              .target('t1')!
-              .copyWith(
-                status: TargetStatus.done,
-                updatedAt: DateTime.utc(2030),
-              ),
+              .goal('t1')!
+              .copyWith(status: GoalStatus.done, updatedAt: DateTime.utc(2030)),
         ],
       ),
     );
     await settle();
-    expect(scheduler.pending, isEmpty);
+    expect(fires(), [DateTime(2026, 11, 16, 10), DateTime(2026, 11, 23, 10)]);
   });
 
   test('resync moves the rolling window forward', () async {
     await controller.start();
     now = DateTime(2026, 11, 19, 10);
     await controller.resync();
-    expect(scheduler.pending.values.map((r) => r.firstFire), [
+    expect(fires(), [
       DateTime(2026, 11, 20, 9),
+      DateTime(2026, 11, 23, 10),
+      DateTime(2026, 11, 30, 10),
     ]);
   });
 
@@ -188,7 +215,7 @@ void main() {
           .where(isProjectNotificationId)
           .toSet();
       expect(habitIds, isNotEmpty);
-      expect(projectIds, hasLength(4));
+      expect(projectIds, hasLength(5));
 
       // Habit resync leaves the project notifications alone…
       await habitController.resync();
