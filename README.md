@@ -28,17 +28,17 @@ survives a reinstall or a new phone. See [Sync](#sync) and
     day is done). Tap a day to see the habits due that day and check them in
     (today and past days; future days are read-only), followed by the plan
     tasks due that day ("Tasks due"), which you can check off on any day;
-    tapping a task opens its target. Swipe or use the arrows to change month,
+    tapping a task opens its goal. Swipe or use the arrows to change month,
     and "Today" to jump back.
-  - **Work split**: a Monday-first week with hour rows and a time block for
-    every consistent-action session of every (non-archived) project,
-    coloured per project and labelled with the target (✓ when attended).
-    Swipe or use the arrows to change the week, and "Today" to jump back.
-    Target deadlines show as 🚩 flags in the day headers (tap for the
-    names). Tapping a block opens a sheet with the target, project and
-    times, a button to mark the session attended (today and past sessions
-    only) and "Open target". Future sessions of targets marked done are
-    hidden (their time is free again); past ones stay. On wide screens
+  - **Work split**: a Monday-first week with hour rows and a block for
+    every session of every (non-archived) project's time blocks, coloured
+    per project and labelled with the block's label, or the project name
+    when it has none (✓ when attended). Swipe or use the arrows to change
+    the week, and "Today" to jump back. Goal deadlines show as 🚩 flags in
+    the day headers (tap for the names). Tapping a block opens a sheet with
+    the label, project and times, a button to mark the session attended
+    (today and past sessions only) and "Open project". Open-ended blocks
+    (no end date) repeat every week for good. On wide screens
     (tablets, web) the week grows up to 1100 px wide; on small phones the
     labels shrink to fit. The hours **fit the available height** (no
     vertical scroll): 06:00–20:00 by default, extended automatically per
@@ -59,30 +59,37 @@ survives a reinstall or a new phone. See [Sync](#sync) and
   `lib/features/projects/ui/work_split_view.dart`) is reused on the project
   details, filtered to that project.
 - **Projects tab** (`/projects`): your projects, each card listing its
-  targets with a status chip and plan progress (tasks done/total). Create a
+  goals with a status chip and plan progress (tasks done/total). Create a
   project with the "New project" button; rename, archive or delete it from
   the card's ⋮ menu. Archived projects sit in an "Archived" section; their
   time blocks still count, so they still block clashing times.
-- **Project details** (`/projects/:id`): the project's targets with deadline
-  ("Due in 5 days" / "2 days overdue"), a status chip you tap to change, and
-  plan progress. The progress is for display only: **you set the status
-  yourself**, and the app never changes it. Below come the project's work split
-  (the Calendar tab's week view filtered to this project, archived or not),
-  the sessions of today and the
-  past week, which you mark attended with the bouncy check button, and the
-  upcoming sessions (you can mark those on the day).
-- **Target editor** (`/projects/:id/targets/new`, `/projects/:id/targets/:tid`):
+- **Project details** (`/projects/:id`): the project's **goals** with
+  deadline ("Due in 5 days" / "2 days overdue"), a status chip you tap to
+  change, and plan progress. The progress is for display only: **you set the
+  status yourself**, and the app never changes it. Then the project's **time
+  blocks** (label, days, times, "ongoing" or the end date) with add, edit
+  (tap) and delete; the **upcoming sessions** (today's first, which you mark
+  attended with the bouncy check button; later ones can be marked on the
+  day), the past week's sessions (to add a missed mark), and the work split
+  card (the Calendar tab's week view filtered to this project, archived or
+  not).
+- **Time blocks** belong to the project: an optional label (e.g.
+  "Editing"), a start and end time, days of the week **or** days of the
+  month, an optional start date and an optional end date (none = ongoing).
+- **Goal editor** (`/projects/:id/goals/new`, `/projects/:id/goals/:gid`):
   title, deadline and status (not started / in progress / done). Once the
-  target exists, you edit its **plan** (add, edit and remove tasks, each with
-  an optional delivery date, and check them off) and its **time blocks**
-  (consistent actions): several per target, each with a start and end time, on
-  days of the week **or** days of the month, and an optional start date.
+  goal exists, you edit its **plan** (add, edit and remove tasks, each with
+  an optional delivery date, and check them off) and its **consistent
+  actions**: a simple list of text items ("Post one short a day"), added
+  with the field at the bottom, edited in place (tap the text), reordered
+  by dragging the handle and removed with ✕. They have no times, no tick-off
+  and no XP.
 - **No overlapping time blocks**: the time block form shows live which blocks
   it clashes with, across all projects including archived ones. Saving a
-  clashing block is **blocked**: the message names the clashing target and
-  its times, and the form stays open. A target change that would create a
-  clash (a later deadline, or reopening a done target) is refused the same
-  way. Data model and rules: [docs/PROJECTS.md](docs/PROJECTS.md).
+  clashing block is **blocked**: the message names the clashing project,
+  its block label and times, and the form stays open. Goals never clash
+  (they have no times). Data model and rules:
+  [docs/PROJECTS.md](docs/PROJECTS.md).
 - **Quest tab**: mascot, level, title, an animated XP bar, stats (check-ins,
   best streak, Perfect Days), an achievements grid (locked badges show a hint)
   and a "How to earn XP" card.
@@ -97,11 +104,11 @@ survives a reinstall or a new phone. See [Sync](#sync) and
 - **Celebrations** across the app: a floating "+N XP", confetti and a dialog
   on level-up, and toasts when you unlock an achievement. They also show on
   the Projects screens and the calendar (and its session sheet) when you
-  finish a plan task, attend a session or set a target to done.
+  finish a plan task, attend a session or set a goal to done.
 - **Reminders**: notifications at each habit's reminder time, following its
   schedule, with rotating fun messages.
-- **Projects notifications**: a nudge when a work split session starts, as a
-  target's deadline approaches, and the day before a plan task is due. Each
+- **Projects notifications**: a nudge when a time block session starts, as a
+  goal's deadline approaches, and the day before a plan task is due. Each
   type can be switched off in **Settings** (Profile → Notifications). See
   [Projects notifications](#projects-notifications).
 - **Offline-first sync**: everything works offline; when signed in and
@@ -142,21 +149,22 @@ it's done, but can't break the streak before it is over.
 **Projects XP**
 - **Plan task finished**: **10 XP** (the same as a check-in without a
   streak).
-- **Work session attended** (a consistent-action session, today or a past
+- **Session attended** (a session of a project time block, today or a past
   day only): **15 XP**. A session is a timed block of focused work, so it is
   worth a bit more than a plain check-in, but less than a check-in on a
   10-day streak (20 XP).
-- **Target set to done**: **50 XP**, a milestone worth two Perfect Days.
+- **Goal set to done**: **50 XP**, a milestone worth two Perfect Days.
 
 Undoing takes exactly that XP back, like un-checking a habit: un-checking a
-task, un-attending a session or setting a target back from done. Deleting a
-plan task, target, consistent action or project removes the XP its items
-held. Archiving a project keeps its XP. Creating or editing projects,
-targets, tasks or actions never grants XP.
+task, un-attending a session or setting a goal back from done. Deleting a
+plan task, goal, time block or project removes the XP its items held.
+Archiving a project keeps its XP. Creating or editing projects, goals,
+tasks, time blocks or consistent actions never grants XP (consistent
+actions never earn XP).
 
 *Balance*: a typical day with 3 habits on a streak (≈ 45–60 XP) plus a
 Perfect Day (25) earns ≈ 70–85 XP; adding one attended work session and a
-finished plan task (25 XP) is a ~30–35 % boost, and finishing a target (50)
+finished plan task (25 XP) is a ~30–35 % boost, and finishing a goal (50)
 is a once-in-a-while spike, about level 1 → 2 halfway on its own.
 
 **Levels**: going from level *n* to *n + 1* costs **100 × n XP** (level 1→2
@@ -183,12 +191,14 @@ costs 100, 2→3 costs 200, and so on). Level *L* starts at 50·L·(L−1) total
 | Perfect Day | your first Perfect Day |
 | Juggler | 5 active habits at once |
 | Checked Off ☑️ | finish your first plan task |
-| In the Zone ⏱️ / Deep Worker 🧠 | 10 / 50 work sessions attended |
-| Bullseye 🎯 | set your first target to done |
-| Sharpshooter 🏹 | 5 targets done |
-| Mission Complete 🏆 | a project with at least one target and every target done |
+| In the Zone ⏱️ / Deep Worker 🧠 | 10 / 50 time block sessions attended |
+| Bullseye 🎯 | set your first goal to done |
+| Sharpshooter 🏹 | 5 goals done |
+| Mission Complete 🏆 | a project with at least one goal and every goal done |
 
-Locked badges show a hint on the Quest tab.
+Locked badges show a hint on the Quest tab. The achievement ids
+`first_target_done` and `targets_5` predate the goals rename and are kept, so
+badges already earned stay earned.
 
 **Anti-toggle-exploit**: every XP grant goes into a ledger, keyed by what
 earned it (`habit + date` for a check-in, `date` for a Perfect Day,
@@ -197,7 +207,7 @@ projects; the `target:` prefix predates the goals rename and is kept so old
 ledgers stay valid).
 Un-checking a habit takes back exactly the XP that check-in earned, and the
 Perfect Day bonus if that day is no longer perfect. Turning a check-in (or a
-plan task, session or target status) on and off any number of times
+plan task, session or goal status) on and off any number of times
 therefore nets 0 XP. Deleting a habit removes the XP
 of all its check-ins. Level-up and achievement celebrations are shown only
 once, ever. Creating, editing or archiving a habit never grants XP.
@@ -324,9 +334,9 @@ turning one off cancels its pending notifications at once.
 
 | Kind | When | Skipped when |
 |---|---|---|
-| ⚔️ Work split starts | At the start time of each session of a consistent action | The session is marked attended, the target is done, the project is archived |
-| ⏳ Deadlines | 3 days before, 1 day before and on the morning of a target's deadline, at **09:00** (`kProjectMorningHour`) | The target is done, the project is archived |
-| 📦 Task deliveries | The day before a plan task's delivery date, at **09:00** | The task is done, its target is done, the project is archived, no delivery date |
+| ⚔️ Time block starts | At the start time of each session of a project time block (open-ended blocks included, within the rolling window); the title names the block label, or the project when it has none | The session is marked attended, the project is archived |
+| ⏳ Goal deadlines | 3 days before, 1 day before and on the morning of a goal's deadline, at **09:00** (`kProjectMorningHour`) | The goal is done, the project is archived |
+| 📦 Plan task deliveries | The day before a plan task's delivery date, at **09:00** | The task is done, its goal is done, the project is archived, no delivery date |
 
 Times already past are never scheduled. Copy rotates through fun messages
 in the habit reminders' tone (`project_notification_messages.dart`).
@@ -338,8 +348,8 @@ next **14 days** (`kProjectNotificationWindow`), nearest first, capped at
 (a daily habit uses 1, a weekdays habit up to 7, an every-N-days habit 12).
 Later notifications are added as the window moves.
 
-**When it re-plans.** On every local or synced change of projects, targets,
-plan tasks and consistent actions (`projectChangesProvider` /
+**When it re-plans.** On every local or synced change of projects, goals,
+plan tasks and time blocks (`projectChangesProvider` /
 `remoteProjectChangesProvider`), on attended marks, on a toggle change, on
 app start and resume, and on sign-in / sign-out. Each re-plan schedules the
 window and cancels every other pending id in the Projects range, which also
@@ -347,7 +357,7 @@ removes the notifications of deleted items.
 
 **Ids.** Habit reminders use ids `[0, 2^30)`; Projects notifications use
 `2^30 + (fnv1a(key) & 0x3FFFFFFF)` in `[2^30, 2^31)`, with a stable key per
-occurrence (`split|<actionId>|<date>`, `deadline|<targetId>|<3|1|0>`,
+occurrence (`split|<timeBlockId>|<date>`, `deadline|<goalId>|<3|1|0>`,
 `task|<taskId>`). Each controller only cancels its own range, so project
 notifications never cancel habit reminders and the other way round. Code:
 `lib/features/projects/notifications/` (pure planner, controller, settings)
@@ -1107,7 +1117,8 @@ sync time.
 XP was already never a free-running counter: the game engine keeps a
 **ledger** of grants keyed by what earned them (`habitId|date` for a
 check-in, `date` for a Perfect Day; projects: `task:<id>`,
-`session:<actionId>|<date>`, `target:<id>`, stored in `state.projects`) and
+`session:<timeBlockId>|<date>`, `target:<goalId>` (legacy prefix), stored
+in `state.projects`) and
 XP is the sum of the ledgers. A key
 can only be granted once, which is what makes toggling a check-in on/off/on
 net zero. Sync builds on that:
@@ -1123,7 +1134,7 @@ net zero. Sync builds on that:
   re-evaluated.
 - **Projects** follow the same model, derived from the synced project
   records (`GameEngine.reconcileSynced(appliedProjects: …)`): a grant whose
-  plan task / target / session mark is known on this device but is no
+  plan task / goal / session mark is known on this device but is no
   longer done / attended (or was deleted) is dropped; a pulled record that
   is done / attended but holds no grant on either side gets the base grant
   under the same key. Grants for records this device has not pulled yet are
@@ -1181,7 +1192,7 @@ Local data is tied to the user id that first synced it (`sync_meta` box):
 - Last-write-wins is per entity, not per field: two devices editing
   different fields of the same habit (or project record) offline keep only
   the later edit.
-- If one device edits a project child (e.g. a target) after another device
+- If one device edits a project child (e.g. a goal) after another device
   deleted its project, the edited child comes back on the server but stays
   hidden under its deleted parent.
 - If one device edits a habit after another deleted it, the newer edit wins
@@ -1271,10 +1282,10 @@ XP and streak update; checking in from the calendar or details shows up on the
 Habits screen and in the Quest profile; un-checking takes the XP back.
 
 Projects XP is tested in `test/features/game/project_xp_test.dart` (amounts,
-keys, merge/JSON, task / session / target grants and undo, toggling nets 0,
+keys, merge/JSON, task / session / goal grants and undo, toggling nets 0,
 deletions, the project achievements, sync reconciliation) and
 `test/features/projects/project_celebrations_test.dart` ("+N XP" and
-achievement toasts on project details, the target editor, the calendar and
+achievement toasts on project details, the goal editor, the calendar and
 its session sheet).
 
 Quotes are tested against `FakeQuotesApi` (deterministic fallback, history
