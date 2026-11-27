@@ -28,8 +28,9 @@ const maxUpcomingSessions = 10;
 
 /// Project details (`/projects/:id`): goals (deadline, status chip, plan
 /// progress), the project's time blocks (add / edit / delete, overlap
-/// blocked on save), the work split (week view of this project's blocks),
-/// recent sessions to mark attended and upcoming sessions.
+/// blocked on save), upcoming sessions (today's can be marked attended),
+/// the past week's sessions and the work split card (week view of this
+/// project's blocks).
 class ProjectDetailsScreen extends ConsumerWidget {
   final String projectId;
 
@@ -93,32 +94,35 @@ class ProjectDetailsScreen extends ConsumerWidget {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        key: const ValueKey('new-target-fab'),
+        key: const ValueKey('new-goal-fab'),
         onPressed: () => context.push(AppRoutes.newGoal(projectId)),
         icon: const Icon(Icons.add_rounded),
-        label: const Text('New target'),
+        label: const Text('New goal'),
       ),
       body: ListView(
         key: const ValueKey('project-details-list'),
         padding: const EdgeInsets.only(bottom: 112),
         children: [
           if (project.archived) _ArchivedBanner(project: project),
-          const SectionTitle('Targets'),
+          const SectionTitle('Goals'),
           if (goals.isEmpty)
-            const NoteText('No targets yet. Add one with a deadline 🎯')
+            const NoteText('No goals yet. Add one with a deadline 🎯')
           else
             for (final g in goals) GoalTile(goal: g, color: color),
           SectionTitle(
             'Time blocks',
             trailing: TextButton.icon(
-              key: const ValueKey('add-action'),
+              key: const ValueKey('add-time-block'),
               onPressed: () => showTimeBlockForm(context, project: project),
               icon: const Icon(Icons.add_rounded),
               label: const Text('Add'),
             ),
           ),
           if (blocks.isEmpty)
-            const NoteText('Regular work sessions. Time blocks never overlap.')
+            const NoteText(
+              'When do you work on this project? Add regular time blocks, '
+              'e.g. Mon–Fri 10:00–13:00. Time blocks never overlap.',
+            )
           else
             for (final b in blocks)
               TimeBlockTile(
@@ -127,9 +131,9 @@ class ProjectDetailsScreen extends ConsumerWidget {
                 onTap: () =>
                     showTimeBlockForm(context, project: project, block: b),
               ),
+          _SessionsSection(project: project, color: color),
           const SectionTitle('Work split'),
           ProjectWorkSplit(projectId: projectId),
-          _SessionsSection(project: project, color: color),
         ],
       ),
     );
@@ -197,7 +201,7 @@ class TimeBlockTile extends ConsumerWidget {
       b.endDate == null ? 'Ongoing' : 'Until ${longDate(b.endDate!)}',
     ].join(' · ');
     return Card(
-      key: ValueKey('action-tile-${b.id}'),
+      key: ValueKey('time-block-tile-${b.id}'),
       child: ListTile(
         leading: CircleAvatar(
           backgroundColor: color.withValues(alpha: 0.18),
@@ -207,7 +211,7 @@ class TimeBlockTile extends ConsumerWidget {
         subtitle: Text(dates),
         onTap: onTap,
         trailing: IconButton(
-          key: ValueKey('action-delete-${b.id}'),
+          key: ValueKey('time-block-delete-${b.id}'),
           tooltip: 'Delete time block',
           icon: const Icon(Icons.delete_outline_rounded),
           onPressed: () async {
@@ -242,7 +246,7 @@ class GoalTile extends ConsumerWidget {
     final progress = watchPlanProgress(ref, goal.id);
     final overdue = !goal.isDone && goal.deadline.isBefore(today);
     return Card(
-      key: ValueKey('target-tile-${goal.id}'),
+      key: ValueKey('goal-tile-${goal.id}'),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () =>
@@ -350,35 +354,25 @@ class _SessionsSection extends ConsumerWidget {
             )
             .value ??
         const <Session>[];
-    // Today's and past sessions, newest first (they can be marked).
-    final recent = sessions.where((s) => !s.date.isAfter(today)).toList()
+    // Upcoming: today's sessions (they can be marked attended) and the next
+    // ones, soonest first.
+    final upcoming = sessions
+        .where((s) => !s.date.isBefore(today))
+        .take(maxUpcomingSessions)
+        .toList();
+    // The past week, newest first: a missed mark can still be added.
+    final recent = sessions.where((s) => s.date.isBefore(today)).toList()
       ..sort((a, b) {
         final c = b.date.compareTo(a.date);
         return c != 0 ? c : a.startTime.compareTo(b.startTime);
       });
-    final upcoming = sessions
-        .where((s) => s.date.isAfter(today))
-        .take(maxUpcomingSessions)
-        .toList();
 
     String title(Session s) => s.label ?? project.name;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SectionTitle('Sessions'),
-        if (recent.isEmpty)
-          const NoteText('No sessions today or in the past week.')
-        else
-          for (final s in recent)
-            SessionTile(
-              key: ValueKey('session-${s.key}'),
-              session: s,
-              title: title(s),
-              color: color,
-              canAttend: true,
-            ),
-        const SectionTitle('Upcoming'),
+        const SectionTitle('Upcoming sessions'),
         if (upcoming.isEmpty)
           const NoteText('No upcoming sessions. Add a time block ⏰')
         else
@@ -388,8 +382,19 @@ class _SessionsSection extends ConsumerWidget {
               session: s,
               title: title(s),
               color: color,
-              canAttend: false,
+              canAttend: !s.date.isAfter(today),
             ),
+        if (recent.isNotEmpty) ...[
+          const SectionTitle('Past week'),
+          for (final s in recent)
+            SessionTile(
+              key: ValueKey('session-${s.key}'),
+              session: s,
+              title: title(s),
+              color: color,
+              canAttend: true,
+            ),
+        ],
       ],
     );
   }

@@ -588,6 +588,20 @@ void main() {
       expect(key('deadline-marker-2026-11-20'), findsOneWidget);
     });
 
+    testWidgets('"Open project" from the project\'s own card stays there', (
+      tester,
+    ) async {
+      await pump(tester, location: '/projects/p1', size: const Size(900, 2600));
+      await tapVisible(tester, block('a1', '2026-11-16'));
+      await tester.tap(key('session-sheet-open-project'));
+      await tester.pumpAndSettle();
+      expect(key('session-sheet'), findsNothing);
+      expect(
+        find.byType(ProjectDetailsScreen, skipOffstage: false),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('an archived project still shows its own blocks', (
       tester,
     ) async {

@@ -32,7 +32,7 @@ Future<void> tapVisible(WidgetTester tester, Finder finder) async {
 /// (open-ended); goals t1 "5 videos" (due 30 Nov, in progress, plan 1/2
 /// done) and t3 "Old cut" (done).
 /// p2 "Side gig" (archived): time block a2 "Admin" Mon–Fri 09:00–10:00;
-/// goal t2 "Side target" (due 31 Dec).
+/// goal t2 "Side goal" (due 31 Dec).
 InMemoryProjectRepository seededRepo() => InMemoryProjectRepository(
   seed: ProjectRecords(
     projects: [
@@ -55,7 +55,7 @@ InMemoryProjectRepository seededRepo() => InMemoryProjectRepository(
       goal(
         't2',
         projectId: 'p2',
-        title: 'Side target',
+        title: 'Side goal',
         deadline: DateTime(2026, 12, 31),
       ),
     ],
@@ -116,7 +116,7 @@ void main() {
 
   group('projects list', () {
     testWidgets('the Projects tab lists active and archived projects with '
-        'their targets\' progress', (tester) async {
+        'their goals\' progress', (tester) async {
       await pumpHabitQuestApp(tester, clock: clock);
       await tester.tap(
         find.descendant(
@@ -137,7 +137,7 @@ void main() {
       expect(find.text('5 videos'), findsOneWidget);
       expect(find.text('In progress'), findsOneWidget);
       expect(find.text('1/2 tasks'), findsOneWidget);
-      expect(find.text('1 of 2 targets done'), findsOneWidget);
+      expect(find.text('1 of 2 goals done'), findsOneWidget);
       expect(find.text('Archived'), findsOneWidget);
       expect(key('project-card-p2'), findsOneWidget);
       expect(find.text('Side gig'), findsOneWidget);
@@ -205,15 +205,15 @@ void main() {
       tester,
     ) async {
       await pumpApp(tester, initialLocation: '/projects/p1');
-      expect(key('target-tile-t1'), findsOneWidget);
+      expect(key('goal-tile-t1'), findsOneWidget);
       expect(find.textContaining('Due in 12 days'), findsOneWidget);
       expect(key('status-chip-t1'), findsOneWidget);
       expect(find.text('1/2 tasks'), findsOneWidget);
-      expect(key('action-tile-a1'), findsOneWidget);
+      expect(key('time-block-tile-a1'), findsOneWidget);
       expect(find.textContaining('Filming · '), findsOneWidget);
       expect(find.textContaining('Ongoing'), findsOneWidget);
       // Only this project's blocks.
-      expect(key('action-tile-a2'), findsNothing);
+      expect(key('time-block-tile-a2'), findsNothing);
       expect(key('work-split-view'), findsOneWidget);
     });
 
@@ -235,7 +235,10 @@ void main() {
       final c = await pumpApp(tester, initialLocation: '/projects/p1');
       final service = c.read(projectServiceProvider);
 
-      // Today (Wed 18 Nov) and yesterday can be marked.
+      // Today (Wed 18 Nov) leads the upcoming sessions; yesterday is in
+      // the past week. Both can be marked.
+      expect(find.text('Upcoming sessions'), findsOneWidget);
+      expect(find.text('Past week'), findsOneWidget);
       final today = key('attend-a1|2026-11-18');
       expect(today, findsOneWidget);
       await tapVisible(tester, today);
@@ -266,17 +269,17 @@ void main() {
     testWidgets('creates a goal, then edits plan and status', (tester) async {
       final c = await pumpApp(tester, initialLocation: '/projects/p1');
       final service = c.read(projectServiceProvider);
-      await tester.tap(key('new-target-fab'));
+      await tester.tap(key('new-goal-fab'));
       await tester.pumpAndSettle();
       expect(
         tester.widget<GoalEditorScreen>(find.byType(GoalEditorScreen)).goalId,
         isNull,
       );
 
-      await tester.enterText(key('target-title'), 'Launch shop');
+      await tester.enterText(key('goal-title'), 'Launch shop');
       await tester.tap(key('status-inProgress'));
       await tester.pumpAndSettle();
-      await tester.tap(key('save-target'));
+      await tester.tap(key('save-goal'));
       await tester.pumpAndSettle();
 
       final t = service.data
@@ -315,59 +318,97 @@ void main() {
       expect(service.data.planTasksOf(t.id), isEmpty);
 
       // Edit title + status.
-      await tester.enterText(key('target-title'), 'Launch the shop');
+      await tester.enterText(key('goal-title'), 'Launch the shop');
       await tester.tap(key('status-done'));
       await tester.pumpAndSettle();
-      await tapVisible(tester, key('save-target'));
+      await tapVisible(tester, key('save-goal'));
       final saved = service.data.goal(t.id)!;
       expect(saved.title, 'Launch the shop');
       expect(saved.status, GoalStatus.done);
     });
 
-    testWidgets('consistent actions: add, edit and remove text items', (
+    testWidgets('consistent actions: add, inline edit, reorder and delete', (
       tester,
     ) async {
       final c = await pumpApp(tester, initialLocation: '/projects/p1/goals/t1');
       final service = c.read(projectServiceProvider);
       expect(find.text('Consistent actions'), findsOneWidget);
 
-      await tapVisible(tester, key('add-consistent-action'));
-      await tester.enterText(
-        key('consistent-action-text'),
-        '  Post one short a day  ',
-      );
-      await tester.tap(key('consistent-action-save'));
+      Future<void> addAction(String text) async {
+        await tester.ensureVisible(key('consistent-action-new'));
+        await tester.enterText(key('consistent-action-new'), text);
+        await tester.pumpAndSettle();
+        await tapVisible(tester, key('add-consistent-action'));
+      }
+
+      // A blank text cannot be added.
+      await tester.ensureVisible(key('consistent-action-new'));
+      await tester.enterText(key('consistent-action-new'), '   ');
       await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<IconButton>(key('add-consistent-action'))
+            .onPressed,
+        isNull,
+      );
+
+      await addAction('  Post one short a day  ');
       final added = service.data.consistentActionsOf('t1').single;
       expect(added.text, 'Post one short a day');
       expect(key('consistent-action-${added.id}'), findsOneWidget);
+      // The field is cleared for the next one.
+      expect(
+        tester.widget<TextField>(key('consistent-action-new')).controller!.text,
+        isEmpty,
+      );
 
-      // A blank text is refused in the dialog.
-      await tapVisible(tester, key('add-consistent-action'));
-      await tester.tap(key('consistent-action-save'));
-      await tester.pumpAndSettle();
-      expect(find.text('Write something'), findsOneWidget);
-      await tester.tap(find.text('Cancel'));
-      await tester.pumpAndSettle();
-      expect(service.data.consistentActionsOf('t1'), hasLength(1));
-
-      // A second one goes to the end.
-      await tapVisible(tester, key('add-consistent-action'));
-      await tester.enterText(key('consistent-action-text'), 'Reply to fans');
-      await tester.tap(key('consistent-action-save'));
+      // A second one (Enter also adds) goes to the end.
+      await tester.enterText(key('consistent-action-new'), 'Reply to fans');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
       await tester.pumpAndSettle();
       expect(service.data.consistentActionsOf('t1').map((a) => a.text), [
         'Post one short a day',
         'Reply to fans',
       ]);
+      final second = service.data.consistentActionsOf('t1').last;
 
-      // Tap to edit.
-      await tapVisible(tester, find.text('Post one short a day'));
-      await tester.enterText(key('consistent-action-text'), 'Post two shorts');
-      await tester.tap(key('consistent-action-save'));
+      // Tap the text to edit it in place; Enter saves.
+      await tapVisible(tester, key('consistent-action-text-${added.id}'));
+      expect(key('consistent-action-edit-${added.id}'), findsOneWidget);
+      await tester.enterText(
+        key('consistent-action-edit-${added.id}'),
+        'Post two shorts',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.done);
       await tester.pumpAndSettle();
       expect(service.data.consistentAction(added.id)!.text, 'Post two shorts');
       expect(find.text('Post two shorts'), findsOneWidget);
+
+      // A blank edit keeps the old text.
+      await tapVisible(tester, key('consistent-action-text-${added.id}'));
+      await tester.enterText(key('consistent-action-edit-${added.id}'), ' ');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+      expect(service.data.consistentAction(added.id)!.text, 'Post two shorts');
+
+      // Drag the second above the first.
+      await tester.ensureVisible(key('consistent-action-handle-${second.id}'));
+      await tester.pumpAndSettle();
+      final handle = tester.getCenter(
+        key('consistent-action-handle-${second.id}'),
+      );
+      final gesture = await tester.startGesture(handle);
+      await tester.pump(const Duration(milliseconds: 100));
+      await gesture.moveBy(const Offset(0, -40));
+      await tester.pump();
+      await gesture.moveBy(const Offset(0, -80));
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(service.data.consistentActionsOf('t1').map((a) => a.text), [
+        'Reply to fans',
+        'Post two shorts',
+      ]);
 
       await tapVisible(tester, key('consistent-action-delete-${added.id}'));
       expect(service.data.consistentActionsOf('t1').map((a) => a.text), [
@@ -382,7 +423,7 @@ void main() {
         'is BLOCKED with the project and label named', (tester) async {
       final c = await pumpApp(tester, initialLocation: '/projects/p1');
       final service = c.read(projectServiceProvider);
-      await tapVisible(tester, key('add-action'));
+      await tapVisible(tester, key('add-time-block'));
       expect(find.byType(TimeBlockFormSheet), findsOneWidget);
       expect(find.text('For “Content business”.'), findsOneWidget);
 
@@ -392,11 +433,11 @@ void main() {
       expect(find.textContaining('“Side gig” (Admin)'), findsOneWidget);
 
       await tester.enterText(key('block-label'), 'Editing');
-      await tapVisible(tester, key('save-action'));
+      await tapVisible(tester, key('save-time-block'));
       // Still open, message names the project, label and times; nothing
       // saved.
       expect(find.byType(TimeBlockFormSheet), findsOneWidget);
-      expect(key('action-save-error'), findsOneWidget);
+      expect(key('time-block-save-error'), findsOneWidget);
       expect(
         find.textContaining('"Side gig" (Admin), Mon–Fri 09:00–10:00'),
         findsOneWidget,
@@ -405,11 +446,11 @@ void main() {
 
       // Saturdays only: no clash, saves and closes.
       for (var d = 1; d <= 5; d++) {
-        await tapVisible(tester, key('action-weekday-$d'));
+        await tapVisible(tester, key('block-weekday-$d'));
       }
-      await tapVisible(tester, key('action-weekday-6'));
+      await tapVisible(tester, key('block-weekday-6'));
       expect(key('live-clashes'), findsNothing);
-      await tapVisible(tester, key('save-action'));
+      await tapVisible(tester, key('save-time-block'));
       expect(find.byType(TimeBlockFormSheet), findsNothing);
       final added = service.data
           .timeBlocksOf('p1')
@@ -420,7 +461,7 @@ void main() {
       expect(added.startTime, defaultBlockStart);
       expect(added.endTime, defaultBlockEnd);
       expect(added.isOpenEnded, isTrue);
-      expect(key('action-tile-${added.id}'), findsOneWidget);
+      expect(key('time-block-tile-${added.id}'), findsOneWidget);
       expect(find.textContaining('Editing · '), findsOneWidget);
     });
 
@@ -430,7 +471,7 @@ void main() {
       // Free 09:00–10:00: the default 09:00–10:00 only touches a1.
       await c.read(projectServiceProvider).deleteTimeBlock('a2');
       await tester.pumpAndSettle();
-      await tapVisible(tester, key('add-action'));
+      await tapVisible(tester, key('add-time-block'));
       expect(key('live-clashes'), findsNothing);
       // Editing an existing block opens the form with its values.
       await tester.tapAt(Offset.zero);
@@ -446,13 +487,13 @@ void main() {
     testWidgets('days of the month, open-ended', (tester) async {
       final c = await pumpApp(tester, initialLocation: '/projects/p1');
       final service = c.read(projectServiceProvider);
-      await tapVisible(tester, key('add-action'));
+      await tapVisible(tester, key('add-time-block'));
       await tapVisible(tester, find.byKey(const ValueKey('mode-monthly')));
       // Default {1}: open-ended, so 1 Dec 2026 (a Tuesday) clashes with the
       // archived project's Mon–Fri 09:00–10:00 block.
       expect(key('live-clashes'), findsOneWidget);
-      await tapVisible(tester, key('action-monthday-28'));
-      await tapVisible(tester, key('action-monthday-1'));
+      await tapVisible(tester, key('block-monthday-28'));
+      await tapVisible(tester, key('block-monthday-1'));
       // The 28th also falls on a weekday eventually.
       expect(key('live-clashes'), findsOneWidget);
       await tester.tapAt(Offset.zero);
@@ -460,12 +501,12 @@ void main() {
 
       await service.deleteTimeBlock('a2');
       await tester.pumpAndSettle();
-      await tapVisible(tester, key('add-action'));
+      await tapVisible(tester, key('add-time-block'));
       await tapVisible(tester, find.byKey(const ValueKey('mode-monthly')));
-      await tapVisible(tester, key('action-monthday-28'));
-      await tapVisible(tester, key('action-monthday-1'));
+      await tapVisible(tester, key('block-monthday-28'));
+      await tapVisible(tester, key('block-monthday-1'));
       expect(key('live-clashes'), findsNothing);
-      await tapVisible(tester, key('save-action'));
+      await tapVisible(tester, key('save-time-block'));
       final added = service.data
           .timeBlocksOf('p1')
           .singleWhere((b) => b.id != 'a1');
@@ -475,26 +516,26 @@ void main() {
 
     testWidgets('deleting a time block (confirmed) removes it', (tester) async {
       final c = await pumpApp(tester, initialLocation: '/projects/p1');
-      await tapVisible(tester, key('action-delete-a1'));
+      await tapVisible(tester, key('time-block-delete-a1'));
       await tester.tap(key('confirm-dialog-ok'));
       await tester.pumpAndSettle();
       expect(c.read(projectServiceProvider).data.timeBlock('a1'), isNull);
-      expect(key('action-tile-a1'), findsNothing);
+      expect(key('time-block-tile-a1'), findsNothing);
       expect(key('attend-a1|2026-11-18'), findsNothing);
     });
   });
 
   group('navigation', () {
-    testWidgets('list → details → new target → back shows it everywhere', (
+    testWidgets('list → details → new goal → back shows it everywhere', (
       tester,
     ) async {
       await pumpApp(tester);
       await tester.tap(find.text('Content business'));
       await tester.pumpAndSettle();
-      await tester.tap(key('new-target-fab'));
+      await tester.tap(key('new-goal-fab'));
       await tester.pumpAndSettle();
-      await tester.enterText(key('target-title'), 'Podcast');
-      await tester.tap(key('save-target'));
+      await tester.enterText(key('goal-title'), 'Podcast');
+      await tester.tap(key('save-goal'));
       await tester.pumpAndSettle();
       await tapVisible(tester, key('add-plan-task'));
       await tester.enterText(key('plan-task-title'), 'Mic');

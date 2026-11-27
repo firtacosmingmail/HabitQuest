@@ -546,11 +546,11 @@ class _HowToEarnCard extends StatelessWidget {
           ),
           row(
             '⏱️',
-            '${GameRules.sessionXp} XP for every work session you attend',
+            '${GameRules.sessionXp} XP for every time block session you attend',
           ),
           row(
             '🎯',
-            '${GameRules.goalDoneXp} XP when you set a target to done',
+            '${GameRules.goalDoneXp} XP when you set a goal to done',
           ),
           row('↩️', 'Undo it and the XP goes back: no farming!'),
           const SizedBox(height: 8),

@@ -91,7 +91,7 @@ class _GoalEditorScreenState extends ConsumerState<GoalEditorScreen> {
   Future<void> _save() async {
     final title = _title.text.trim();
     if (title.isEmpty) {
-      setState(() => _titleError = 'Give your target a title');
+      setState(() => _titleError = 'Give your goal a title');
       return;
     }
     final service = ref.read(projectServiceProvider);
@@ -123,7 +123,7 @@ class _GoalEditorScreenState extends ConsumerState<GoalEditorScreen> {
         setState(() => _load(saved));
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('Target saved ✨')));
+        ).showSnackBar(const SnackBar(content: Text('Goal saved ✨')));
       }
     } on ArgumentError catch (e) {
       if (mounted) setState(() => _error = '${e.message}');
@@ -161,9 +161,9 @@ class _GoalEditorScreenState extends ConsumerState<GoalEditorScreen> {
       return Scaffold(
         appBar: AppBar(),
         body: const MessageView(
-          key: ValueKey('target-not-found'),
+          key: ValueKey('goal-not-found'),
           emoji: '🎯',
-          title: 'Target not found',
+          title: 'Goal not found',
           message: 'It may have been deleted.',
         ),
       );
@@ -174,26 +174,26 @@ class _GoalEditorScreenState extends ConsumerState<GoalEditorScreen> {
     final color = projectColor(widget.projectId);
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.isNew ? 'New target' : 'Target'),
+        title: Text(widget.isNew ? 'New goal' : 'Goal'),
         actions: [
           if (!widget.isNew)
             IconButton(
-              key: const ValueKey('delete-target'),
-              tooltip: 'Delete target',
+              key: const ValueKey('delete-goal'),
+              tooltip: 'Delete goal',
               icon: const Icon(Icons.delete_outline_rounded),
               onPressed: _delete,
             ),
         ],
       ),
       body: ListView(
-        key: const ValueKey('target-editor-list'),
+        key: const ValueKey('goal-editor-list'),
         padding: const EdgeInsets.only(bottom: 48),
         children: [
           if (project != null) NoteText('In ${project.name}'),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
             child: TextField(
-              key: const ValueKey('target-title'),
+              key: const ValueKey('goal-title'),
               controller: _title,
               onChanged: (_) => setState(() => _titleError = null),
               maxLength: 80,
@@ -206,7 +206,7 @@ class _GoalEditorScreenState extends ConsumerState<GoalEditorScreen> {
             ),
           ),
           ListTile(
-            key: const ValueKey('target-deadline'),
+            key: const ValueKey('goal-deadline'),
             leading: Icon(Icons.flag_rounded, color: color),
             title: const Text('Deadline'),
             subtitle: Text(longDate(_deadline)),
@@ -220,7 +220,7 @@ class _GoalEditorScreenState extends ConsumerState<GoalEditorScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
             child: SegmentedButton<GoalStatus>(
-              key: const ValueKey('target-status'),
+              key: const ValueKey('goal-status'),
               showSelectedIcon: false,
               segments: [
                 for (final s in GoalStatus.values)
@@ -247,7 +247,7 @@ class _GoalEditorScreenState extends ConsumerState<GoalEditorScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
               child: OverlapMessageCard(
-                key: const ValueKey('target-save-error'),
+                key: const ValueKey('goal-save-error'),
                 title: 'Could not save',
                 message: _error!,
               ),
@@ -255,18 +255,18 @@ class _GoalEditorScreenState extends ConsumerState<GoalEditorScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
             child: FilledButton.icon(
-              key: const ValueKey('save-target'),
+              key: const ValueKey('save-goal'),
               onPressed: _saving || !_dirty ? null : _save,
               icon: const Icon(Icons.check_rounded),
-              label: Text(widget.isNew ? 'Create target' : 'Save changes'),
+              label: Text(widget.isNew ? 'Create goal' : 'Save changes'),
             ),
           ),
           if (_original != null) ...[
             _PlanSection(goal: _original!, color: color),
-            _ConsistentActionsSection(goal: _original!),
+            _ConsistentActionsSection(goal: _original!, color: color),
           ] else
             const NoteText(
-              'Create the target first, then add its plan and actions.',
+              'Create the goal first, then add its plan and actions.',
             ),
         ],
       ),
@@ -322,7 +322,7 @@ class _PlanSection extends ConsumerWidget {
         ),
         if (tasks.isEmpty)
           const NoteText(
-            'Break the target into tasks: scripts, recordings, edits…',
+            'Break the goal into tasks: scripts, recordings, edits…',
           ),
         for (final t in tasks) _PlanTaskTile(task: t, color: color),
       ],
@@ -490,130 +490,277 @@ class _PlanTaskDialogState extends State<_PlanTaskDialog> {
 
 // Consistent actions (text items) --------------------------------------------
 
-/// The goal's consistent actions: a plain list of text items (add, edit,
-/// delete). Minimal for now; drag-to-reorder and inline edit come with the
-/// screens rework.
-class _ConsistentActionsSection extends ConsumerWidget {
-  final Goal goal;
+/// Longest consistent action text (the server accepts up to 500).
+const consistentActionMaxLength = 200;
 
-  const _ConsistentActionsSection({required this.goal});
+/// The goal's consistent actions: a simple list of text items. Add with the
+/// field at the bottom, tap a text to edit it in place, drag the handle to
+/// reorder, ✕ to delete. No times, no tick-off, no XP.
+class _ConsistentActionsSection extends ConsumerStatefulWidget {
+  final Goal goal;
+  final Color color;
+
+  const _ConsistentActionsSection({required this.goal, required this.color});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final actions =
-        ref.watch(consistentActionsOfGoalProvider(goal.id)).value ??
-        const <ConsistentAction>[];
-    final service = ref.read(projectServiceProvider);
+  ConsumerState<_ConsistentActionsSection> createState() =>
+      _ConsistentActionsSectionState();
+}
 
-    Future<void> add() async {
-      final text = await showConsistentActionDialog(context);
-      if (text == null) return;
-      await service.addConsistentAction(goalId: goal.id, text: text);
+class _ConsistentActionsSectionState
+    extends ConsumerState<_ConsistentActionsSection> {
+  final _newText = TextEditingController();
+  final _newFocus = FocusNode();
+
+  /// The order just dropped by the user, shown until the saved order
+  /// arrives (avoids a flicker back to the old order).
+  List<String>? _pendingOrder;
+
+  @override
+  void dispose() {
+    _newText.dispose();
+    _newFocus.dispose();
+    super.dispose();
+  }
+
+  Future<void> _add() async {
+    final text = _newText.text.trim();
+    if (text.isEmpty) return;
+    _newText.clear();
+    await ref
+        .read(projectServiceProvider)
+        .addConsistentAction(goalId: widget.goal.id, text: text);
+    if (mounted) _newFocus.requestFocus();
+  }
+
+  List<ConsistentAction> _ordered(List<ConsistentAction> saved) {
+    final pending = _pendingOrder;
+    if (pending == null) return saved;
+    final byId = {for (final a in saved) a.id: a};
+    final sameSet =
+        pending.length == saved.length && pending.every(byId.containsKey);
+    if (!sameSet) return saved;
+    return [for (final id in pending) byId[id]!];
+  }
+
+  Future<void> _reorder(List<ConsistentAction> items, int from, int to) async {
+    // `to` is already adjusted for the removed item (onReorderItem).
+    final ids = items.map((a) => a.id).toList();
+    if (from == to) return;
+    ids.insert(to, ids.removeAt(from));
+    setState(() => _pendingOrder = ids);
+    try {
+      await ref
+          .read(projectServiceProvider)
+          .reorderConsistentActions(widget.goal.id, ids);
+    } on ArgumentError {
+      // The list changed underneath (e.g. a sync): show the saved order.
+    } finally {
+      if (mounted) setState(() => _pendingOrder = null);
     }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final saved =
+        ref.watch(consistentActionsOfGoalProvider(widget.goal.id)).value ??
+        const <ConsistentAction>[];
+    final actions = _ordered(saved);
+    final theme = Theme.of(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SectionTitle(
-          'Consistent actions',
-          trailing: TextButton.icon(
-            key: const ValueKey('add-consistent-action'),
-            onPressed: add,
-            icon: const Icon(Icons.add_rounded),
-            label: const Text('Add'),
+        const SectionTitle('Consistent actions'),
+        NoteText(
+          actions.isEmpty
+              ? 'What will you keep doing to get there? e.g. “Post one short '
+                    'a day”.'
+              : 'Tap to edit, drag ≡ to reorder.',
+        ),
+        ReorderableListView(
+          key: const ValueKey('consistent-actions-list'),
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          buildDefaultDragHandles: false,
+          padding: EdgeInsets.zero,
+          onReorderItem: (from, to) => _reorder(actions, from, to),
+          proxyDecorator: (child, _, animation) => AnimatedBuilder(
+            animation: animation,
+            builder: (context, child) => Material(
+              color: Colors.transparent,
+              elevation: 6 * animation.value,
+              shadowColor: widget.color.withValues(alpha: 0.4),
+              borderRadius: BorderRadius.circular(20),
+              child: child,
+            ),
+            child: child,
+          ),
+          children: [
+            for (var i = 0; i < actions.length; i++)
+              _ConsistentActionTile(
+                key: ValueKey('consistent-action-${actions[i].id}'),
+                action: actions[i],
+                index: i,
+                color: widget.color,
+              ),
+          ],
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 8, 0),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  key: const ValueKey('consistent-action-new'),
+                  controller: _newText,
+                  focusNode: _newFocus,
+                  maxLength: consistentActionMaxLength,
+                  textCapitalization: TextCapitalization.sentences,
+                  textInputAction: TextInputAction.done,
+                  onChanged: (_) => setState(() {}),
+                  onSubmitted: (_) => _add(),
+                  decoration: const InputDecoration(
+                    hintText: 'Add a consistent action',
+                    prefixIcon: Icon(Icons.repeat_rounded),
+                    counterText: '',
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              IconButton.filledTonal(
+                key: const ValueKey('add-consistent-action'),
+                tooltip: 'Add',
+                onPressed: _newText.text.trim().isEmpty ? null : _add,
+                icon: const Icon(Icons.add_rounded),
+                color: theme.colorScheme.onSecondaryContainer,
+              ),
+            ],
           ),
         ),
-        if (actions.isEmpty)
-          const NoteText('What will you keep doing to get there?'),
-        for (final a in actions)
-          Card(
-            key: ValueKey('consistent-action-${a.id}'),
-            child: ListTile(
-              leading: const Icon(Icons.repeat_rounded),
-              title: Text(a.text),
-              onTap: () async {
-                final text = await showConsistentActionDialog(
-                  context,
-                  initial: a.text,
-                );
-                if (text == null) return;
-                await service.editConsistentAction(a.id, text);
-              },
-              trailing: IconButton(
-                key: ValueKey('consistent-action-delete-${a.id}'),
-                tooltip: 'Remove',
-                icon: const Icon(Icons.close_rounded),
-                onPressed: () => service.deleteConsistentAction(a.id),
-              ),
-            ),
-          ),
       ],
     );
   }
 }
 
-/// Add / edit the text of a consistent action. Returns the trimmed text.
-Future<String?> showConsistentActionDialog(
-  BuildContext context, {
-  String? initial,
-}) => showDialog<String>(
-  context: context,
-  builder: (_) => _ConsistentActionDialog(initial: initial),
-);
+/// One consistent action: drag handle, the text (tap to edit in place;
+/// Enter or leaving the field saves, a blank text restores the old one)
+/// and a delete button.
+class _ConsistentActionTile extends ConsumerStatefulWidget {
+  final ConsistentAction action;
+  final int index;
+  final Color color;
 
-class _ConsistentActionDialog extends StatefulWidget {
-  final String? initial;
-
-  const _ConsistentActionDialog({this.initial});
+  const _ConsistentActionTile({
+    super.key,
+    required this.action,
+    required this.index,
+    required this.color,
+  });
 
   @override
-  State<_ConsistentActionDialog> createState() =>
-      _ConsistentActionDialogState();
+  ConsumerState<_ConsistentActionTile> createState() =>
+      _ConsistentActionTileState();
 }
 
-class _ConsistentActionDialogState extends State<_ConsistentActionDialog> {
-  late final _text = TextEditingController(text: widget.initial ?? '');
-  String? _error;
+class _ConsistentActionTileState extends ConsumerState<_ConsistentActionTile> {
+  final _controller = TextEditingController();
+  final _focus = FocusNode();
+  bool _editing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _focus.addListener(() {
+      if (!_focus.hasFocus && _editing) _commit();
+    });
+  }
 
   @override
   void dispose() {
-    _text.dispose();
+    _controller.dispose();
+    _focus.dispose();
     super.dispose();
   }
 
-  void _submit() {
-    final t = _text.text.trim();
-    if (t.isEmpty) {
-      setState(() => _error = 'Write something');
-      return;
-    }
-    Navigator.of(context).pop(t);
+  void _startEditing() {
+    _controller.text = widget.action.text;
+    _controller.selection = TextSelection.collapsed(
+      offset: _controller.text.length,
+    );
+    setState(() => _editing = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focus.requestFocus();
+    });
+  }
+
+  Future<void> _commit() async {
+    if (!_editing || !mounted) return;
+    final text = _controller.text.trim();
+    setState(() => _editing = false);
+    if (text.isEmpty || text == widget.action.text) return;
+    await ref
+        .read(projectServiceProvider)
+        .editConsistentAction(widget.action.id, text);
   }
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(widget.initial == null ? 'New action' : 'Edit action'),
-      content: TextField(
-        key: const ValueKey('consistent-action-text'),
-        controller: _text,
-        autofocus: true,
-        maxLength: 200,
-        textCapitalization: TextCapitalization.sentences,
-        decoration: InputDecoration(labelText: 'Action', errorText: _error),
-        onSubmitted: (_) => _submit(),
+    final a = widget.action;
+    final theme = Theme.of(context);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        child: Row(
+          children: [
+            ReorderableDragStartListener(
+              index: widget.index,
+              child: Padding(
+                key: ValueKey('consistent-action-handle-${a.id}'),
+                padding: const EdgeInsets.all(12),
+                child: Icon(
+                  Icons.drag_indicator_rounded,
+                  color: widget.color,
+                  semanticLabel: 'Drag to reorder',
+                ),
+              ),
+            ),
+            Expanded(
+              child: _editing
+                  ? TextField(
+                      key: ValueKey('consistent-action-edit-${a.id}'),
+                      controller: _controller,
+                      focusNode: _focus,
+                      maxLength: consistentActionMaxLength,
+                      textCapitalization: TextCapitalization.sentences,
+                      textInputAction: TextInputAction.done,
+                      onSubmitted: (_) => _commit(),
+                      decoration: const InputDecoration(
+                        isDense: true,
+                        counterText: '',
+                      ),
+                    )
+                  : InkWell(
+                      key: ValueKey('consistent-action-text-${a.id}'),
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: _startEditing,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        child: Text(a.text, style: theme.textTheme.bodyLarge),
+                      ),
+                    ),
+            ),
+            IconButton(
+              key: ValueKey('consistent-action-delete-${a.id}'),
+              tooltip: 'Delete',
+              icon: const Icon(Icons.close_rounded),
+              onPressed: () => ref
+                  .read(projectServiceProvider)
+                  .deleteConsistentAction(a.id),
+            ),
+          ],
+        ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          key: const ValueKey('consistent-action-save'),
-          onPressed: _submit,
-          child: Text(widget.initial == null ? 'Add' : 'Save'),
-        ),
-      ],
     );
   }
 }

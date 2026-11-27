@@ -78,14 +78,16 @@ void main() {
       );
       expect(ns.first.key, 'split|a1|2026-11-16');
       expect(ns.first.projectId, 'p1');
-      expect(ns.first.title, contains('Content'));
-      expect(ns.first.body, contains('Editing'));
-      expect(ns.first.body, isNot(contains('5 videos')));
+      // The block label leads the title; the body names the project.
+      expect(ns.first.title, contains('Editing'));
+      expect(ns.first.body, contains('Content'));
+      expect('${ns.first.title} ${ns.first.body}', isNot(contains('5 videos')));
     });
 
-    test('an unlabelled block names the project in the body', () {
+    test('an unlabelled block uses the project name', () {
       final ns = plan(data, settings: splitsOnly);
       final sat = ns.firstWhere((n) => n.key == 'split|a2|2026-11-21');
+      expect(sat.title, contains('Content'));
       expect(sat.body, contains('Content'));
       expect(sat.body, contains('07:00'));
     });

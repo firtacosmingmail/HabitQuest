@@ -233,7 +233,7 @@ class _TimeBlockFormSheetState extends ConsumerState<TimeBlockFormSheet> {
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
       child: SingleChildScrollView(
-        key: const ValueKey('action-form'),
+        key: const ValueKey('time-block-form'),
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -265,7 +265,7 @@ class _TimeBlockFormSheetState extends ConsumerState<TimeBlockFormSheet> {
               children: [
                 Expanded(
                   child: _TimeButton(
-                    key: const ValueKey('action-start'),
+                    key: const ValueKey('block-start'),
                     label: 'Start',
                     time: _start,
                     onTap: () => _pickTime(true),
@@ -274,7 +274,7 @@ class _TimeBlockFormSheetState extends ConsumerState<TimeBlockFormSheet> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: _TimeButton(
-                    key: const ValueKey('action-end'),
+                    key: const ValueKey('block-end'),
                     label: 'End',
                     time: _end,
                     onTap: () => _pickTime(false),
@@ -312,7 +312,7 @@ class _TimeBlockFormSheetState extends ConsumerState<TimeBlockFormSheet> {
                 children: [
                   for (var d = 1; d <= 7; d++)
                     FilterChip(
-                      key: ValueKey('action-weekday-$d'),
+                      key: ValueKey('block-weekday-$d'),
                       label: Text(
                         const [
                           'Mon',
@@ -339,7 +339,7 @@ class _TimeBlockFormSheetState extends ConsumerState<TimeBlockFormSheet> {
                 children: [
                   for (var d = 1; d <= 31; d++)
                     _DayBubble(
-                      key: ValueKey('action-monthday-$d'),
+                      key: ValueKey('block-monthday-$d'),
                       day: d,
                       selected: _monthDays.contains(d),
                       onTap: () => setState(() {
@@ -373,12 +373,12 @@ class _TimeBlockFormSheetState extends ConsumerState<TimeBlockFormSheet> {
               onTap: _pickStartDate,
               trailing: _startDate == null
                   ? TextButton(
-                      key: const ValueKey('action-start-date'),
+                      key: const ValueKey('block-start-date'),
                       onPressed: _pickStartDate,
                       child: const Text('Pick'),
                     )
                   : IconButton(
-                      key: const ValueKey('action-clear-start-date'),
+                      key: const ValueKey('block-clear-start-date'),
                       tooltip: 'Clear start date',
                       icon: const Icon(Icons.close_rounded),
                       onPressed: () => setState(() => _startDate = null),
@@ -412,7 +412,7 @@ class _TimeBlockFormSheetState extends ConsumerState<TimeBlockFormSheet> {
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Text(
                   validation,
-                  key: const ValueKey('action-validation'),
+                  key: const ValueKey('block-validation'),
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.error,
                   ),
@@ -424,14 +424,14 @@ class _TimeBlockFormSheetState extends ConsumerState<TimeBlockFormSheet> {
             ],
             if (_error != null) ...[
               OverlapMessageCard(
-                key: const ValueKey('action-save-error'),
+                key: const ValueKey('time-block-save-error'),
                 message: _error!,
               ),
               const SizedBox(height: 8),
             ],
             const SizedBox(height: 8),
             FilledButton.icon(
-              key: const ValueKey('save-action'),
+              key: const ValueKey('save-time-block'),
               onPressed: _saving || validation != null ? null : _save,
               icon: const Icon(Icons.check_rounded),
               label: Text(widget.block == null ? 'Add time block' : 'Save'),

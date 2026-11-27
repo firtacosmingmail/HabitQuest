@@ -58,26 +58,26 @@ class SettingsScreen extends ConsumerWidget {
                 toggle(
                   key: 'settings-work-splits',
                   emoji: '⚔️',
-                  title: 'Work split starts',
-                  subtitle: 'When a work session begins',
+                  title: 'Time block starts',
+                  subtitle: 'When a session of a project time block begins',
                   value: settings.workSplits,
                   apply: (v) => settings.copyWith(workSplits: v),
                 ),
                 toggle(
                   key: 'settings-deadlines',
                   emoji: '⏳',
-                  title: 'Deadlines',
+                  title: 'Goal deadlines',
                   subtitle:
                       '3 days before, 1 day before and on the morning '
-                      'of a target\'s deadline',
+                      'of a goal\'s deadline',
                   value: settings.deadlines,
                   apply: (v) => settings.copyWith(deadlines: v),
                 ),
                 toggle(
                   key: 'settings-task-deliveries',
                   emoji: '📦',
-                  title: 'Task deliveries',
-                  subtitle: 'The morning before a plan task is due',
+                  title: 'Plan task deliveries',
+                  subtitle: 'The morning before a goal\'s plan task is due',
                   value: settings.taskDeliveries,
                   apply: (v) => settings.copyWith(taskDeliveries: v),
                 ),
