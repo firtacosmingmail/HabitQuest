@@ -89,7 +89,7 @@ void main() {
     expect(find.textContaining('+25 XP for a Perfect Day'), findsOneWidget);
     expect(find.text('10 XP for every plan task you finish'), findsOneWidget);
     expect(
-      find.text('15 XP for every work session you attend'),
+      find.text('15 XP for every time block session you attend'),
       findsOneWidget,
     );
     expect(find.text('50 XP when you set a goal to done'), findsOneWidget);
@@ -100,7 +100,7 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Set a project goal to done.'), findsOneWidget);
-    expect(find.text('Mark 10 work split sessions attended.'), findsOneWidget);
+    expect(find.text('Mark 10 time block sessions attended.'), findsOneWidget);
     expect(find.text('Set every goal of a project to done.'), findsOneWidget);
   });
 

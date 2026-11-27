@@ -134,7 +134,7 @@ void main() {
     await settle();
     final splitId = projectNotificationId('split|${block.id}|2026-11-17');
     expect(scheduler.pending.keys, contains(splitId));
-    expect(scheduler.pending[splitId]!.body, contains('Editing'));
+    expect(scheduler.pending[splitId]!.title, contains('Editing'));
     expect(scheduler.pending, hasLength(7));
 
     await service.deleteTimeBlock(block.id);

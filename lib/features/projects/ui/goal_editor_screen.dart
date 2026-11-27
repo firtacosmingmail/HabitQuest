@@ -695,7 +695,7 @@ class _ConsistentActionTileState extends ConsumerState<_ConsistentActionTile> {
   }
 
   Future<void> _commit() async {
-    if (!_editing) return;
+    if (!_editing || !mounted) return;
     final text = _controller.text.trim();
     setState(() => _editing = false);
     if (text.isEmpty || text == widget.action.text) return;
