@@ -207,7 +207,7 @@ class ProjectMenuButton extends ConsumerWidget {
   }
 }
 
-/// A project in the list: name, menu and one progress row per target.
+/// A project in the list: name, menu and one progress row per goal.
 class ProjectCard extends ConsumerWidget {
   final Project project;
 
@@ -217,9 +217,9 @@ class ProjectCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final color = projectColor(project.id);
-    final targets =
+    final goals =
         ref.watch(goalsOfProjectProvider(project.id)).value ?? const <Goal>[];
-    final done = targets.where((t) => t.isDone).length;
+    final done = goals.where((t) => t.isDone).length;
 
     return Card(
       key: ValueKey('project-card-${project.id}'),
@@ -251,10 +251,10 @@ class ProjectCard extends ConsumerWidget {
                         children: [
                           Text(project.name, style: theme.textTheme.titleLarge),
                           Text(
-                            targets.isEmpty
+                            goals.isEmpty
                                 ? 'No targets yet'
-                                : '$done of ${targets.length} '
-                                      '${targets.length == 1 ? 'target' : 'targets'} done',
+                                : '$done of ${goals.length} '
+                                      '${goals.length == 1 ? 'target' : 'targets'} done',
                             style: theme.textTheme.bodyMedium?.copyWith(
                               color: theme.colorScheme.onSurfaceVariant,
                             ),
@@ -265,10 +265,10 @@ class ProjectCard extends ConsumerWidget {
                     ProjectMenuButton(project: project),
                   ],
                 ),
-                for (final t in targets)
+                for (final t in goals)
                   Padding(
                     padding: const EdgeInsets.only(top: 10, right: 12),
-                    child: _TargetProgressRow(target: t, color: color),
+                    child: _GoalProgressRow(goal: t, color: color),
                   ),
               ],
             ),
@@ -279,15 +279,15 @@ class ProjectCard extends ConsumerWidget {
   }
 }
 
-class _TargetProgressRow extends ConsumerWidget {
-  final Goal target;
+class _GoalProgressRow extends ConsumerWidget {
+  final Goal goal;
   final Color color;
 
-  const _TargetProgressRow({required this.target, required this.color});
+  const _GoalProgressRow({required this.goal, required this.color});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final progress = watchPlanProgress(ref, target.id);
+    final progress = watchPlanProgress(ref, goal.id);
     final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -296,13 +296,13 @@ class _TargetProgressRow extends ConsumerWidget {
           children: [
             Expanded(
               child: Text(
-                target.title,
+                goal.title,
                 style: theme.textTheme.titleSmall,
                 overflow: TextOverflow.ellipsis,
               ),
             ),
             const SizedBox(width: 8),
-            GoalStatusChip(status: target.status),
+            GoalStatusChip(status: goal.status),
           ],
         ),
         const SizedBox(height: 4),

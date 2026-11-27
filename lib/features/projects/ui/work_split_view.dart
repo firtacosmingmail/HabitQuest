@@ -607,7 +607,7 @@ class _DayHeaders extends StatelessWidget {
                         height: 18,
                         child: deadlines.isEmpty
                             ? null
-                            : _DeadlineMarker(day: day, targets: deadlines),
+                            : _DeadlineMarker(day: day, goals: deadlines),
                       ),
                     ],
                   ),
@@ -620,17 +620,17 @@ class _DayHeaders extends StatelessWidget {
   }
 }
 
-/// A flag per day with deadlines (tooltip: the targets due).
+/// A flag per day with deadlines (tooltip: the goals due).
 class _DeadlineMarker extends StatelessWidget {
   final DateTime day;
-  final List<Goal> targets;
+  final List<Goal> goals;
 
-  const _DeadlineMarker({required this.day, required this.targets});
+  const _DeadlineMarker({required this.day, required this.goals});
 
   @override
   Widget build(BuildContext context) {
     final label = [
-      for (final t in targets) 'Deadline: ${t.title}${t.isDone ? ' ✓' : ''}',
+      for (final t in goals) 'Deadline: ${t.title}${t.isDone ? ' ✓' : ''}',
     ].join('\n');
     return Tooltip(
       key: ValueKey('deadline-marker-${dateKey(day)}'),
@@ -644,11 +644,11 @@ class _DeadlineMarker extends StatelessWidget {
             Icon(
               Icons.flag_rounded,
               size: 16,
-              color: projectColor(targets.first.projectId),
+              color: projectColor(goals.first.projectId),
             ),
-            if (targets.length > 1)
+            if (goals.length > 1)
               Text(
-                '${targets.length}',
+                '${goals.length}',
                 style: Theme.of(context).textTheme.labelSmall,
               ),
           ],
@@ -832,7 +832,7 @@ class _DayColumn extends StatelessWidget {
                   width: laneWidth - 2,
                   child: SessionBlock(
                     session: s,
-                    targetTitle:
+                    title:
                         s.label ?? data.project(s.projectId)?.name ?? 'Project',
                     onTap: () => showSessionSheet(
                       context,
@@ -878,17 +878,17 @@ Map<String, int> assignLanes(List<Session> daySessions) {
   return out;
 }
 
-/// One time block: the project's colour, the target and the times; a ✓
+/// One time block: the project's colour, the block label (or project name) and the times; a ✓
 /// when attended. Keyed `session-block-<Session.key>`.
 class SessionBlock extends StatelessWidget {
   final Session session;
-  final String targetTitle;
+  final String title;
   final VoidCallback onTap;
 
   const SessionBlock({
     super.key,
     required this.session,
-    required this.targetTitle,
+    required this.title,
     required this.onTap,
   });
 
@@ -904,7 +904,7 @@ class SessionBlock extends StatelessWidget {
     return Semantics(
       button: true,
       label:
-          '$targetTitle, $times'
+          '$title, $times'
           '${session.attended ? ', attended' : ''}',
       excludeSemantics: true,
       child: Material(
@@ -931,7 +931,7 @@ class SessionBlock extends StatelessWidget {
                         ),
                       Flexible(
                         child: Text(
-                          targetTitle,
+                          title,
                           maxLines: c.maxHeight > 40 ? 2 : 1,
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.labelSmall?.copyWith(
@@ -964,9 +964,9 @@ class SessionBlock extends StatelessWidget {
   }
 }
 
-/// The sheet for a tapped block: target, project, date and times, a toggle
+/// The sheet for a tapped block: label, project, date and times, a toggle
 /// to mark the session attended (today and past only) and a button that
-/// opens the target.
+/// opens the project.
 Future<void> showSessionSheet(
   BuildContext context, {
   required Session session,
