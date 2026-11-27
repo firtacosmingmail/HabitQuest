@@ -9,10 +9,11 @@ import '../../data/remote/remote_models.dart';
 import '../../data/sync/change_recorder.dart';
 import '../projects/data/project_repository.dart';
 import '../projects/models/consistent_action.dart';
+import '../projects/models/goal.dart';
 import '../projects/models/plan_task.dart';
 import '../projects/models/project.dart';
 import '../projects/models/session_mark.dart';
-import '../projects/models/target.dart';
+import '../projects/models/time_block.dart';
 
 /// The contract has no `startDate`; it travels inside the opaque
 /// `schedule` object under this key (`HabitSchedule.fromJson` ignores it).
@@ -99,14 +100,15 @@ ReminderTime? _parseReminder(String? s) {
 /// The sync queue type of each Projects resource.
 SyncEntityType syncTypeOf(ProjectResource r) => switch (r) {
   ProjectResource.projects => SyncEntityType.project,
-  ProjectResource.targets => SyncEntityType.target,
+  ProjectResource.goals => SyncEntityType.goal,
+  ProjectResource.timeBlocks => SyncEntityType.timeBlock,
   ProjectResource.planTasks => SyncEntityType.planTask,
   ProjectResource.consistentActions => SyncEntityType.consistentAction,
   ProjectResource.sessionMarks => SyncEntityType.sessionMark,
 };
 
-/// `(actionId, date)` of a session mark key `actionId|yyyy-MM-dd`, or
-/// `null` when malformed.
+/// `(timeBlockId, date)` of a session mark key `timeBlockId|yyyy-MM-dd`,
+/// or `null` when malformed.
 (String, DateTime)? parseSessionMarkKey(String key) {
   final i = key.lastIndexOf('|');
   if (i <= 0) return null;
@@ -126,11 +128,13 @@ RemoteProjectRecord? localProjectRecord(
 ) {
   final Map<String, dynamic>? json = switch (resource) {
     ProjectResource.projects => repo.getProjectRecord(id)?.toJson(),
-    ProjectResource.targets => repo.getTargetRecord(id)?.toJson(),
+    ProjectResource.goals => repo.getGoalRecord(id)?.toJson(),
+    ProjectResource.timeBlocks => repo.getTimeBlockRecord(id)?.toJson(),
     ProjectResource.planTasks => repo.getPlanTaskRecord(id)?.toJson(),
-    ProjectResource.consistentActions => repo.getActionRecord(id)?.toJson(),
+    ProjectResource.consistentActions =>
+      repo.getConsistentActionRecord(id)?.toJson(),
     ProjectResource.sessionMarks => switch (parseSessionMarkKey(id)) {
-      (final a, final d) => repo.getSessionMarkRecord(a, d)?.toJson(),
+      (final b, final d) => repo.getSessionMarkRecord(b, d)?.toJson(),
       null => null,
     },
   };
@@ -143,11 +147,11 @@ Iterable<String> localProjectIds(
   ProjectResource resource,
 ) => switch (resource) {
   ProjectResource.projects => repo.getAllProjectRecords().map((x) => x.id),
-  ProjectResource.targets => repo.getAllTargetRecords().map((x) => x.id),
+  ProjectResource.goals => repo.getAllGoalRecords().map((x) => x.id),
+  ProjectResource.timeBlocks => repo.getAllTimeBlockRecords().map((x) => x.id),
   ProjectResource.planTasks => repo.getAllPlanTaskRecords().map((x) => x.id),
-  ProjectResource.consistentActions => repo.getAllActionRecords().map(
-    (x) => x.id,
-  ),
+  ProjectResource.consistentActions =>
+    repo.getAllConsistentActionRecords().map((x) => x.id),
   ProjectResource.sessionMarks => repo.getAllSessionMarkRecords().map(
     (x) => x.key,
   ),
@@ -157,16 +161,19 @@ Iterable<String> localProjectIds(
 /// (`FormatException`, `TypeError`, ...) on a record the models cannot read.
 ProjectRecords projectRecordsFromRemote(Iterable<RemoteProjectRecord> records) {
   final projects = <Project>[];
-  final targets = <Target>[];
+  final goals = <Goal>[];
   final planTasks = <PlanTask>[];
+  final timeBlocks = <TimeBlock>[];
   final actions = <ConsistentAction>[];
   final marks = <SessionMark>[];
   for (final r in records) {
     switch (r.resource) {
       case ProjectResource.projects:
         projects.add(Project.fromJson(r.json));
-      case ProjectResource.targets:
-        targets.add(Target.fromJson(r.json));
+      case ProjectResource.goals:
+        goals.add(Goal.fromJson(r.json));
+      case ProjectResource.timeBlocks:
+        timeBlocks.add(TimeBlock.fromJson(r.json));
       case ProjectResource.planTasks:
         planTasks.add(PlanTask.fromJson(r.json));
       case ProjectResource.consistentActions:
@@ -177,9 +184,10 @@ ProjectRecords projectRecordsFromRemote(Iterable<RemoteProjectRecord> records) {
   }
   return ProjectRecords(
     projects: projects,
-    targets: targets,
+    goals: goals,
     planTasks: planTasks,
-    actions: actions,
+    timeBlocks: timeBlocks,
+    consistentActions: actions,
     sessionMarks: marks,
   );
 }

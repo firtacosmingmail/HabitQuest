@@ -63,8 +63,8 @@ enum AccountChange {
 ///
 /// * Push: parents before children, because the server rejects a child
 ///   whose parent it does not have: habits → check-ins, then projects →
-///   targets → plan tasks and consistent actions → session marks
-///   ([ProjectResource] order). Through the batch endpoints in chunks of
+///   goals and time blocks → plan tasks, consistent actions and session
+///   marks ([ProjectResource] order). Through the batch endpoints in chunks of
 ///   [batchSize] (the server's limit). Every acknowledged entry is dropped,
 ///   whether the server applied it or kept a newer row (which the pull then
 ///   brings). A batch refused for a validation reason is retried item by
@@ -314,7 +314,7 @@ class SyncEngine {
     return checkIns;
   }
 
-  /// Pulls the five Projects resources (parents first) since their cursors
+  /// Pulls the six Projects resources (parents first) since their cursors
   /// and applies the LWW winners in one [ProjectService.applyRemote].
   /// Returns what was applied (for the XP reconcile).
   Future<ProjectRecords> _pullProjects(String userId, SyncReport report) async {
@@ -339,9 +339,10 @@ class SyncEngine {
     }
     report.pulledProjectRecords =
         records.projects.length +
-        records.targets.length +
+        records.goals.length +
+        records.timeBlocks.length +
         records.planTasks.length +
-        records.actions.length +
+        records.consistentActions.length +
         records.sessionMarks.length;
     return records;
   }

@@ -550,7 +550,7 @@ class _HowToEarnCard extends StatelessWidget {
           ),
           row(
             '🎯',
-            '${GameRules.targetDoneXp} XP when you set a target to done',
+            '${GameRules.goalDoneXp} XP when you set a target to done',
           ),
           row('↩️', 'Undo it and the XP goes back: no farming!'),
           const SizedBox(height: 8),
