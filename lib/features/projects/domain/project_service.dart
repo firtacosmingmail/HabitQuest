@@ -367,7 +367,8 @@ class ProjectService {
   }
 
   /// Saves an edited block (label, times, recurrence, start / end date).
-  /// Throws [TimeBlockOverlapException] (nothing saved) when it overlaps.
+  /// Throws [TimeBlockOverlapException] (nothing saved) when the new
+  /// schedule overlaps; a label-only edit is never refused.
   Future<TimeBlock> updateTimeBlock(TimeBlock edited) async {
     final previous = _timeBlock(edited.id);
     if (edited.projectId != previous.projectId) {
@@ -378,7 +379,14 @@ class ProjectService {
       deletedAt: () => null,
     );
     if (b == previous) return previous;
-    _checkOverlap(b);
+    // A label-only edit cannot add a clash; skipping the check lets the user
+    // rename a block that already clashes (merged or migrated data).
+    final scheduleChanged = b.startTime != previous.startTime ||
+        b.endTime != previous.endTime ||
+        b.recurrence != previous.recurrence ||
+        b.startDate != previous.startDate ||
+        b.endDate != previous.endDate;
+    if (scheduleChanged) _checkOverlap(b);
     await _repository.save(ProjectRecords(timeBlocks: [b]));
     _emit(ProjectChangeType.updated, ProjectEntityKind.timeBlock, b, previous);
     return b;

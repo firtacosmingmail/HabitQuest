@@ -482,6 +482,23 @@ void main() {
   });
 
   group('time blocks', () {
+    test('a label-only edit of an already clashing block is saved', () async {
+      final (pid, _, b) = await example();
+      // Merged / migrated data may already clash: seed a clashing block
+      // through applyRemote (no overlap check there).
+      final other = weekly('remote', projectId: pid, days: {1});
+      await service.applyRemote(ProjectRecords(timeBlocks: [other]));
+      final renamed = await service.updateTimeBlock(
+        b.copyWith(label: () => 'Deep work'),
+      );
+      expect(renamed.label, 'Deep work');
+      // Changing the schedule still checks (and is refused).
+      expect(
+        () => service.updateTimeBlock(renamed.copyWith(endTime: hm('12:00'))),
+        throwsA(isA<TimeBlockOverlapException>()),
+      );
+    });
+
     test('create on a project: trimmed label, open-ended, emits', () async {
       final (pid, _, b) = await example();
       expect(b.projectId, pid);
