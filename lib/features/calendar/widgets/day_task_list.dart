@@ -33,9 +33,9 @@ Map<String, ({int due, int done})> taskMarkersByDay(ProjectsData data) {
 }
 
 bool _visible(ProjectsData data, PlanTask t) {
-  final target = data.target(t.targetId);
-  if (target == null) return false;
-  return !(data.project(target.projectId)?.archived ?? true);
+  final goal = data.goal(t.goalId);
+  if (goal == null) return false;
+  return !(data.project(goal.projectId)?.archived ?? true);
 }
 
 /// The selected day's plan tasks (delivery date on [date]) with a
@@ -75,15 +75,15 @@ class _TaskTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final target = data.target(task.targetId)!;
-    final project = data.project(target.projectId);
-    final color = projectColor(target.projectId);
+    final goal = data.goal(task.goalId)!;
+    final project = data.project(goal.projectId);
+    final color = projectColor(goal.projectId);
     return Card(
       key: ValueKey('calendar-task-${task.id}'),
       clipBehavior: Clip.antiAlias,
       child: ListTile(
         onTap: () =>
-            context.push(AppRoutes.targetEditor(target.projectId, target.id)),
+            context.push(AppRoutes.goalEditor(goal.projectId, goal.id)),
         leading: Checkbox(
           key: ValueKey('calendar-task-check-${task.id}'),
           value: task.done,
@@ -99,7 +99,7 @@ class _TaskTile extends ConsumerWidget {
           ),
         ),
         subtitle: Text(
-          '${target.title}${project == null ? '' : ' · ${project.name}'}',
+          '${goal.title}${project == null ? '' : ' · ${project.name}'}',
           style: theme.textTheme.bodyMedium?.copyWith(color: color),
         ),
         trailing: Icon(

@@ -14,7 +14,7 @@ import '../../features/notifications/in_app_reminder.dart';
 import '../../features/profile/profile_screen.dart';
 import '../../features/projects/ui/project_details_screen.dart';
 import '../../features/projects/ui/projects_screen.dart';
-import '../../features/projects/ui/target_editor_screen.dart';
+import '../../features/projects/ui/goal_editor_screen.dart';
 import '../../features/quest/quest_screen.dart';
 import '../../features/quotes/public_quote_screen.dart';
 import '../../features/quotes/quotes_screen.dart';
@@ -205,20 +205,20 @@ GoRouter createRouter({
                       projectId: state.pathParameters['id']!,
                     ),
                     routes: [
-                      // 'targets/new' must come before 'targets/:tid'.
+                      // 'goals/new' must come before 'goals/:gid'.
                       GoRoute(
-                        path: 'targets/new',
+                        path: 'goals/new',
                         parentNavigatorKey: rootNavigatorKey,
-                        builder: (_, state) => TargetEditorScreen(
+                        builder: (_, state) => GoalEditorScreen(
                           projectId: state.pathParameters['id']!,
                         ),
                       ),
                       GoRoute(
-                        path: 'targets/:tid',
+                        path: 'goals/:gid',
                         parentNavigatorKey: rootNavigatorKey,
-                        builder: (_, state) => TargetEditorScreen(
+                        builder: (_, state) => GoalEditorScreen(
                           projectId: state.pathParameters['id']!,
-                          targetId: state.pathParameters['tid']!,
+                          goalId: state.pathParameters['gid']!,
                         ),
                       ),
                     ],

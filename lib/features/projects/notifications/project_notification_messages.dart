@@ -3,7 +3,7 @@
 /// rescheduled notification keeps its text.
 library;
 
-/// Work split start. `{project}`, `{target}` and `{time}` are replaced.
+/// Work split start. `{project}`, `{block}` and `{time}` are replaced.
 const kWorkSplitTitles = <String>[
   '⚔️ Quest time: {project}',
   '🚀 Launch window open: {project}',
@@ -11,16 +11,16 @@ const kWorkSplitTitles = <String>[
   '🐉 Time to slay some work: {project}',
 ];
 const kWorkSplitBodies = <String>[
-  'Your {target} session starts now ({time}). Let\'s go!',
-  '{time}: a {target} block begins. Small steps, big adventure ✨',
-  'The {target} session is on ({time}). Your future self says thanks 🙌',
+  'Your {block} session starts now ({time}). Let\'s go!',
+  '{time}: a {block} block begins. Small steps, big adventure ✨',
+  'The {block} session is on ({time}). Your future self says thanks 🙌',
 ];
 
-/// Deadline approaching, by days left (3, 1, 0). `{target}`, `{project}`.
+/// Deadline approaching, by days left (3, 1, 0). `{goal}`, `{project}`.
 const kDeadlineTitles = <int, List<String>>{
-  3: ['⏳ 3 days to go: {target}', '🗺️ The finish line is in sight: {target}'],
-  1: ['🔥 Tomorrow is the day: {target}', '⚡ One day left for {target}!'],
-  0: ['🏁 Deadline day: {target}', '🏆 Today\'s the day: {target}!'],
+  3: ['⏳ 3 days to go: {goal}', '🗺️ The finish line is in sight: {goal}'],
+  1: ['🔥 Tomorrow is the day: {goal}', '⚡ One day left for {goal}!'],
+  0: ['🏁 Deadline day: {goal}', '🏆 Today\'s the day: {goal}!'],
 };
 const kDeadlineBodies = <String>[
   '{project}: give it your best shot 💪',
@@ -28,15 +28,15 @@ const kDeadlineBodies = <String>[
   '{project}: you\'ve got this, hero!',
 ];
 
-/// Plan task delivery tomorrow. `{task}`, `{target}`, `{project}`.
+/// Plan task delivery tomorrow. `{task}`, `{goal}`, `{project}`.
 const kTaskDeliveryTitles = <String>[
   '📦 Due tomorrow: {task}',
   '🎯 Quick win ahead: {task} is due tomorrow',
   '✨ XP is waiting: deliver {task} tomorrow',
 ];
 const kTaskDeliveryBodies = <String>[
-  '{target} · {project}. Check it off when it\'s done!',
-  'Part of {target} ({project}). One task closer to victory 🏆',
+  '{goal} · {project}. Check it off when it\'s done!',
+  'Part of {goal} ({project}). One task closer to victory 🏆',
 ];
 
 String pick(List<String> options, int seed) =>

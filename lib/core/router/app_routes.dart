@@ -40,14 +40,13 @@ abstract final class AppRoutes {
   static String habitDetails(String id) => '/habits/$id';
   static String editHabit(String id) => '/habits/$id/edit';
 
-  /// Project details: targets, work split, sessions.
+  /// Project details: goals, time blocks, work split, sessions.
   static String projectDetails(String id) => '/projects/$id';
 
-  /// Create a target in project [projectId].
-  static String newTarget(String projectId) =>
-      '/projects/$projectId/targets/new';
+  /// Create a goal in project [projectId].
+  static String newGoal(String projectId) => '/projects/$projectId/goals/new';
 
-  /// Target editor: title, deadline, status, plan and consistent actions.
-  static String targetEditor(String projectId, String targetId) =>
-      '/projects/$projectId/targets/$targetId';
+  /// Goal editor: title, deadline, status, plan and consistent actions.
+  static String goalEditor(String projectId, String goalId) =>
+      '/projects/$projectId/goals/$goalId';
 }

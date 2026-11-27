@@ -9,9 +9,11 @@ import '../../../domain/providers.dart';
 import '../domain/overlap.dart';
 import '../models/project.dart';
 import '../models/session.dart';
-import '../models/target.dart';
+import '../models/goal.dart';
+import '../models/time_block.dart';
 import '../projects_providers.dart';
 import 'projects_screen.dart';
+import 'time_block_form_sheet.dart';
 import 'work_split_view.dart';
 import 'widgets/project_widgets.dart';
 
@@ -24,9 +26,10 @@ const upcomingSessionDays = 14;
 /// The most upcoming sessions listed.
 const maxUpcomingSessions = 10;
 
-/// Project details (`/projects/:id`): targets (deadline, status chip, plan
-/// progress), the work split (week view of this project's blocks), recent sessions to mark attended
-/// and upcoming sessions.
+/// Project details (`/projects/:id`): goals (deadline, status chip, plan
+/// progress), the project's time blocks (add / edit / delete, overlap
+/// blocked on save), the work split (week view of this project's blocks),
+/// recent sessions to mark attended and upcoming sessions.
 class ProjectDetailsScreen extends ConsumerWidget {
   final String projectId;
 
@@ -66,9 +69,11 @@ class ProjectDetailsScreen extends ConsumerWidget {
       );
     }
 
-    final targets =
-        ref.watch(targetsOfProjectProvider(projectId)).value ??
-        const <Target>[];
+    final goals =
+        ref.watch(goalsOfProjectProvider(projectId)).value ?? const <Goal>[];
+    final blocks =
+        ref.watch(timeBlocksOfProjectProvider(projectId)).value ??
+        const <TimeBlock>[];
     final color = projectColor(projectId);
 
     return Scaffold(
@@ -89,7 +94,7 @@ class ProjectDetailsScreen extends ConsumerWidget {
       ),
       floatingActionButton: FloatingActionButton.extended(
         key: const ValueKey('new-target-fab'),
-        onPressed: () => context.push(AppRoutes.newTarget(projectId)),
+        onPressed: () => context.push(AppRoutes.newGoal(projectId)),
         icon: const Icon(Icons.add_rounded),
         label: const Text('New target'),
       ),
@@ -99,13 +104,32 @@ class ProjectDetailsScreen extends ConsumerWidget {
         children: [
           if (project.archived) _ArchivedBanner(project: project),
           const SectionTitle('Targets'),
-          if (targets.isEmpty)
+          if (goals.isEmpty)
             const NoteText('No targets yet. Add one with a deadline 🎯')
           else
-            for (final t in targets) TargetTile(target: t, color: color),
+            for (final g in goals) GoalTile(goal: g, color: color),
+          SectionTitle(
+            'Time blocks',
+            trailing: TextButton.icon(
+              key: const ValueKey('add-action'),
+              onPressed: () => showTimeBlockForm(context, project: project),
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Add'),
+            ),
+          ),
+          if (blocks.isEmpty)
+            const NoteText('Regular work sessions. Time blocks never overlap.')
+          else
+            for (final b in blocks)
+              TimeBlockTile(
+                block: b,
+                color: color,
+                onTap: () =>
+                    showTimeBlockForm(context, project: project, block: b),
+              ),
           const SectionTitle('Work split'),
           ProjectWorkSplit(projectId: projectId),
-          _SessionsSection(project: project, targets: targets, color: color),
+          _SessionsSection(project: project, color: color),
         ],
       ),
     );
@@ -146,41 +170,83 @@ String deadlineText(DateTime deadline, DateTime today) {
   return days == -1 ? '1 day overdue' : '${-days} days overdue';
 }
 
-/// Sets a target's status (manual) and shows a refused change (a clash
-/// when reopening a done target) in a dialog.
-Future<void> changeTargetStatus(
-  BuildContext context,
-  WidgetRef ref,
-  Target target,
-  TargetStatus status,
-) async {
-  try {
-    await ref.read(projectServiceProvider).setTargetStatus(target.id, status);
-  } on ActionOverlapException catch (e) {
-    if (context.mounted) await showOverlapDialog(context, e.message);
+/// Sets a goal's status (manual).
+Future<void> changeGoalStatus(WidgetRef ref, Goal goal, GoalStatus status) =>
+    ref.read(projectServiceProvider).setGoalStatus(goal.id, status);
+
+/// A time block of the project: label, recurrence, times and dates.
+class TimeBlockTile extends ConsumerWidget {
+  final TimeBlock block;
+  final Color color;
+  final VoidCallback? onTap;
+
+  const TimeBlockTile({
+    super.key,
+    required this.block,
+    required this.color,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final b = block;
+    final when =
+        '${describeRecurrence(b.recurrence)} · ${b.startTime}–${b.endTime}';
+    final dates = [
+      if (b.startDate != null) 'From ${longDate(b.startDate!)}',
+      b.endDate == null ? 'Ongoing' : 'Until ${longDate(b.endDate!)}',
+    ].join(' · ');
+    return Card(
+      key: ValueKey('action-tile-${b.id}'),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: color.withValues(alpha: 0.18),
+          child: Icon(Icons.schedule_rounded, color: color),
+        ),
+        title: Text(b.label == null ? when : '${b.label} · $when'),
+        subtitle: Text(dates),
+        onTap: onTap,
+        trailing: IconButton(
+          key: ValueKey('action-delete-${b.id}'),
+          tooltip: 'Delete time block',
+          icon: const Icon(Icons.delete_outline_rounded),
+          onPressed: () async {
+            final ok = await confirmDialog(
+              context,
+              title: 'Delete this time block?',
+              message: 'Its sessions and attended marks disappear too.',
+              confirmLabel: 'Delete',
+            );
+            if (ok) {
+              await ref.read(projectServiceProvider).deleteTimeBlock(b.id);
+            }
+          },
+        ),
+      ),
+    );
   }
 }
 
-/// A target on the details screen: title, deadline, status chip (tap to
-/// change) and plan progress. Tapping opens the target editor.
-class TargetTile extends ConsumerWidget {
-  final Target target;
+/// A goal on the details screen: title, deadline, status chip (tap to
+/// change) and plan progress. Tapping opens the goal editor.
+class GoalTile extends ConsumerWidget {
+  final Goal goal;
   final Color color;
 
-  const TargetTile({super.key, required this.target, required this.color});
+  const GoalTile({super.key, required this.goal, required this.color});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final today = ref.watch(todayProvider);
-    final progress = watchPlanProgress(ref, target.id);
-    final overdue = !target.isDone && target.deadline.isBefore(today);
+    final progress = watchPlanProgress(ref, goal.id);
+    final overdue = !goal.isDone && goal.deadline.isBefore(today);
     return Card(
-      key: ValueKey('target-tile-${target.id}'),
+      key: ValueKey('target-tile-${goal.id}'),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () =>
-            context.push(AppRoutes.targetEditor(target.projectId, target.id)),
+            context.push(AppRoutes.goalEditor(goal.projectId, goal.id)),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 12, 14),
           child: Column(
@@ -190,15 +256,14 @@ class TargetTile extends ConsumerWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      target.title,
+                      goal.title,
                       style: theme.textTheme.titleLarge,
                     ),
                   ),
-                  TargetStatusChip(
-                    key: ValueKey('status-chip-${target.id}'),
-                    status: target.status,
-                    onChanged: (s) =>
-                        changeTargetStatus(context, ref, target, s),
+                  GoalStatusChip(
+                    key: ValueKey('status-chip-${goal.id}'),
+                    status: goal.status,
+                    onChanged: (s) => changeGoalStatus(ref, goal, s),
                   ),
                 ],
               ),
@@ -213,8 +278,8 @@ class TargetTile extends ConsumerWidget {
                   const SizedBox(width: 4),
                   Flexible(
                     child: Text(
-                      '${longDate(target.deadline)} · '
-                      '${target.isDone ? 'Done' : deadlineText(target.deadline, today)}',
+                      '${longDate(goal.deadline)} · '
+                      '${goal.isDone ? 'Done' : deadlineText(goal.deadline, today)}',
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: overdue
                             ? theme.colorScheme.error
@@ -266,14 +331,9 @@ class ProjectWorkSplit extends StatelessWidget {
 
 class _SessionsSection extends ConsumerWidget {
   final Project project;
-  final List<Target> targets;
   final Color color;
 
-  const _SessionsSection({
-    required this.project,
-    required this.targets,
-    required this.color,
-  });
+  const _SessionsSection({required this.project, required this.color});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -285,28 +345,23 @@ class _SessionsSection extends ConsumerWidget {
                 from: addDays(today, -recentSessionDays),
                 to: addDays(today, upcomingSessionDays),
                 projectId: project.id,
-                targetId: null,
+                timeBlockId: null,
               )),
             )
             .value ??
         const <Session>[];
-    final byId = {for (final t in targets) t.id: t};
-
     // Today's and past sessions, newest first (they can be marked).
     final recent = sessions.where((s) => !s.date.isAfter(today)).toList()
       ..sort((a, b) {
         final c = b.date.compareTo(a.date);
         return c != 0 ? c : a.startTime.compareTo(b.startTime);
       });
-    // Upcoming: skip done targets (their blocks no longer count).
     final upcoming = sessions
-        .where(
-          (s) => s.date.isAfter(today) && !(byId[s.targetId]?.isDone ?? true),
-        )
+        .where((s) => s.date.isAfter(today))
         .take(maxUpcomingSessions)
         .toList();
 
-    String title(Session s) => byId[s.targetId]?.title ?? 'Target';
+    String title(Session s) => s.label ?? project.name;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -319,19 +374,19 @@ class _SessionsSection extends ConsumerWidget {
             SessionTile(
               key: ValueKey('session-${s.key}'),
               session: s,
-              targetTitle: title(s),
+              title: title(s),
               color: color,
               canAttend: true,
             ),
         const SectionTitle('Upcoming'),
         if (upcoming.isEmpty)
-          const NoteText('No upcoming sessions. Add a time block to a target ⏰')
+          const NoteText('No upcoming sessions. Add a time block ⏰')
         else
           for (final s in upcoming)
             SessionTile(
               key: ValueKey('session-${s.key}'),
               session: s,
-              targetTitle: title(s),
+              title: title(s),
               color: color,
               canAttend: false,
             ),

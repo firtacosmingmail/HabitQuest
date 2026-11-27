@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/router/app_routes.dart';
 import '../../../core/widgets/message_view.dart';
 import '../models/project.dart';
-import '../models/target.dart';
+import '../models/goal.dart';
 import '../projects_providers.dart';
 import 'widgets/project_widgets.dart';
 
@@ -218,8 +218,7 @@ class ProjectCard extends ConsumerWidget {
     final theme = Theme.of(context);
     final color = projectColor(project.id);
     final targets =
-        ref.watch(targetsOfProjectProvider(project.id)).value ??
-        const <Target>[];
+        ref.watch(goalsOfProjectProvider(project.id)).value ?? const <Goal>[];
     final done = targets.where((t) => t.isDone).length;
 
     return Card(
@@ -281,7 +280,7 @@ class ProjectCard extends ConsumerWidget {
 }
 
 class _TargetProgressRow extends ConsumerWidget {
-  final Target target;
+  final Goal target;
   final Color color;
 
   const _TargetProgressRow({required this.target, required this.color});
@@ -303,7 +302,7 @@ class _TargetProgressRow extends ConsumerWidget {
               ),
             ),
             const SizedBox(width: 8),
-            TargetStatusChip(status: target.status),
+            GoalStatusChip(status: target.status),
           ],
         ),
         const SizedBox(height: 4),

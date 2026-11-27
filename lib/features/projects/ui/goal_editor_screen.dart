@@ -6,38 +6,36 @@ import '../../../core/router/app_routes.dart';
 import '../../../core/utils/dates.dart';
 import '../../../core/widgets/message_view.dart';
 import '../../../domain/providers.dart';
-import '../domain/overlap.dart';
 import '../models/consistent_action.dart';
 import '../models/plan_task.dart';
-import '../models/target.dart';
+import '../models/goal.dart';
 import '../projects_providers.dart';
-import 'action_form_sheet.dart';
 import 'widgets/project_widgets.dart';
 
-/// Target create (`/projects/:id/targets/new`, [targetId] == null) and edit
-/// (`/projects/:id/targets/:tid`): title, deadline and status (manual), the
+/// Goal create (`/projects/:id/goals/new`, [goalId] == null) and edit
+/// (`/projects/:id/goals/:gid`): title, deadline and status (manual), the
 /// PLAN (tasks with an optional delivery date, checked off by the user) and
-/// the CONSISTENT ACTIONS (time blocks).
+/// the CONSISTENT ACTIONS (text items). Time blocks live on the project.
 ///
-/// After creating, the screen is replaced by the editor of the new target
-/// so the plan and time blocks can be added.
-class TargetEditorScreen extends ConsumerStatefulWidget {
+/// After creating, the screen is replaced by the editor of the new goal so
+/// the plan and actions can be added.
+class GoalEditorScreen extends ConsumerStatefulWidget {
   final String projectId;
-  final String? targetId;
+  final String? goalId;
 
-  const TargetEditorScreen({super.key, required this.projectId, this.targetId});
+  const GoalEditorScreen({super.key, required this.projectId, this.goalId});
 
-  bool get isNew => targetId == null;
+  bool get isNew => goalId == null;
 
   @override
-  ConsumerState<TargetEditorScreen> createState() => _TargetEditorScreenState();
+  ConsumerState<GoalEditorScreen> createState() => _GoalEditorScreenState();
 }
 
-class _TargetEditorScreenState extends ConsumerState<TargetEditorScreen> {
+class _GoalEditorScreenState extends ConsumerState<GoalEditorScreen> {
   final _title = TextEditingController();
   late DateTime _deadline;
-  TargetStatus _status = TargetStatus.notStarted;
-  Target? _original;
+  GoalStatus _status = GoalStatus.notStarted;
+  Goal? _original;
   String? _error;
   String? _titleError;
   bool _saving = false;
@@ -46,14 +44,14 @@ class _TargetEditorScreenState extends ConsumerState<TargetEditorScreen> {
   void initState() {
     super.initState();
     _deadline = addDays(ref.read(todayProvider), 30);
-    final id = widget.targetId;
+    final id = widget.goalId;
     if (id != null) {
-      final t = ref.read(projectServiceProvider).data.target(id);
+      final t = ref.read(projectServiceProvider).data.goal(id);
       if (t != null) _load(t);
     }
   }
 
-  void _load(Target t) {
+  void _load(Goal t) {
     _original = t;
     _title.text = t.title;
     _deadline = t.deadline;
@@ -105,7 +103,7 @@ class _TargetEditorScreenState extends ConsumerState<TargetEditorScreen> {
     try {
       final o = _original;
       if (o == null) {
-        final t = await service.createTarget(
+        final t = await service.createGoal(
           projectId: widget.projectId,
           title: title,
           deadline: _deadline,
@@ -113,12 +111,12 @@ class _TargetEditorScreenState extends ConsumerState<TargetEditorScreen> {
         );
         if (mounted) {
           context.pushReplacement(
-            AppRoutes.targetEditor(widget.projectId, t.id),
+            AppRoutes.goalEditor(widget.projectId, t.id),
           );
         }
         return;
       }
-      final saved = await service.updateTarget(
+      final saved = await service.updateGoal(
         o.copyWith(title: title, deadline: _deadline, status: _status),
       );
       if (mounted) {
@@ -127,9 +125,8 @@ class _TargetEditorScreenState extends ConsumerState<TargetEditorScreen> {
           context,
         ).showSnackBar(const SnackBar(content: Text('Target saved ✨')));
       }
-    } on ActionOverlapException catch (e) {
-      // Refused (a later deadline or reopening would clash): nothing saved.
-      if (mounted) setState(() => _error = e.message);
+    } on ArgumentError catch (e) {
+      if (mounted) setState(() => _error = '${e.message}');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -141,11 +138,11 @@ class _TargetEditorScreenState extends ConsumerState<TargetEditorScreen> {
     final ok = await confirmDialog(
       context,
       title: 'Delete “${o.title}”?',
-      message: 'Its plan and time blocks are deleted too.',
+      message: 'Its plan and consistent actions are deleted too.',
       confirmLabel: 'Delete',
     );
     if (!ok) return;
-    await ref.read(projectServiceProvider).deleteTarget(o.id);
+    await ref.read(projectServiceProvider).deleteGoal(o.id);
     if (mounted) context.pop();
   }
 
@@ -153,11 +150,11 @@ class _TargetEditorScreenState extends ConsumerState<TargetEditorScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final project = ref.watch(projectByIdProvider(widget.projectId)).value;
-    final live = widget.targetId == null
+    final live = widget.goalId == null
         ? null
-        : ref.watch(targetByIdProvider(widget.targetId!));
+        : ref.watch(goalByIdProvider(widget.goalId!));
 
-    if (widget.targetId != null &&
+    if (widget.goalId != null &&
         live != null &&
         live.hasValue &&
         live.value == null) {
@@ -222,11 +219,11 @@ class _TargetEditorScreenState extends ConsumerState<TargetEditorScreen> {
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
-            child: SegmentedButton<TargetStatus>(
+            child: SegmentedButton<GoalStatus>(
               key: const ValueKey('target-status'),
               showSelectedIcon: false,
               segments: [
-                for (final s in TargetStatus.values)
+                for (final s in GoalStatus.values)
                   ButtonSegment(
                     value: s,
                     icon: Icon(statusIcon(s)),
@@ -251,7 +248,7 @@ class _TargetEditorScreenState extends ConsumerState<TargetEditorScreen> {
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
               child: OverlapMessageCard(
                 key: const ValueKey('target-save-error'),
-                title: 'Change refused: it would clash',
+                title: 'Could not save',
                 message: _error!,
               ),
             ),
@@ -265,11 +262,11 @@ class _TargetEditorScreenState extends ConsumerState<TargetEditorScreen> {
             ),
           ),
           if (_original != null) ...[
-            _PlanSection(target: _original!, color: color),
-            _ActionsSection(target: _original!, color: color),
+            _PlanSection(goal: _original!, color: color),
+            _ConsistentActionsSection(goal: _original!),
           ] else
             const NoteText(
-              'Create the target first, then add its plan and time blocks.',
+              'Create the target first, then add its plan and actions.',
             ),
         ],
       ),
@@ -280,24 +277,24 @@ class _TargetEditorScreenState extends ConsumerState<TargetEditorScreen> {
 // Plan -----------------------------------------------------------------------
 
 class _PlanSection extends ConsumerWidget {
-  final Target target;
+  final Goal goal;
   final Color color;
 
-  const _PlanSection({required this.target, required this.color});
+  const _PlanSection({required this.goal, required this.color});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tasks =
-        ref.watch(planTasksOfTargetProvider(target.id)).value ??
+        ref.watch(planTasksOfGoalProvider(goal.id)).value ??
         const <PlanTask>[];
-    final progress = watchPlanProgress(ref, target.id);
+    final progress = watchPlanProgress(ref, goal.id);
     final service = ref.read(projectServiceProvider);
 
     Future<void> add() async {
       final r = await showPlanTaskDialog(context);
       if (r == null) return;
       await service.addPlanTask(
-        targetId: target.id,
+        goalId: goal.id,
         title: r.title,
         deliveryDate: r.deliveryDate,
       );
@@ -491,93 +488,132 @@ class _PlanTaskDialogState extends State<_PlanTaskDialog> {
   }
 }
 
-// Consistent actions ---------------------------------------------------------
+// Consistent actions (text items) --------------------------------------------
 
-class _ActionsSection extends ConsumerWidget {
-  final Target target;
-  final Color color;
+/// The goal's consistent actions: a plain list of text items (add, edit,
+/// delete). Minimal for now; drag-to-reorder and inline edit come with the
+/// screens rework.
+class _ConsistentActionsSection extends ConsumerWidget {
+  final Goal goal;
 
-  const _ActionsSection({required this.target, required this.color});
+  const _ConsistentActionsSection({required this.goal});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final actions =
-        ref.watch(actionsOfTargetProvider(target.id)).value ??
+        ref.watch(consistentActionsOfGoalProvider(goal.id)).value ??
         const <ConsistentAction>[];
-    // The editor's copy may be stale after a save: use the stored target.
-    final current = ref.watch(targetByIdProvider(target.id)).value ?? target;
+    final service = ref.read(projectServiceProvider);
+
+    Future<void> add() async {
+      final text = await showConsistentActionDialog(context);
+      if (text == null) return;
+      await service.addConsistentAction(goalId: goal.id, text: text);
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SectionTitle(
-          'Time blocks',
+          'Consistent actions',
           trailing: TextButton.icon(
-            key: const ValueKey('add-action'),
-            onPressed: () => showActionForm(context, target: current),
+            key: const ValueKey('add-consistent-action'),
+            onPressed: add,
             icon: const Icon(Icons.add_rounded),
             label: const Text('Add'),
           ),
         ),
-        const NoteText(
-          'Consistent actions: regular sessions up to the deadline. Time blocks never overlap.',
-        ),
+        if (actions.isEmpty)
+          const NoteText('What will you keep doing to get there?'),
         for (final a in actions)
-          ConsistentActionTile(
-            action: a,
-            color: color,
-            onTap: () => showActionForm(context, target: current, action: a),
+          Card(
+            key: ValueKey('consistent-action-${a.id}'),
+            child: ListTile(
+              leading: const Icon(Icons.repeat_rounded),
+              title: Text(a.text),
+              onTap: () async {
+                final text = await showConsistentActionDialog(
+                  context,
+                  initial: a.text,
+                );
+                if (text == null) return;
+                await service.editConsistentAction(a.id, text);
+              },
+              trailing: IconButton(
+                key: ValueKey('consistent-action-delete-${a.id}'),
+                tooltip: 'Remove',
+                icon: const Icon(Icons.close_rounded),
+                onPressed: () => service.deleteConsistentAction(a.id),
+              ),
+            ),
           ),
       ],
     );
   }
 }
 
-/// A consistent action: recurrence, times and optional start date.
-class ConsistentActionTile extends ConsumerWidget {
-  final ConsistentAction action;
-  final Color color;
-  final VoidCallback? onTap;
+/// Add / edit the text of a consistent action. Returns the trimmed text.
+Future<String?> showConsistentActionDialog(
+  BuildContext context, {
+  String? initial,
+}) => showDialog<String>(
+  context: context,
+  builder: (_) => _ConsistentActionDialog(initial: initial),
+);
 
-  const ConsistentActionTile({
-    super.key,
-    required this.action,
-    required this.color,
-    this.onTap,
-  });
+class _ConsistentActionDialog extends StatefulWidget {
+  final String? initial;
+
+  const _ConsistentActionDialog({this.initial});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final a = action;
-    return Card(
-      key: ValueKey('action-tile-${a.id}'),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: color.withValues(alpha: 0.18),
-          child: Icon(Icons.schedule_rounded, color: color),
-        ),
-        title: Text(
-          '${describeRecurrence(a.recurrence)} · ${a.startTime}–${a.endTime}',
-        ),
-        subtitle: a.startDate == null
-            ? null
-            : Text('From ${longDate(a.startDate!)}'),
-        onTap: onTap,
-        trailing: IconButton(
-          key: ValueKey('action-delete-${a.id}'),
-          tooltip: 'Delete time block',
-          icon: const Icon(Icons.delete_outline_rounded),
-          onPressed: () async {
-            final ok = await confirmDialog(
-              context,
-              title: 'Delete this time block?',
-              message: 'Its sessions and attended marks disappear too.',
-              confirmLabel: 'Delete',
-            );
-            if (ok) await ref.read(projectServiceProvider).deleteAction(a.id);
-          },
-        ),
+  State<_ConsistentActionDialog> createState() =>
+      _ConsistentActionDialogState();
+}
+
+class _ConsistentActionDialogState extends State<_ConsistentActionDialog> {
+  late final _text = TextEditingController(text: widget.initial ?? '');
+  String? _error;
+
+  @override
+  void dispose() {
+    _text.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final t = _text.text.trim();
+    if (t.isEmpty) {
+      setState(() => _error = 'Write something');
+      return;
+    }
+    Navigator.of(context).pop(t);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.initial == null ? 'New action' : 'Edit action'),
+      content: TextField(
+        key: const ValueKey('consistent-action-text'),
+        controller: _text,
+        autofocus: true,
+        maxLength: 200,
+        textCapitalization: TextCapitalization.sentences,
+        decoration: InputDecoration(labelText: 'Action', errorText: _error),
+        onSubmitted: (_) => _submit(),
       ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          key: const ValueKey('consistent-action-save'),
+          onPressed: _submit,
+          child: Text(widget.initial == null ? 'Add' : 'Save'),
+        ),
+      ],
     );
   }
 }

@@ -1,6 +1,6 @@
 /// Small building blocks of the Projects UI, shared by the list, the
-/// details and the target editor (and reusable by the calendar task:
-/// [projectColor], [TargetStatusChip], [PlanProgressBar], [SessionTile],
+/// details and the goal editor (and reusable by the calendar task:
+/// [projectColor], [GoalStatusChip], [PlanProgressBar], [SessionTile],
 /// [OverlapMessageCard]).
 library;
 
@@ -13,7 +13,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../habits/widgets/check_in_button.dart';
 import '../../domain/overlap.dart';
 import '../../models/session.dart';
-import '../../models/target.dart';
+import '../../models/goal.dart';
 import '../../projects_providers.dart';
 
 /// A stable, bright colour per project (derived from its id, so it is the
@@ -39,14 +39,14 @@ Color projectColor(String projectId) {
 }
 
 /// Plan progress (done / total) for display only, the same numbers as
-/// `planProgressProvider`. Computed from [planTasksOfTargetProvider]
+/// `planProgressProvider`. Computed from [planTasksOfGoalProvider]
 /// (one level above the data stream): watching the two-level
 /// `planProgressProvider` from lazily built tiles makes Riverpod refresh
 /// the scope during a build when a write lands (see the note in
 /// `lib/domain/providers.dart`).
-({int done, int total}) watchPlanProgress(WidgetRef ref, String targetId) {
+({int done, int total}) watchPlanProgress(WidgetRef ref, String goalId) {
   final tasks =
-      ref.watch(planTasksOfTargetProvider(targetId)).value ?? const [];
+      ref.watch(planTasksOfGoalProvider(goalId)).value ?? const [];
   return (done: tasks.where((t) => t.done).length, total: tasks.length);
 }
 
@@ -56,31 +56,31 @@ String shortDate(DateTime d) => DateFormat('EEE d MMM').format(d);
 /// `16 Nov 2026`.
 String longDate(DateTime d) => DateFormat('d MMM y').format(d);
 
-String statusLabel(TargetStatus s) => switch (s) {
-  TargetStatus.notStarted => 'Not started',
-  TargetStatus.inProgress => 'In progress',
-  TargetStatus.done => 'Done',
+String statusLabel(GoalStatus s) => switch (s) {
+  GoalStatus.notStarted => 'Not started',
+  GoalStatus.inProgress => 'In progress',
+  GoalStatus.done => 'Done',
 };
 
-IconData statusIcon(TargetStatus s) => switch (s) {
-  TargetStatus.notStarted => Icons.radio_button_unchecked_rounded,
-  TargetStatus.inProgress => Icons.timelapse_rounded,
-  TargetStatus.done => Icons.check_circle_rounded,
+IconData statusIcon(GoalStatus s) => switch (s) {
+  GoalStatus.notStarted => Icons.radio_button_unchecked_rounded,
+  GoalStatus.inProgress => Icons.timelapse_rounded,
+  GoalStatus.done => Icons.check_circle_rounded,
 };
 
-Color statusColor(TargetStatus s) => switch (s) {
-  TargetStatus.notStarted => const Color(0xFF8E8AA8),
-  TargetStatus.inProgress => AppColors.flame,
-  TargetStatus.done => AppColors.mint,
+Color statusColor(GoalStatus s) => switch (s) {
+  GoalStatus.notStarted => const Color(0xFF8E8AA8),
+  GoalStatus.inProgress => AppColors.flame,
+  GoalStatus.done => AppColors.mint,
 };
 
-/// A pill with the target's status. With [onChanged] it opens a menu to
+/// A pill with the goal's status. With [onChanged] it opens a menu to
 /// pick another status (manual only; the app never changes it itself).
-class TargetStatusChip extends StatelessWidget {
-  final TargetStatus status;
-  final ValueChanged<TargetStatus>? onChanged;
+class GoalStatusChip extends StatelessWidget {
+  final GoalStatus status;
+  final ValueChanged<GoalStatus>? onChanged;
 
-  const TargetStatusChip({super.key, required this.status, this.onChanged});
+  const GoalStatusChip({super.key, required this.status, this.onChanged});
 
   @override
   Widget build(BuildContext context) {
@@ -109,12 +109,12 @@ class TargetStatusChip extends StatelessWidget {
       ),
     );
     if (onChanged == null) return pill;
-    return PopupMenuButton<TargetStatus>(
+    return PopupMenuButton<GoalStatus>(
       tooltip: 'Change status',
       initialValue: status,
       onSelected: onChanged,
       itemBuilder: (_) => [
-        for (final s in TargetStatus.values)
+        for (final s in GoalStatus.values)
           PopupMenuItem(
             key: ValueKey('status-option-${s.name}'),
             value: s,
@@ -179,18 +179,18 @@ class PlanProgressBar extends StatelessWidget {
   }
 }
 
-/// One session (a consistent action's occurrence) with a bouncy attend
+/// One session (a project time block's occurrence) with a bouncy attend
 /// button. Only today's and past sessions can be marked ([canAttend]).
 class SessionTile extends ConsumerWidget {
   final Session session;
-  final String targetTitle;
+  final String title;
   final Color color;
   final bool canAttend;
 
   const SessionTile({
     super.key,
     required this.session,
-    required this.targetTitle,
+    required this.title,
     required this.color,
     required this.canAttend,
   });
@@ -217,7 +217,7 @@ class SessionTile extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(targetTitle, style: theme.textTheme.titleMedium),
+                  Text(title, style: theme.textTheme.titleMedium),
                   Text(
                     '${shortDate(s.date)} · ${s.startTime}–${s.endTime}',
                     style: theme.textTheme.bodyMedium?.copyWith(
@@ -236,7 +236,7 @@ class SessionTile extends ConsumerWidget {
                 semanticLabel: s.attended ? 'Unmark attended' : 'Mark attended',
                 onPressed: () => ref
                     .read(projectServiceProvider)
-                    .setSessionAttended(s.actionId, s.date, !s.attended),
+                    .setSessionAttended(s.timeBlockId, s.date, !s.attended),
               )
             else
               Tooltip(
@@ -254,7 +254,7 @@ class SessionTile extends ConsumerWidget {
   }
 }
 
-/// The blocking overlap message (from [ActionOverlapException.message]).
+/// The blocking overlap message (from [TimeBlockOverlapException.message]).
 class OverlapMessageCard extends StatelessWidget {
   final String message;
   final String title;
@@ -307,10 +307,10 @@ class OverlapMessageCard extends StatelessWidget {
   }
 }
 
-/// Live clash preview for the action form: every clash with its target,
+/// Live clash preview for the time block form: every clash with its project,
 /// project, times and first date.
 class ClashList extends StatelessWidget {
-  final List<ActionClash> clashes;
+  final List<TimeBlockClash> clashes;
 
   const ClashList({super.key, required this.clashes});
 
@@ -347,10 +347,10 @@ class ClashList extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(top: 4),
               child: Text(
-                '• “${c.target.title}”'
-                '${c.project == null ? '' : ' (${c.project!.name})'}: '
-                '${describeRecurrence(c.action.recurrence)} '
-                '${c.action.startTime}–${c.action.endTime}, '
+                '• “${c.project?.name ?? 'Unknown project'}”'
+                '${c.block.label == null ? '' : ' (${c.block.label})'}: '
+                '${describeRecurrence(c.block.recurrence)} '
+                '${c.block.startTime}–${c.block.endTime}, '
                 'first on ${shortDate(c.firstDate)}',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: scheme.onSurface,
@@ -363,7 +363,7 @@ class ClashList extends StatelessWidget {
   }
 }
 
-/// Shows a refused target change (an [ActionOverlapException]) in a dialog.
+/// Shows a refused time block change (a [TimeBlockOverlapException]) in a dialog.
 Future<void> showOverlapDialog(BuildContext context, String message) =>
     showDialog<void>(
       context: context,

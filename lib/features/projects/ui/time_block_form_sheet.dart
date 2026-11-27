@@ -5,65 +5,70 @@ import '../../../core/theme/app_theme.dart';
 import '../../../domain/providers.dart';
 import '../domain/overlap.dart';
 import '../models/clock_time.dart';
-import '../models/consistent_action.dart';
-import '../models/target.dart';
+import '../models/project.dart';
+import '../models/time_block.dart';
 import '../projects_providers.dart';
 import 'widgets/project_widgets.dart';
 
-/// Default times of a new consistent action.
-const defaultActionStart = ClockTime(9, 0);
-const defaultActionEnd = ClockTime(10, 0);
+/// Default times of a new time block.
+const defaultBlockStart = ClockTime(9, 0);
+const defaultBlockEnd = ClockTime(10, 0);
 
-/// Opens the consistent action form for [target] (new when [action] is
-/// null). Returns `true` when saved.
-Future<bool> showActionForm(
+/// Opens the time block form for [project] (new when [block] is null).
+/// Returns `true` when saved.
+Future<bool> showTimeBlockForm(
   BuildContext context, {
-  required Target target,
-  ConsistentAction? action,
+  required Project project,
+  TimeBlock? block,
 }) async {
   final saved = await showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
-    builder: (_) => ActionFormSheet(target: target, action: action),
+    builder: (_) => TimeBlockFormSheet(project: project, block: block),
   );
   return saved ?? false;
 }
 
 enum _Mode { weekly, monthly }
 
-/// CONSISTENT ACTION form: start / end time, days of the week OR days of
-/// the month, optional start date. Clashes are shown live
-/// ([ProjectService.clashesFor]); saving a clashing block is BLOCKED: the
-/// service's [ActionOverlapException] message is shown and the form stays
-/// open.
-class ActionFormSheet extends ConsumerStatefulWidget {
-  final Target target;
-  final ConsistentAction? action;
+/// TIME BLOCK form (project level): optional label, start / end time, days
+/// of the week OR days of the month, optional start and end dates
+/// (open-ended without an end date). Clashes with any project's blocks are
+/// shown live ([ProjectService.clashesFor]); saving a clashing block is
+/// BLOCKED: the service's [TimeBlockOverlapException] message is shown and
+/// the form stays open.
+class TimeBlockFormSheet extends ConsumerStatefulWidget {
+  final Project project;
+  final TimeBlock? block;
 
-  const ActionFormSheet({super.key, required this.target, this.action});
+  const TimeBlockFormSheet({super.key, required this.project, this.block});
 
   @override
-  ConsumerState<ActionFormSheet> createState() => _ActionFormSheetState();
+  ConsumerState<TimeBlockFormSheet> createState() =>
+      _TimeBlockFormSheetState();
 }
 
-class _ActionFormSheetState extends ConsumerState<ActionFormSheet> {
+class _TimeBlockFormSheetState extends ConsumerState<TimeBlockFormSheet> {
+  late final _label = TextEditingController(text: widget.block?.label ?? '');
   late ClockTime _start;
   late ClockTime _end;
   late _Mode _mode;
   late Set<int> _weekdays;
   late Set<int> _monthDays;
   DateTime? _startDate;
+  DateTime? _endDate;
   String? _error;
   bool _saving = false;
 
   @override
   void initState() {
     super.initState();
-    final a = widget.action;
-    _start = a?.startTime ?? defaultActionStart;
-    _end = a?.endTime ?? defaultActionEnd;
+    final a = widget.block;
+    _start = a?.startTime ?? defaultBlockStart;
+    _end = a?.endTime ?? defaultBlockEnd;
     _startDate = a?.startDate;
+    _endDate = a?.endDate;
     switch (a?.recurrence) {
       case MonthlyRecurrence(:final monthDays):
         _mode = _Mode.monthly;
@@ -80,7 +85,7 @@ class _ActionFormSheetState extends ConsumerState<ActionFormSheet> {
     }
   }
 
-  ActionRecurrence? get _recurrence => switch (_mode) {
+  BlockRecurrence? get _recurrence => switch (_mode) {
     _Mode.weekly => _weekdays.isEmpty ? null : WeeklyRecurrence(_weekdays),
     _Mode.monthly => _monthDays.isEmpty ? null : MonthlyRecurrence(_monthDays),
   };
@@ -90,21 +95,33 @@ class _ActionFormSheetState extends ConsumerState<ActionFormSheet> {
       return 'The end must be after the start (split blocks across midnight in two).';
     }
     if (_recurrence == null) return 'Pick at least one day.';
+    final s = _startDate, e = _endDate;
+    if (s != null && e != null && e.isBefore(s)) {
+      return 'The end date must not be before the start date.';
+    }
     return null;
   }
 
-  /// The action as it would be saved (for the live clash check).
-  ConsistentAction? _candidate() {
+  @override
+  void dispose() {
+    _label.dispose();
+    super.dispose();
+  }
+
+  /// The block as it would be saved (for the live clash check).
+  TimeBlock? _candidate() {
     final r = _recurrence;
-    if (r == null || !_start.isBefore(_end)) return null;
-    final existing = widget.action;
-    return ConsistentAction(
+    if (r == null || _validation != null) return null;
+    final existing = widget.block;
+    return TimeBlock(
       id: existing?.id ?? '__draft__',
-      targetId: widget.target.id,
+      projectId: widget.project.id,
+      label: _label.text,
       startTime: _start,
       endTime: _end,
       recurrence: r,
       startDate: _startDate,
+      endDate: _endDate,
       createdAt: existing?.createdAt ?? ref.read(clockProvider)(),
     );
   }
@@ -143,6 +160,22 @@ class _ActionFormSheetState extends ConsumerState<ActionFormSheet> {
     }
   }
 
+  Future<void> _pickEndDate() async {
+    final today = ref.read(todayProvider);
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _endDate ?? _startDate ?? today,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (picked != null) {
+      setState(() {
+        _endDate = picked;
+        _error = null;
+      });
+    }
+  }
+
   Future<void> _save() async {
     if (_validation != null) return;
     final service = ref.read(projectServiceProvider);
@@ -151,27 +184,31 @@ class _ActionFormSheetState extends ConsumerState<ActionFormSheet> {
       _error = null;
     });
     try {
-      final existing = widget.action;
+      final existing = widget.block;
       if (existing == null) {
-        await service.createAction(
-          targetId: widget.target.id,
+        await service.createTimeBlock(
+          projectId: widget.project.id,
+          label: _label.text,
           startTime: _start,
           endTime: _end,
           recurrence: _recurrence!,
           startDate: _startDate,
+          endDate: _endDate,
         );
       } else {
-        await service.updateAction(
+        await service.updateTimeBlock(
           existing.copyWith(
+            label: () => _label.text,
             startTime: _start,
             endTime: _end,
             recurrence: _recurrence,
             startDate: () => _startDate,
+            endDate: () => _endDate,
           ),
         );
       }
       if (mounted) Navigator.of(context).pop(true);
-    } on ActionOverlapException catch (e) {
+    } on TimeBlockOverlapException catch (e) {
       // BLOCKED: keep the form open with the message.
       if (mounted) setState(() => _error = e.message);
     } on ArgumentError catch (e) {
@@ -187,11 +224,10 @@ class _ActionFormSheetState extends ConsumerState<ActionFormSheet> {
     // Rebuild on data changes so the live clash check stays current.
     ref.watch(projectsDataProvider);
     final service = ref.read(projectServiceProvider);
-    final target = service.data.target(widget.target.id) ?? widget.target;
     final candidate = _candidate();
     final clashes = candidate == null
-        ? const <ActionClash>[]
-        : service.clashesFor(candidate, target: target);
+        ? const <TimeBlockClash>[]
+        : service.clashesFor(candidate);
     final validation = _validation;
 
     return Padding(
@@ -203,16 +239,28 @@ class _ActionFormSheetState extends ConsumerState<ActionFormSheet> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              widget.action == null ? 'New time block' : 'Edit time block',
+              widget.block == null ? 'New time block' : 'Edit time block',
               style: theme.textTheme.headlineSmall,
             ),
             Text(
-              'For “${target.title}”, up to its deadline (${longDate(target.deadline)}).',
+              'For “${widget.project.name}”.',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
+            TextField(
+              key: const ValueKey('block-label'),
+              controller: _label,
+              maxLength: 80,
+              textCapitalization: TextCapitalization.sentences,
+              onChanged: (_) => setState(() => _error = null),
+              decoration: const InputDecoration(
+                labelText: 'Label (optional)',
+                hintText: 'e.g. Editing',
+              ),
+            ),
+            const SizedBox(height: 8),
             Row(
               children: [
                 Expanded(
@@ -336,6 +384,29 @@ class _ActionFormSheetState extends ConsumerState<ActionFormSheet> {
                       onPressed: () => setState(() => _startDate = null),
                     ),
             ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.event_available_rounded),
+              title: const Text('End date'),
+              subtitle: Text(
+                _endDate == null
+                    ? 'Ongoing (no end date)'
+                    : 'Until ${longDate(_endDate!)}',
+              ),
+              onTap: _pickEndDate,
+              trailing: _endDate == null
+                  ? TextButton(
+                      key: const ValueKey('block-end-date'),
+                      onPressed: _pickEndDate,
+                      child: const Text('Pick'),
+                    )
+                  : IconButton(
+                      key: const ValueKey('block-clear-end-date'),
+                      tooltip: 'Clear end date',
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: () => setState(() => _endDate = null),
+                    ),
+            ),
             if (validation != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
@@ -363,7 +434,7 @@ class _ActionFormSheetState extends ConsumerState<ActionFormSheet> {
               key: const ValueKey('save-action'),
               onPressed: _saving || validation != null ? null : _save,
               icon: const Icon(Icons.check_rounded),
-              label: Text(widget.action == null ? 'Add time block' : 'Save'),
+              label: Text(widget.block == null ? 'Add time block' : 'Save'),
             ),
           ],
         ),
