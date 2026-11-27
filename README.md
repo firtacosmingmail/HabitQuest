@@ -1012,10 +1012,11 @@ What syncs: habits, check-ins, the game state, and the **Projects** records
 (projects, goals, plan tasks, time blocks, consistent actions and session
 marks; see docs/PROJECTS.md and supabase/API.md "Projects"). Projects follow
 exactly the same rules as habits below. The first Projects backend (targets)
-is **live** on `fwikodmrfoorbstmkedx` since **2026-11-18**; the goals / time
+went live on `fwikodmrfoorbstmkedx` on **2026-11-18**; the goals / time
 blocks rework (migration `20261127120000_goals_time_blocks.sql`, functions
-`goals` and `time-blocks`, new `consistent-actions`) is **not deployed yet**
-(see [Backend](#backend-supabase) "Deploy status").
+`goals` and `time-blocks`, new `consistent-actions`) is **live since
+2026-11-27** and the old `targets` function is deleted (see
+[Backend](#backend-supabase) "Deploy status").
 
 ### Local model
 
@@ -1208,8 +1209,9 @@ Local data is tied to the user id that first synced it (`sync_meta` box):
   run end to end against the **local** Supabase stack with
   `test/e2e/projects_sync_e2e_test.dart` (skipped unless `HQ_E2E_URL`,
   `HQ_E2E_ANON_KEY` and `HQ_E2E_SERVICE_KEY` are set; the header explains
-  how, local keys only). It still needs a check against the live project
-  once the Projects backend is deployed there.
+  how, local keys only). The Projects backend (with the goals / time blocks
+  rework) is live; a signed-in sync of the rework from a device against the
+  live project is still to be checked.
 
 ## Architecture overview
 
@@ -1540,8 +1542,8 @@ supabase functions deploy projects goals time-blocks plan-tasks consistent-actio
 # or all at once (uses config.toml): supabase functions deploy
 ```
 
-**Pending deploy (Projects rework: goals, project time blocks, text
-consistent actions): NOT deployed yet.** Migration
+**Deploy status (Projects rework: goals, project time blocks, text
+consistent actions): live since 2026-11-27.** Migration
 `20261127120000_goals_time_blocks.sql` renames `targets` → `goals`, turns
 `consistent_actions` into project `time_blocks` (back-filled), re-points
 `session_marks` and creates the new `consistent_actions` table. Deploy the
@@ -1561,7 +1563,34 @@ shapes of `/consistent-actions`, `/plan-tasks` and `/session-marks`, so their
 Projects sync fails (habits keep syncing) until they update. The new app
 resets its Projects pull cursors on first launch (one full pull).
 
-**Deploy status (Projects): live since 2026-11-18.** On
+On 2026-11-27 these exact commands ran on `fwikodmrfoorbstmkedx` (the
+migration list and the dry run showed only `20261127120000` pending). Before
+the push a data-only backup of `public` was taken with
+`supabase db dump --linked --data-only -s public -f <scratch dir outside the repo>/pre-rework-data.sql`
+(never committed). Verified right after: `goals`, `time-blocks`,
+`consistent-actions`, `projects`, `plan-tasks` and `session-marks` answer 401
+without a token; `habits` and `check-ins` still answer 401 without a token;
+`/targets` returns 404; `supabase migration list` shows `20261127120000`
+applied; a read-only count found 2 goals, 4 time blocks (all with
+`project_id`), 8 session marks, 2 projects and 7 plan tasks, the same rows
+as before the rename. A signed-in sync from the debug app on a phone was not
+run that day (no device connected).
+
+Rollback notes (Projects rework). There is no down migration. If the rework
+must be undone: (1) redeploy the previous functions from the commit before
+the rework (`git worktree add` that commit, then
+`supabase functions deploy projects targets plan-tasks consistent-actions session-marks admin-stats account-delete --no-verify-jwt`
+from it) and `supabase functions delete goals time-blocks`; (2) write a new
+forward migration that drops the new `consistent_actions` table, renames
+`time_blocks` → `consistent_actions` and `goals` → `targets` (with their
+constraints, indexes, triggers and policies), restores
+`plan_tasks.target_id` and the `target_id` link of the actions, and
+re-points `session_marks`; (3) if data was lost, restore the rows from the
+pre-rework data backup. Never edit `20261127120000` in place, and never
+`supabase config push`. App builds from after the rework would then stop
+syncing Projects until they are rolled back too.
+
+**Deploy status (Projects, first version): live since 2026-11-18.** On
 `fwikodmrfoorbstmkedx`: migrations `20261114120000_projects.sql` and
 `20261114130000_admin_stats_projects.sql` applied with `supabase db push`
 (only those two were pending), then
