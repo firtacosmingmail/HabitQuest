@@ -57,13 +57,13 @@ class _SignInScreenState extends State<SignInScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    'HabitQuest Admin',
+                    'Perseveo Admin',
                     style: text.headlineMedium,
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Admins only. Sign in with your HabitQuest account.',
+                    'Admins only. Sign in with your Perseveo account.',
                     textAlign: TextAlign.center,
                     style: text.bodyMedium,
                   ),

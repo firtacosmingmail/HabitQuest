@@ -1,6 +1,6 @@
 /// Background refresh of the widget snapshot after midnight, while the app
 /// is not running (Android: `WidgetRefreshWorker` → home_widget background
-/// callback with `habitquest://widget/refresh`; see `docs/WIDGETS.md`,
+/// callback with `perseveo://widget/refresh`; see `docs/WIDGETS.md`,
 /// "Daily roll-over without the app").
 ///
 /// Before this, only the running app fetched the quote of the day
@@ -19,7 +19,7 @@
 /// `Authorization` header, "Signed-out reads" in `supabase/API.md`) through
 /// the same `HttpQuotesApi` and `ApiTransport`, and written into the
 /// `signedOut` snapshot: the Daily quote widget keeps showing the quote of
-/// the day, Today's habits shows "Open HabitQuest". When that read fails
+/// the day, Today's habits shows "Open Perseveo". When that read fails
 /// (offline, or a backend that still answers 401), the last quote stays.
 library;
 
@@ -50,7 +50,7 @@ enum WidgetRefreshOutcome {
 
   /// The user is signed out (no stored session, or the refresh token was
   /// rejected): the snapshot is in the `signedOut` state (habits: "Open
-  /// HabitQuest") with the anonymously fetched quote of the day, or the
+  /// Perseveo") with the anonymously fetched quote of the day, or the
   /// last one when the server refused the anonymous read (401) or has no
   /// quotes. Offline returns [retryLater] instead.
   signedOut,

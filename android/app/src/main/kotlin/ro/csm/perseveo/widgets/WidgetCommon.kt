@@ -1,4 +1,4 @@
-package com.vvs.habitquest.widgets
+package ro.csm.perseveo.widgets
 
 import android.content.Context
 import android.content.Intent
@@ -9,7 +9,7 @@ import androidx.glance.appwidget.action.actionSendBroadcast
 import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.color.ColorProvider
 import androidx.glance.unit.ColorProvider
-import com.vvs.habitquest.MainActivity
+import ro.csm.perseveo.MainActivity
 import es.antonborri.home_widget.HomeWidgetBackgroundReceiver
 import es.antonborri.home_widget.HomeWidgetScheduler
 import java.util.Calendar
@@ -27,7 +27,7 @@ object WidgetColors {
     fun fixed(argb: Int): ColorProvider = ColorProvider(Color(argb))
 }
 
-/** Opens the app on [uri] (`habitquest://open` or `habitquest://quotes`) through Flutter deep linking. */
+/** Opens the app on [uri] (`perseveo://open` or `perseveo://quotes`) through Flutter deep linking. */
 fun openAppAction(context: Context, uri: String): Action {
     val intent = Intent(Intent.ACTION_VIEW, Uri.parse(uri), context, MainActivity::class.java)
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)

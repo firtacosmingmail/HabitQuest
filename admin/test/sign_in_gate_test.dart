@@ -10,7 +10,7 @@ void main() {
     await pumpApp(tester, fakeApi());
     await signIn(tester, adminEmail, password: 'nope');
     expect(find.text('Wrong email or password.'), findsOneWidget);
-    expect(find.text('HabitQuest Admin'), findsOneWidget);
+    expect(find.text('Perseveo Admin'), findsOneWidget);
     expect(find.byType(NavigationRail), findsNothing);
   });
 

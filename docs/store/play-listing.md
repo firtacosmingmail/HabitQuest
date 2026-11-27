@@ -7,7 +7,7 @@ short description 80, full description 4000 characters.
 ## App name (11/30)
 
 ```
-Habit Quest
+Perseveo
 ```
 
 ## Short description (80/80)
@@ -19,7 +19,7 @@ Build habits, keep streaks alive, earn XP and level up. Your daily quest awaits!
 ## Full description (~2,000/4,000)
 
 ```
-Turn your habits into a quest! Habit Quest is a playful habit tracker that rewards every check-in with XP, levels, streaks and achievements, so building a routine feels like a game you want to keep playing.
+Turn your habits into a quest! Perseveo is a playful habit tracker that rewards every check-in with XP, levels, streaks and achievements, so building a routine feels like a game you want to keep playing.
 
 ⚔️ BUILD YOUR HABITS
 • Create habits with a name, emoji and colour
@@ -57,7 +57,7 @@ Turn your habits into a quest! Habit Quest is a playful habit tracker that rewar
 🔒 PRIVACY
 Your habits are yours: we don't sell your data and never share your habits with advertisers. You can delete your account and all its data from the app at any time (Profile → Delete account).
 
-Habit Quest is free and shows a few small, clearly labelled banner ads in the habit list and habit details. In the EU/UK you choose how ads use your data before any ad is shown.
+Perseveo is free and shows a few small, clearly labelled banner ads in the habit list and habit details. In the EU/UK you choose how ads use your data before any ad is shown.
 
 Start your quest today: one habit, one check-in, one level at a time. 🌱
 ```
@@ -101,5 +101,5 @@ access* choose *All or some functionality is restricted* and add:
 ## Alpha release notes (en-US, ≤500)
 
 ```
-First test build of Habit Quest 🌱⚔️ Please try: creating habits with different schedules, checking in from the Habits tab, the calendar and the widgets, reminders, and sign-in with email/Google. Tell us what breaks or feels confusing!
+First test build of Perseveo 🌱⚔️ Please try: creating habits with different schedules, checking in from the Habits tab, the calendar and the widgets, reminders, and sign-in with email/Google. Tell us what breaks or feels confusing!
 ```

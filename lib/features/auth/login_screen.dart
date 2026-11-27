@@ -547,7 +547,7 @@ class _Welcome extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         Text(
-          'Habit Quest',
+          'Perseveo',
           textAlign: TextAlign.center,
           style: theme.textTheme.headlineMedium?.copyWith(
             fontWeight: FontWeight.w800,

@@ -166,13 +166,13 @@ void main() {
     test('Apple web flow needs the Services ID and the return URL', () {
       final half = cfg(
         OAuthPlatform.android,
-        ids: const OAuthIds(appleServiceId: 'com.habitquest.signin'),
+        ids: const OAuthIds(appleServiceId: 'ro.csm.perseveo.signin'),
       );
       expect(half.appleConfigured, isFalse);
       final full = cfg(
         OAuthPlatform.web,
         ids: const OAuthIds(
-          appleServiceId: 'com.habitquest.signin',
+          appleServiceId: 'ro.csm.perseveo.signin',
           appleRedirectUri: 'https://example.com/apple',
         ),
       );

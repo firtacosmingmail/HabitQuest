@@ -28,9 +28,9 @@ struct TodayHabitsView: View {
     Group {
       switch content.state {
       case .signedOut:
-        OpenAppPrompt(title: "Open HabitQuest", message: "Sign in to see today's habits.")
+        OpenAppPrompt(title: "Open Perseveo", message: "Sign in to see today's habits.")
       case .noHabits:
-        OpenAppPrompt(title: "No habits today", message: "Open HabitQuest to plan your quest.")
+        OpenAppPrompt(title: "No habits today", message: "Open Perseveo to plan your quest.")
       case .ok:
         habitList
       }

@@ -1,4 +1,4 @@
-package com.vvs.habitquest.widgets
+package ro.csm.perseveo.widgets
 
 import android.appwidget.AppWidgetManager
 import android.content.Context
@@ -30,14 +30,14 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextAlign
 import androidx.glance.text.TextStyle
-import com.vvs.habitquest.R
+import ro.csm.perseveo.R
 import es.antonborri.home_widget.HomeWidgetGlanceState
 import es.antonborri.home_widget.HomeWidgetGlanceStateDefinition
 import es.antonborri.home_widget.HomeWidgetGlanceWidgetReceiver
 
 /**
  * "Daily quote": today's quote and author, signed in or not (the snapshot
- * carries the public quote while signed out). A tap opens `habitquest://quotes`;
+ * carries the public quote while signed out). A tap opens `perseveo://quotes`;
  * the app routes it to the Quotes screen when signed in, or to the public quote
  * screen (`/quote`) when signed out.
  */

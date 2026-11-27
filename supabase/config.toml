@@ -155,7 +155,7 @@ max_indexes = 5
 enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
 # in emails.
-# Habit Quest: the hosted "email confirmed" page (see README "Email confirmation").
+# Perseveo: the hosted "email confirmed" page (see README "Email confirmation").
 site_url = "https://firtacosmingmail.github.io/HabitQuest/"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
@@ -164,7 +164,11 @@ additional_redirect_urls = [
   "https://firtacosmingmail.github.io/HabitQuest/",
   "https://firtacosmingmail.github.io/HabitQuest/error.html",
   "https://fwikodmrfoorbstmkedx.supabase.co/functions/v1/auth-confirm",
+  # Old scheme (live today; remove once no HabitQuest build is in use).
   "habitquest://auth-callback",
+  # New scheme after the Perseveo rename: NOT yet on the live project; add it
+  # in the dashboard (Authentication > URL Configuration). Never config push.
+  "perseveo://auth-callback",
 ]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
@@ -228,12 +232,12 @@ enable_signup = true
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
 # If enabled, users need to confirm their email address before signing in.
-# Habit Quest: ON (matches the live project). Never push this as false.
+# Perseveo: ON (matches the live project). Never push this as false.
 enable_confirmations = true
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
 secure_password_change = false
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
-# Habit Quest: max_frequency and otp_length match the live project.
+# Perseveo: max_frequency and otp_length match the live project.
 max_frequency = "1m0s"
 # Number of characters used in the email OTP.
 otp_length = 8
@@ -250,13 +254,13 @@ otp_expiry = 3600
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
 
-# Habit Quest: confirmation link goes to the auth-confirm Edge Function.
+# Perseveo: confirmation link goes to the auth-confirm Edge Function.
 # DISABLED: the live project is on the free tier with Supabase's default email
 # provider, which rejects template changes (HTTP 400 on `supabase config push`,
 # failing the WHOLE auth update). Uncomment once a custom SMTP provider is set
 # up in [auth.email.smtp] (or the plan is upgraded). See README "Email confirmation".
 # [auth.email.template.confirmation]
-# subject = "Confirm your Habit Quest account"
+# subject = "Confirm your Perseveo account"
 # content_path = "./supabase/templates/confirmation.html"
 
 # Uncomment to customize email template
@@ -316,7 +320,7 @@ max_enrolled_factors = 10
 
 # Control MFA via App Authenticator (TOTP)
 [auth.mfa.totp]
-# Habit Quest: matches the live project.
+# Perseveo: matches the live project.
 enroll_enabled = true
 verify_enabled = true
 

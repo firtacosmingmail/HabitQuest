@@ -2,7 +2,7 @@ import SwiftUI
 import WidgetKit
 
 /// "Daily quote": today's quote and author. A tap opens the Quotes screen
-/// (`habitquest://quotes`). Home Screen (small, medium) and, on iOS 16+, the
+/// (`perseveo://quotes`). Home Screen (small, medium) and, on iOS 16+, the
 /// Lock Screen (rectangular and inline).
 struct DailyQuoteWidget: Widget {
   var body: some WidgetConfiguration {
@@ -11,7 +11,7 @@ struct DailyQuoteWidget: Widget {
       DailyQuoteView(content: entry.content)
     }
     .configurationDisplayName("Daily quote")
-    .description("Today's uplifting quote from HabitQuest.")
+    .description("Today's uplifting quote from Perseveo.")
     .supportedFamilies(Self.families)
   }
 
@@ -95,10 +95,10 @@ struct DailyQuoteView: View {
   @ViewBuilder
   private var emptyView: some View {
     if isAccessory {
-      Text("Open HabitQuest")
+      Text("Open Perseveo")
     } else {
       OpenAppPrompt(
-        title: "Open HabitQuest",
+        title: "Open Perseveo",
         message: content.state == .signedOut
           ? "Sign in to get a quote every day." : "Today's quote will appear here.")
     }

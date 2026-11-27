@@ -86,7 +86,7 @@ Deno.test("wrong method is 405, OPTIONS is a CORS preflight", async () => {
 Deno.test("falls back to plain text when the page URLs are unset", async () => {
   const ok = await handleConfirm(new Request(`${base}?token_hash=abc`), fake(null).fn, {});
   assertEquals(ok.status, 200);
-  assertEquals(await ok.text(), "Email confirmed! Go back to Habit Quest and log in.");
+  assertEquals(await ok.text(), "Email confirmed! Go back to Perseveo and log in.");
   const bad = await handleConfirm(
     new Request(`${base}?token_hash=abc`),
     fake({ code: "otp_expired" }).fn,

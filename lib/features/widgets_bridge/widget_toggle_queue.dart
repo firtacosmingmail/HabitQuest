@@ -182,7 +182,7 @@ Future<int> applyPendingToggles(WidgetStore store, HabitService service) async {
 }
 
 /// Background callback body: records the check-off carried by [uri]
-/// (`habitquest://widget/toggle?habitId=`); ignores any other URI.
+/// (`perseveo://widget/toggle?habitId=`); ignores any other URI.
 Future<PendingToggle?> handleWidgetInteraction(
   Uri? uri,
   WidgetStore store, {

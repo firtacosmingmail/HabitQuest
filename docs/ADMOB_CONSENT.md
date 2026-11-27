@@ -5,7 +5,7 @@ cannot log in). The app side (Google UMP, then ATT on iOS) is already
 built: see README *Advertising (AdMob) > Consent and privacy*.
 
 - Publisher: `pub-5156448354942178`
-- Apps: **Habit Quest** iOS and Android, both `com.vvs.habitquest`
+- Apps: **Perseveo** iOS and Android, both `ro.csm.perseveo`
 - Privacy policy URL: `https://firtacosmingmail.github.io/HabitQuest/privacy.html`
   (**not live yet**: it returned 404 on 2026-11-14. It goes live in the
   release-checklist task, from `confirm-pages/privacy.html`. Publish it
@@ -42,7 +42,7 @@ serves only limited ads there.
 
 1. **Privacy & messaging** > **European regulations** card > **Create
    message**. (If one exists already: **Manage** > **Create message**.)
-2. **Select apps** > tick **Habit Quest (iOS)** and **Habit Quest
+2. **Select apps** > tick **Perseveo (iOS)** and **Perseveo
    (Android)** > **Confirm**.
    *Why:* one message for both apps keeps the wording and choices the same.
 3. **Languages**
@@ -65,7 +65,7 @@ serves only limited ads there.
 5. **Targeting: Countries subject to GDPR (EEA, UK, and Switzerland).**
    *Why:* this asks only users the law covers. "Everywhere" would show the
    form to US and other users for no reason and lose revenue.
-6. **Message name:** `Habit Quest – GDPR`. *Why:* only you see it, and it
+6. **Message name:** `Perseveo – GDPR`. *Why:* only you see it, and it
    tells the messages apart.
 7. **Privacy policy URL:** the URL above. *Why:* it's required, and the
    form links to it.
@@ -87,11 +87,11 @@ Google covers automatically.
 
 1. **Privacy & messaging** > **US state regulations** card > **Create
    message**. (If one exists already: **Manage** > **Create message**.)
-2. **Select apps** > both Habit Quest apps > **Confirm**.
+2. **Select apps** > both Perseveo apps > **Confirm**.
 3. **Languages:** default **English**, no extras (same reason as above).
 4. **Targeting: turn ON "All current and future supported US states".**
    *Why:* new states get covered without you editing the message.
-5. **Message name:** `Habit Quest – US states`.
+5. **Message name:** `Perseveo – US states`.
 6. **Privacy policy URL:** the same URL.
 7. **Styling:** same as the GDPR message, so the two look alike.
 8. **Publish.**
@@ -117,13 +117,13 @@ The app's own ATT call then finds the status already decided and doesn't
 ask a second time.
 
 1. **Privacy & messaging** > **IDFA** card > **Create message**.
-2. **Select apps** > **Habit Quest (iOS)** only > **Confirm**. (There is
+2. **Select apps** > **Perseveo (iOS)** only > **Confirm**. (There is
    no IDFA on Android.)
 3. **Languages:** default **English**.
-4. **Message name:** `Habit Quest – IDFA explainer`.
+4. **Message name:** `Perseveo – IDFA explainer`.
 5. **Explainer text:** keep Google's text, or shorten it to match the
    app's ATT text (in `Info.plist`):
-   *"Habit Quest is free thanks to a few small ads. Allowing tracking lets
+   *"Perseveo is free thanks to a few small ads. Allowing tracking lets
    us show ads that are more relevant to you. Your habits are never
    shared."*
    *Why:* the explainer and the Apple prompt should say the same thing.
@@ -201,7 +201,7 @@ The app logs `Ads: consent debug: geography=eea, test devices=1,
 reset=true` at start. Drop `ADS_CONSENT_RESET=true` to check that the
 choice is remembered between launches. Use `ADS_CONSENT_DEBUG_GEOGRAPHY=us`
 to test the US message through Settings > Ad privacy choices. You can also
-wipe everything with `adb shell pm clear com.vvs.habitquest` (this also
+wipe everything with `adb shell pm clear ro.csm.perseveo` (this also
 signs you out of the app).
 
 ---

@@ -15,7 +15,7 @@ import home_widget
 public struct HabitToggleIntent: AppIntent {
   public static var title: LocalizedStringResource = "Check off habit"
   public static var description = IntentDescription(
-    "Marks a HabitQuest habit as done (or not done) for today.")
+    "Marks a Perseveo habit as done (or not done) for today.")
   // Only used from the widget; keep it out of Shortcuts and Spotlight.
   public static var isDiscoverable: Bool = false
 
@@ -34,7 +34,7 @@ public struct HabitToggleIntent: AppIntent {
 
   public func perform() async throws -> some IntentResult {
     await HomeWidgetBackgroundWorker.run(
-      url: url, appGroup: appGroup ?? "group.com.vvs.habitquest")
+      url: url, appGroup: appGroup ?? "group.ro.csm.perseveo")
     return .result()
   }
 }

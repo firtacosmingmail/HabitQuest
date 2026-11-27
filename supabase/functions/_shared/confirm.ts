@@ -60,7 +60,7 @@ function errorResponse(cfg: ConfirmConfig, reason: ConfirmReason): Response {
       : reason === "missing"
       ? "This confirmation link is incomplete."
       : "This confirmation link is invalid.";
-    return text(400, `${msg} Please sign up again or request a new link from Habit Quest.`);
+    return text(400, `${msg} Please sign up again or request a new link from Perseveo.`);
   }
   const url = new URL(cfg.errorUrl);
   url.searchParams.set("reason", reason);
@@ -69,7 +69,7 @@ function errorResponse(cfg: ConfirmConfig, reason: ConfirmReason): Response {
 
 function successResponse(cfg: ConfirmConfig): Response {
   if (!cfg.successUrl) {
-    return text(200, "Email confirmed! Go back to Habit Quest and log in.");
+    return text(200, "Email confirmed! Go back to Perseveo and log in.");
   }
   return redirect(cfg.successUrl);
 }

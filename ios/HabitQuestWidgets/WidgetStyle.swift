@@ -5,7 +5,7 @@ import WidgetKit
 enum WidgetPalette {
   static let background = Color(uiColor: .systemBackground)
   static let card = Color(uiColor: .secondarySystemBackground)
-  static let brand = Color(red: 0.42, green: 0.36, blue: 0.91)  // HabitQuest violet
+  static let brand = Color(red: 0.42, green: 0.36, blue: 0.91)  // Perseveo violet
 }
 
 extension View {
@@ -21,7 +21,7 @@ extension View {
   }
 }
 
-/// The "Open HabitQuest" prompt for the `signedOut` and `noHabits` states.
+/// The "Open Perseveo" prompt for the `signedOut` and `noHabits` states.
 struct OpenAppPrompt: View {
   let title: String
   let message: String

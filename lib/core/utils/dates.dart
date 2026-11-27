@@ -1,6 +1,6 @@
 /// Date-only helpers.
 ///
-/// Habit Quest reasons about *calendar days in the user's local time zone*.
+/// Perseveo reasons about *calendar days in the user's local time zone*.
 /// Every date that enters the domain layer is normalised with [dateOnly] to a
 /// local-midnight `DateTime` (`DateTime(y, m, d)`). Arithmetic is done with the
 /// `DateTime(y, m, d + n)` constructor (never by adding `Duration(days: n)`),

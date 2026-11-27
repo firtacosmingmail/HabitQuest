@@ -1,11 +1,11 @@
 {
-    "name": "HabitQuest Admin",
+    "name": "Perseveo Admin",
     "short_name": "HQ Admin",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "HabitQuest admin console",
+    "description": "Perseveo admin console",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

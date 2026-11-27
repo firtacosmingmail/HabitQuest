@@ -14,7 +14,7 @@ Native code must use exactly these values. The package is
 
 | | iOS | Android |
 |---|---|---|
-| Container | App Group **`group.com.vvs.habitquest`** (`UserDefaults(suiteName:)`) | SharedPreferences file **`HomeWidgetPreferences`** (`HomeWidgetPlugin.getData(context)`) |
+| Container | App Group **`group.ro.csm.perseveo`** (`UserDefaults(suiteName:)`) | SharedPreferences file **`HomeWidgetPreferences`** (`HomeWidgetPlugin.getData(context)`) |
 | Snapshot key | `hq_widget_snapshot` (String, JSON) | `hq_widget_snapshot` (String, JSON) |
 | Toggle queue key | `hq_widget_toggle_queue` (internal, see below) | same |
 | Refresh status key | – | `hq_widget_refresh_status` (internal: Dart reports a background refresh's outcome to `WidgetRefreshWorker`) |
@@ -41,7 +41,7 @@ key. Check-offs go through the interactive callback (see below).
       "color": 4283222512,
       "colorHex": "#4CC9F0",
       "done": false,
-      "toggleUri": "habitquest://widget/toggle?habitId=6f1c…"
+      "toggleUri": "perseveo://widget/toggle?habitId=6f1c…"
     }
   ],
   "doneCount": 0,
@@ -63,11 +63,11 @@ key. Check-offs go through the interactive callback (see below).
 | `version` | Schema version. It is bumped only for breaking changes, and new fields may appear at any time. |
 | `date` | The local calendar day (`yyyy-MM-dd`) that the habits and `done` flags belong to. If it is **before today** (the app has not run since midnight), show every habit as not done. A check-off still works and rolls the snapshot over. |
 | `generatedAt` | When the snapshot was written (ISO-8601 UTC). Informational only. |
-| `state` | `ok`: signed in with at least one habit due today. `signedOut`: show an **"Open HabitQuest"** prompt (tap opens `habitquest://open`). `noHabits`: signed in but nothing is due today; show an "Open HabitQuest" prompt too, e.g. "No habits today". An unknown or missing value counts as `signedOut`. |
+| `state` | `ok`: signed in with at least one habit due today. `signedOut`: show an **"Open Perseveo"** prompt (tap opens `perseveo://open`). `noHabits`: signed in but nothing is due today; show an "Open Perseveo" prompt too, e.g. "No habits today". An unknown or missing value counts as `signedOut`. |
 | `habits` | Today's due habits in app order (empty unless `ok`). Archived and deleted habits are never included. |
 | `habits[].color` | ARGB as an unsigned 32-bit integer (`0xAARRGGBB`), so read it as a 64-bit integer. `colorHex` is the same colour as `#RRGGBB`. |
 | `habits[].toggleUri` | The check-off URI for that habit (see below). |
-| `quote` | Today's quote, or `null` when there is none (not loaded yet, offline with no cache). **Also written when `state` is `signedOut`**: the quote of the day is public (`GET /quotes` without an `Authorization` header), so the Daily quote widget shows it without a session; only Today's habits shows "Open HabitQuest". `author` is `null` for anonymous quotes; `attribution` is ready to display ("— Unknown" when anonymous). `day` is the local day it is the quote of (`null` in snapshots written before 2026-10-23); when it is before today the quote is yesterday's and the background refresh fetches a new one. Widgets keep showing it meanwhile. |
+| `quote` | Today's quote, or `null` when there is none (not loaded yet, offline with no cache). **Also written when `state` is `signedOut`**: the quote of the day is public (`GET /quotes` without an `Authorization` header), so the Daily quote widget shows it without a session; only Today's habits shows "Open Perseveo". `author` is `null` for anonymous quotes; `attribution` is ready to display ("— Unknown" when anonymous). `day` is the local day it is the quote of (`null` in snapshots written before 2026-10-23); when it is before today the quote is yesterday's and the background refresh fetches a new one. Widgets keep showing it meanwhile. |
 | `upcoming` | The due habits (same shape as `habits`, `done: false`) of the next 7 days after `date`, precomputed by the app from local data (habits, schedules, the completion log). When `date` is before today, a widget shows the entry for today if there is one (Android: `WidgetSnapshot.kt`), so Today's habits rolls over at midnight even before anything rewrote the snapshot. Empty when signed out. "N times per week" habits are computed with the check-ins known when the snapshot was written. |
 
 When no snapshot exists yet (the app has never run), treat it as `signedOut`.
@@ -76,8 +76,8 @@ When no snapshot exists yet (the app has never run), treat it as `signedOut`.
 
 | Widget | Android provider (fully qualified class) | iOS WidgetKit `kind` |
 |---|---|---|
-| Today's habits | `com.vvs.habitquest.widgets.TodayHabitsWidgetReceiver` | `TodayHabitsWidget` |
-| Daily quote | `com.vvs.habitquest.widgets.DailyQuoteWidgetReceiver` | `DailyQuoteWidget` |
+| Today's habits | `ro.csm.perseveo.widgets.TodayHabitsWidgetReceiver` | `TodayHabitsWidget` |
+| Daily quote | `ro.csm.perseveo.widgets.DailyQuoteWidgetReceiver` | `DailyQuoteWidget` |
 
 The app calls `HomeWidget.updateWidget` for each pair. A widget that does not
 exist yet is skipped silently. If you rename a class or kind, change
@@ -136,7 +136,7 @@ quote, with no new Flutter dependency:
    repeated calls are cheap) and cancelled when the last widget is removed:
    no widget, no background work.
 2. **The worker wakes Dart** through home_widget's background callback with
-   `habitquest://widget/refresh?id=<uuid>` (`HomeWidgetBackgroundWorker`, the
+   `perseveo://widget/refresh?id=<uuid>` (`HomeWidgetBackgroundWorker`, the
    same headless engine as widget check-offs). It waits up to 30 s for Dart to
    write `{"id", "outcome"}` under `hq_widget_refresh_status`, which keeps the
    process alive during the fetch and lets WorkManager retry: `retryLater`
@@ -163,7 +163,7 @@ quote, with no new Flutter dependency:
 | Online, signed in | Today's habits (not done) and today's quote; both widgets refreshed. |
 | Snapshot already today's, with today's quote | Nothing written, **no network call** (the common periodic run). |
 | Offline / server error | Habits roll over; yesterday's quote stays; retried (catch-up / backoff / next periodic run). The snapshot is never wiped. |
-| No stored session | The `signedOut` snapshot (Today's habits: "Open HabitQuest") **with today's quote**, fetched anonymously (no `Authorization` header) when the stored quote is not today's. 401 (public read not live yet) or 404: the old quote stays, outcome `signedOut`. Offline / 5xx: the old quote stays, `retryLater`. |
+| No stored session | The `signedOut` snapshot (Today's habits: "Open Perseveo") **with today's quote**, fetched anonymously (no `Authorization` header) when the stored quote is not today's. 401 (public read not live yet) or 404: the old quote stays, outcome `signedOut`. Offline / 5xx: the old quote stays, `retryLater`. |
 | Refresh token rejected | `AuthController` clears the session as the app would; then as "No stored session". |
 | Session storage unreadable | Nothing changes; retried later. |
 | Stored session, but no snapshot yet / snapshot says signed out | Left to the app (it has not caught up with the sign-in). |
@@ -192,14 +192,14 @@ handling of widget links (3987db2) is unchanged.
 **Check it on a device (debug build):**
 
 ```sh
-adb -s <serial> shell run-as com.vvs.habitquest \
+adb -s <serial> shell run-as ro.csm.perseveo \
   cat shared_prefs/HomeWidgetPreferences.xml        # see hq_widget_snapshot
 # Make the snapshot stale: copy the file out, change "date" and quote "day"
 # to yesterday (and the quote text), push it back with run-as, then
 # force-stop the app so the edited prefs are re-read.
-adb -s <serial> shell am force-stop com.vvs.habitquest
-adb -s <serial> shell dumpsys jobscheduler | grep -B2 -A10 com.vvs.habitquest  # find the WorkManager job id
-adb -s <serial> shell cmd jobscheduler run -f com.vvs.habitquest <job id>
+adb -s <serial> shell am force-stop ro.csm.perseveo
+adb -s <serial> shell dumpsys jobscheduler | grep -B2 -A10 ro.csm.perseveo  # find the WorkManager job id
+adb -s <serial> shell cmd jobscheduler run -f ro.csm.perseveo <job id>
 adb -s <serial> logcat -s HabitQuestWidgets WidgetBridge   # "Widget refresh (periodic): updated"
 ```
 
@@ -231,8 +231,8 @@ see "Signed-out reads" in `supabase/API.md`). The anon key is sent as
 - **Background refresh:** see the table above (anonymous fetch, old quote
   kept on failure). The midnight roll-over works in both states.
 - **Android widget:** `WidgetSnapshot.kt` reads `quote` in every state, so
-  the Daily quote widget shows it; Today's habits keeps "Open HabitQuest".
-- **Tap while signed out:** `habitquest://quotes` → `/habits/quotes` →
+  the Daily quote widget shows it; Today's habits keeps "Open Perseveo".
+- **Tap while signed out:** `perseveo://quotes` → `/habits/quotes` →
   the auth gate sends it to `/quote`, the **public quote screen**, the only
   route allowed signed out. Back (system or app bar) goes to `/login`. The
   heart remembers the quote and opens `/login?from=/habits/quotes`; after
@@ -254,11 +254,11 @@ this Mac):
 
 1. Rendering: by reading the code, `WidgetSnapshot.swift` already keeps
    `quote` for the `signedOut` state and `DailyQuoteWidget.swift` only shows
-   its "Open HabitQuest" prompt when there is no quote, so no change should
+   its "Open Perseveo" prompt when there is no quote, so no change should
    be needed; confirm on a device. Optionally reword that prompt's
    signed-out message ("Sign in to get a quote every day."), which now only
    shows before the first quote was fetched.
-2. The tap URL is unchanged (`habitquest://quotes`); the Dart router handles
+2. The tap URL is unchanged (`perseveo://quotes`); the Dart router handles
    signed-out vs signed-in, so nothing to change there.
 3. Without the app running, the iOS quote still does not roll over at
    midnight (see below); signed out, option 3 below gets simpler: the
@@ -296,12 +296,12 @@ built on this Mac):
 
 | URI | Effect when it opens the app |
 |---|---|
-| `habitquest://open` | Habits tab (header taps, "Open HabitQuest" state) |
-| `habitquest://quotes` | Quotes screen (Daily quote widget tap); signed out, the public quote screen `/quote` |
-| `habitquest://widget/toggle?habitId=<id>` | Toggles today's check-in of `<id>` through `HabitService.toggleCompletion`, then shows the Habits tab. Use this as the fallback on iOS < 17. Duplicate deliveries within 3 s are ignored. |
+| `perseveo://open` | Habits tab (header taps, "Open Perseveo" state) |
+| `perseveo://quotes` | Quotes screen (Daily quote widget tap); signed out, the public quote screen `/quote` |
+| `perseveo://widget/toggle?habitId=<id>` | Toggles today's check-in of `<id>` through `HabitService.toggleCompletion`, then shows the Habits tab. Use this as the fallback on iOS < 17. Duplicate deliveries within 3 s are ignored. |
 
 **Each link is consumed exactly once.** The app maps it to one navigation
-that keeps the Habits tab underneath (`habitquest://quotes` → `/habits/quotes`,
+that keeps the Habits tab underneath (`perseveo://quotes` → `/habits/quotes`,
 i.e. Quotes stacked on Habits; `…/quotes/saved` → `/habits/quotes/saved`).
 Back from Quotes therefore returns to Habits, and a later launcher start shows
 Habits. (Bug fixed on 2026-10-18: the link used to replace the whole stack with
@@ -322,7 +322,7 @@ is not used). Regression test: `test/features/widgets_bridge/widget_deep_link_te
 > on Habits.
 
 The `habitId` is URI-encoded (`Uri.encodeQueryComponent`); use the
-`toggleUri` field as given. Both platforms already register the `habitquest`
+`toggleUri` field as given. Both platforms already register the `perseveo`
 scheme (Android intent filters for the hosts `open`, `quotes` and `widget`;
 `CFBundleURLSchemes` on iOS).
 
@@ -331,14 +331,14 @@ scheme (Android intent filters for the hosts `open`, `quotes` and `widget`;
 **Mechanism: the home_widget interactive background callback plus a
 queue that the app applies.**
 
-1. The widget fires `habitquest://widget/toggle?habitId=<id>` through
+1. The widget fires `perseveo://widget/toggle?habitId=<id>` through
    home_widget's interactive callback:
    - **Android:** `HomeWidgetBackgroundIntent.getBroadcast(context, Uri.parse(toggleUri))`
      as the checkbox's click PendingIntent. The receiver
      `es.antonborri.home_widget.HomeWidgetBackgroundReceiver` is already
      declared in `AndroidManifest.xml`.
    - **iOS 17+:** an `AppIntent` whose `perform()` calls
-     `await HomeWidgetBackgroundWorker.run(url: URL(string: toggleUri), appGroup: "group.com.vvs.habitquest")`.
+     `await HomeWidgetBackgroundWorker.run(url: URL(string: toggleUri), appGroup: "group.ro.csm.perseveo")`.
      The intent file must be a member of **both** the Runner and widget
      targets. Runner's `AppDelegate` must also call
      `HomeWidgetBackgroundWorker.setPluginRegistrantCallback { registry in GeneratedPluginRegistrant.register(with: registry) }`

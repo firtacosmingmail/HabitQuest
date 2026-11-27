@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Habit Quest</string>
+	<string>Perseveo</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -13,7 +13,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>Habit Quest</string>
+	<string>Perseveo</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -45,22 +45,23 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
-	<!-- Email confirmation deep link: habitquest://auth-callback?status=... -->
+	<!-- Email confirmation deep link: perseveo://auth-callback?status=... -->
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
 			<key>CFBundleTypeRole</key>
 			<string>Viewer</string>
 			<key>CFBundleURLName</key>
-			<string>com.vvs.habitquest</string>
+			<string>ro.csm.perseveo</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>habitquest</string>
+				<string>perseveo</string>
 			</array>
 		</dict>
 		<!-- Google Sign-In callback: the REVERSED iOS OAuth client ID
 		     1004491055558-g9e3c66039g0tpn16c2ovfvu7ts9pbv0.apps.googleusercontent.com
-		     (Google Cloud project 1004491055558, bundle com.vvs.habitquest).
+		     (Google Cloud project 1004491055558; created for the old bundle
+		     com.vvs.habitquest, change it to ro.csm.perseveo in Google Cloud).
 		     Keep it in sync with googleIosClientId in lib/core/config/env.dart
 		     (README "Sign in with Google & Apple"). -->
 		<dict>
@@ -84,7 +85,7 @@
 	<string>1004491055558-o1h2t0ncb5dsdna7l0hb1ci2rhk6aqnd.apps.googleusercontent.com</string>
 	<key>FlutterDeepLinkingEnabled</key>
 	<true/>
-	<!-- Google AdMob app ID: Habit Quest's real iOS app ID, used for every
+	<!-- Google AdMob app ID: Perseveo's real iOS app ID, used for every
 	     build (debug builds still get test ads via the dev test unit IDs).
 	     Keep in sync with admobIosAppId in lib/core/config/env.dart
 	     (see README "Advertising (AdMob)"). -->
@@ -92,7 +93,7 @@
 	<string>ca-app-pub-5156448354942178~4999843447</string>
 	<!-- App Tracking Transparency prompt (asked after the Google consent form). -->
 	<key>NSUserTrackingUsageDescription</key>
-	<string>Habit Quest is free thanks to a few small ads. Allowing tracking lets us show ads that are more relevant to you. Your habits are never shared.</string>
+	<string>Perseveo is free thanks to a few small ads. Allowing tracking lets us show ads that are more relevant to you. Your habits are never shared.</string>
 	<!-- SKAdNetwork IDs for Google and its third-party buyers, from
 	     https://developers.google.com/admob/ios/3p-skadnetworks -->
 	<key>SKAdNetworkItems</key>

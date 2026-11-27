@@ -6,7 +6,7 @@ import WidgetKit
 /// `lib/features/widgets_bridge/widget_constants.dart` (contract:
 /// `docs/WIDGETS.md`).
 enum WidgetConstants {
-  static let appGroupId = "group.com.vvs.habitquest"
+  static let appGroupId = "group.ro.csm.perseveo"
   static let snapshotKey = "hq_widget_snapshot"
 
   static let todayHabitsKind = "TodayHabitsWidget"
@@ -15,9 +15,9 @@ enum WidgetConstants {
   static let stateOk = "ok"
   static let stateNoHabits = "noHabits"
 
-  static let openURL = URL(string: "habitquest://open")!
-  static let quotesURL = URL(string: "habitquest://quotes")!
-  static let toggleURIPrefix = "habitquest://widget/toggle?habitId="
+  static let openURL = URL(string: "perseveo://open")!
+  static let quotesURL = URL(string: "perseveo://quotes")!
+  static let toggleURIPrefix = "perseveo://widget/toggle?habitId="
 }
 
 /// The snapshot JSON the app writes (schema `version` 1). The widgets only

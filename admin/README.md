@@ -1,6 +1,6 @@
-# HabitQuest admin console (`admin/`)
+# Perseveo admin console (`admin/`)
 
-A small Flutter **web** app for the HabitQuest admins: manage the daily
+A small Flutter **web** app for the Perseveo admins: manage the daily
 quotes and look at aggregated usage stats. It is a separate Flutter app with
 its own `pubspec.yaml`; nothing here is imported by the mobile app in `lib/`,
 so it never ships inside the iOS/Android builds. See the

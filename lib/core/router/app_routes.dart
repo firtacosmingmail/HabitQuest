@@ -34,7 +34,7 @@ abstract final class AppRoutes {
   /// [savedQuotes] stacked on [habitsQuotes] (widget link).
   static const habitsSavedQuotes = '/habits/quotes/saved';
 
-  /// Email confirmation deep link (`habitquest://auth-callback?...`).
+  /// Email confirmation deep link (`perseveo://auth-callback?...`).
   static const authCallback = '/auth-callback';
 
   static String habitDetails(String id) => '/habits/$id';

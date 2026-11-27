@@ -1,4 +1,4 @@
-# Habit Quest confirmation pages
+# Perseveo confirmation pages
 
 Static pages that the `auth-confirm` Supabase Edge Function redirects to after a
 user clicks the link in their confirmation email.

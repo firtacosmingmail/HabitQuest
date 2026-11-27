@@ -39,16 +39,16 @@ void main() {
       expect(AuthCallbackResult.fromQuery({}), isNull);
     });
 
-    test('maps habitquest://auth-callback to /auth-callback', () {
+    test('maps perseveo://auth-callback to /auth-callback', () {
       expect(
         deepLinkLocation(
-          Uri.parse('habitquest://auth-callback?status=confirmed'),
+          Uri.parse('perseveo://auth-callback?status=confirmed'),
         ),
         '/auth-callback?status=confirmed',
       );
       expect(
         deepLinkLocation(
-          Uri.parse('habitquest://auth-callback/?status=error&reason=expired'),
+          Uri.parse('perseveo://auth-callback/?status=error&reason=expired'),
         ),
         '/auth-callback?status=error&reason=expired',
       );
@@ -124,10 +124,10 @@ void main() {
         findsNothing,
       );
 
-      // What the engine delivers for habitquest://auth-callback?...
+      // What the engine delivers for perseveo://auth-callback?...
       c
           .read(routerProvider)
-          .go('habitquest://auth-callback?status=error&reason=invalid');
+          .go('perseveo://auth-callback?status=error&reason=invalid');
       await tester.pumpAndSettle();
       expect(location(c), '/login?status=error&reason=invalid');
       expect(find.byKey(const ValueKey('auth-callback-error')), findsOneWidget);
@@ -138,7 +138,7 @@ void main() {
       final c = await pumpHabitQuestApp(tester, initialLocation: '/quest');
       expect(find.byType(QuestScreen), findsOneWidget);
 
-      c.read(routerProvider).go('habitquest://auth-callback?status=confirmed');
+      c.read(routerProvider).go('perseveo://auth-callback?status=confirmed');
       await tester.pumpAndSettle();
       expect(location(c), '/quest');
       expect(find.byType(QuestScreen), findsOneWidget);

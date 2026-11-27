@@ -5,7 +5,7 @@ import 'src/api/http_admin_api.dart';
 import 'src/app.dart';
 import 'src/config.dart';
 
-/// HabitQuest admin console (web). See admin/README.md.
+/// Perseveo admin console (web). See admin/README.md.
 void main() {
   final config = AdminConfig.fromEnvironment();
   runApp(

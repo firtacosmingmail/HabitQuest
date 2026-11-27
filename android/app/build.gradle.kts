@@ -86,7 +86,7 @@ val releaseSigning: ReleaseSigning? = run {
 }
 
 android {
-    namespace = "com.vvs.habitquest"
+    namespace = "ro.csm.perseveo"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -98,7 +98,7 @@ android {
     }
 
     buildFeatures {
-        // Jetpack Glance home-screen widgets (com.vvs.habitquest.widgets).
+        // Jetpack Glance home-screen widgets (ro.csm.perseveo.widgets).
         compose = true
     }
 
@@ -108,7 +108,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.vvs.habitquest"
+        applicationId = "ro.csm.perseveo"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         // google_mobile_ads 9.x needs at least API 24.

@@ -74,12 +74,12 @@ void Function() listenForWidgetSignals(
 }
 
 /// home_widget's interactive background callback (Android broadcast /
-/// iOS 17 AppIntent → `habitquest://widget/toggle?habitId=`). Runs in a
+/// iOS 17 AppIntent → `perseveo://widget/toggle?habitId=`). Runs in a
 /// headless isolate: it only queues the check-off and updates the snapshot
 /// (see `widget_toggle_queue.dart`), then pokes the app if it is running.
 ///
 /// It also runs the daily refresh: Android's `WidgetRefreshWorker`
-/// (WorkManager, see docs/WIDGETS.md) sends `habitquest://widget/refresh`
+/// (WorkManager, see docs/WIDGETS.md) sends `perseveo://widget/refresh`
 /// through the same receiver after midnight and every few hours.
 @pragma('vm:entry-point')
 Future<void> widgetInteractivityCallback(Uri? uri) async {

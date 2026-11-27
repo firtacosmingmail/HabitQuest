@@ -1,5 +1,5 @@
 name: habitquest_admin
-description: "HabitQuest admin web console (web only; never shipped in the mobile app)."
+description: "Perseveo admin web console (web only; never shipped in the mobile app)."
 publish_to: 'none'
 version: 0.1.0+1
 
