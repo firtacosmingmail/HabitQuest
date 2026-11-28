@@ -39,8 +39,5 @@ public struct HabitToggleIntent: AppIntent {
   }
 }
 
-/// Lets the system wake the (suspended or terminated) app in the background to
-/// run the intent, as home_widget documents. Not available in the extension.
-@available(iOS 17, *)
-@available(iOSApplicationExtension, unavailable)
-extension HabitToggleIntent: ForegroundContinuableIntent {}
+// The ForegroundContinuableIntent conformance (app only) is in AppDelegate.swift,
+// which only the Runner target compiles.
