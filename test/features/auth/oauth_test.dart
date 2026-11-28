@@ -193,7 +193,7 @@ void main() {
       for (final ids in oauthEnvs.values) {
         expect(
           ids.googleIosClientId,
-          '1004491055558-g9e3c66039g0tpn16c2ovfvu7ts9pbv0'
+          '900722726819-iqu04qifrh5tvm3tgrh5qjiuh8gijfbj'
           '.apps.googleusercontent.com',
         );
         expect(ids.googleWebClientId, endsWith('.apps.googleusercontent.com'));

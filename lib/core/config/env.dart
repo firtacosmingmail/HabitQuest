@@ -167,17 +167,17 @@ class OAuthIds {
 /// one configured in the Supabase Google provider); the Apple values are
 /// still empty placeholders.
 const oauthPlaceholderIds = OAuthIds(
-  // iOS client (created for the old bundle com.vvs.habitquest; its bundle ID
-  // must be changed to ro.csm.perseveo in Google Cloud). Its reversed form is the
-  // URL scheme in ios/Runner/Info.plist; keep the two in sync.
+  // iOS client (Google Cloud project 900722726819, bundle ID ro.csm.perseveo).
+  // Its reversed form is the URL scheme in ios/Runner/Info.plist; keep the two
+  // in sync.
   googleIosClientId:
-      '1004491055558-g9e3c66039g0tpn16c2ovfvu7ts9pbv0.apps.googleusercontent.com',
+      '900722726819-iqu04qifrh5tvm3tgrh5qjiuh8gijfbj.apps.googleusercontent.com',
   // Web client (also the Android serverClientId); matches Supabase's
   // external_google_client_id. Must be a "Web application" OAuth client,
   // otherwise GMS fails with [28444] "You must use a Web client as the
   // server client ID".
   googleWebClientId:
-      '1004491055558-o1h2t0ncb5dsdna7l0hb1ci2rhk6aqnd.apps.googleusercontent.com',
+      '900722726819-g6v4g92k44f6ig24gevmbqlg64sfv6kh.apps.googleusercontent.com',
   appleServiceId:
       '', // TODO(you): e.g. ro.csm.perseveo.signin (only for Android/web)
   appleRedirectUri:

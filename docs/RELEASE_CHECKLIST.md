@@ -42,7 +42,7 @@ policy draft is [`confirm-pages/privacy.html`](../confirm-pages/privacy.html)
   expiry). TestFlight and App Store Connect need an active paid membership.
 - [ ] **Google Cloud project** used for Google sign-in (the one that holds
   the iOS/web OAuth clients already in `ios/Runner/Info.plist`, project number
-  `1004491055558`). Free. You need access to it for steps 2.7 and 2.10.
+  `900722726819`, "Perseveo"). Free. You need access to it for steps 2.7 and 2.10.
 - [ ] **Decide the developer name and contact email** shown on the store
   listings and in the privacy policy (they replace `{{DEVELOPER_NAME}}` and
   `{{CONTACT_EMAIL}}` in `confirm-pages/privacy.html` and `docs/store/`).
