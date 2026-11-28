@@ -1,3 +1,4 @@
+import AppIntents
 import Flutter
 import UIKit
 import UserNotifications
@@ -25,3 +26,12 @@ import home_widget
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 }
+
+/// Lets the system wake the (suspended or terminated) app in the background to
+/// run HabitToggleIntent, as home_widget documents. Declared here, not in
+/// HabitToggleIntent.swift: that file is also compiled into the widget
+/// extension, where ForegroundContinuableIntent is unavailable; there, Xcode
+/// 27 failed the release archive ("'HabitToggleIntent' is only available in
+/// iOS 17 or newer") despite `@available(iOSApplicationExtension, unavailable)`.
+@available(iOS 17, *)
+extension HabitToggleIntent: ForegroundContinuableIntent {}

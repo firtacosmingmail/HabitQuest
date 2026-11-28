@@ -91,8 +91,10 @@ struct HabitRow: View {
         .background(habit.tint.opacity(0.22), in: Circle())
       Text(habit.name)
         .font(compact ? .caption : .subheadline)
-        .lineLimit(1)
+        // Text's own strikethrough (iOS 13+); after lineLimit it would be
+        // the View modifier, which needs iOS 16 (the target is iOS 15).
         .strikethrough(habit.done, color: .secondary)
+        .lineLimit(1)
         .foregroundStyle(habit.done ? Color.secondary : Color.primary)
       Spacer(minLength: 2)
       CheckButton(habit: habit, allowLink: !compact)
