@@ -544,7 +544,7 @@ class _ConsistentActionsSectionState
   }
 
   Future<void> _reorder(List<ConsistentAction> items, int from, int to) async {
-    // `to` is already adjusted for the removed item (onReorderItem).
+    // `to` is the index after `from` has been removed (adjusted by the caller).
     final ids = items.map((a) => a.id).toList();
     if (from == to) return;
     ids.insert(to, ids.removeAt(from));
@@ -584,7 +584,10 @@ class _ConsistentActionsSectionState
           physics: const NeverScrollableScrollPhysics(),
           buildDefaultDragHandles: false,
           padding: EdgeInsets.zero,
-          onReorderItem: (from, to) => _reorder(actions, from, to),
+          // onReorder's `newIndex` counts the dragged item's old slot, so
+          // shift it down when moving an item later in the list.
+          onReorder: (from, to) =>
+              _reorder(actions, from, from < to ? to - 1 : to),
           proxyDecorator: (child, _, animation) => AnimatedBuilder(
             animation: animation,
             builder: (context, child) => Material(
