@@ -20,3 +20,5 @@ upload-keystore.*
 *.p12
 # Google OAuth client secrets downloaded from Cloud Console.
 client_secret_*.json
+# Local signing keys and their passwords; never commit.
+/keys/
